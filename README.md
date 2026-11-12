@@ -64,6 +64,10 @@ Settings are in `BepInEx/config/valheim.epiclootprogressionfix.cfg`. Settings ma
 
 Back up your saves first. Remove trinkets and utility items without visible models from armor stands using E, and empty the added ship-storage rows before reverting to smaller grids. If you still have legacy Starter Gear, load and save the characters and containers holding it before uninstalling. Remove the add-on from the server and every client together.
 
+## Report a problem
+
+Report bugs and ideas on [GitHub](https://github.com/Tenemo/valheim-epicloot-progression-fix/issues). Include the mod's version and your `BepInEx/LogOutput.log`.
+
 ## Credits
 
 EpicLoot is by RandyKnapp. Built with AI assistance. Release notes are in `CHANGELOG.md`.

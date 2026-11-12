@@ -1,7 +1,7 @@
 {
   "name": "EpicLoot_ProgressionFix",
   "version_number": "1.24.1",
-  "website_url": "",
+  "website_url": "https://github.com/Tenemo/valheim-epicloot-progression-fix",
   "description": "Opinionated EpicLoot balance, crafting progression, combat, loot and inventory fixes, with optional mod integrations. Install on server and clients.",
   "dependencies": [
     "denikson-BepInExPack_Valheim-5.4.2360",
