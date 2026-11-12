@@ -66,7 +66,7 @@ Back up your saves first. Remove trinkets and utility items without visible mode
 
 ## Report a problem
 
-Report bugs and ideas on [GitHub](https://github.com/Tenemo/valheim-epicloot-progression-fix/issues). Include the mod's version and your `BepInEx/LogOutput.log`.
+Report bugs and ideas on [GitHub](https://github.com/Tenemo/valheim-epicloot-progression-fix/issues), or message `tenemo` on Discord. Include the mod's version and your `BepInEx/LogOutput.log`.
 
 ## Credits
 
