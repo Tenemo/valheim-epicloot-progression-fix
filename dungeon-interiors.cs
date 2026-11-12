@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using BepInEx.Logging;
 using HarmonyLib;
+using SoftReferenceableAssets;
 using UnityEngine;
 
 namespace EpicLootProgressionFix
@@ -39,6 +40,29 @@ namespace EpicLootProgressionFix
         private static readonly Dictionary<Vector2s, Bounds> interiors = new Dictionary<Vector2s, Bounds>();
         private static readonly Dictionary<Vector2s, ZDOID> interiorProxies = new Dictionary<Vector2s, ZDOID>();
         private static readonly Dictionary<ZDOID, Vector2s> playerDungeons = new Dictionary<ZDOID, Vector2s>();
+        // What locating an interior needs from a location's or room's prefab, taken once per server run. Loading a prefab
+        // stops the server for up to half a second, so an entry check loads missing ones in the background and decides
+        // once they are in, with the time it first saw the player.
+        private static readonly Dictionary<int, LocationShape> locationShapes = new Dictionary<int, LocationShape>();
+        private static readonly Dictionary<int, RoomShape> roomShapes = new Dictionary<int, RoomShape>();
+        private static readonly Dictionary<int, SoftReference<GameObject>> loadingLocations = new Dictionary<int, SoftReference<GameObject>>();
+        private static readonly Dictionary<int, SoftReference<GameObject>> loadingRooms = new Dictionary<int, SoftReference<GameObject>>();
+        private static readonly Dictionary<ZDOID, long> entrySeen = new Dictionary<ZDOID, long>();
+        private static readonly int RoomData = "roomData".GetStableHashCode();
+
+        private sealed class LocationShape
+        {
+            internal bool Generator, Custom;
+            internal int GeneratorPrefab;
+            internal Vector3 GeneratorLocal, GeneratorOriginal, InteriorOffset, ZoneSize;
+            internal Vector3[] Views;
+        }
+
+        private sealed class RoomShape
+        {
+            internal Vector3 Half;
+            internal Vector3[] Points;
+        }
 
         private sealed class Operation
         {
@@ -112,7 +136,7 @@ namespace EpicLootProgressionFix
         {
             if (!(position.y > InteriorHeight) || float.IsInfinity(position.y) || float.IsNaN(position.x) || float.IsInfinity(position.x) || float.IsNaN(position.z) || float.IsInfinity(position.z))
             {
-                playerDungeons.Remove(player);
+                playerDungeons.Remove(player); entrySeen.Remove(player);
                 return;
             }
             if (playerDungeons.TryGetValue(player, out var known) && Inside(position, known) && interiorProxies.TryGetValue(known, out var identity))
@@ -126,6 +150,7 @@ namespace EpicLootProgressionFix
             ZDO closest = null;
             Vector2s dungeon = default;
             float distance = float.MaxValue;
+            bool loading = false;
             for (int x = -1; x <= 1; x++)
                 for (int z = -1; z <= 1; z++)
                 {
@@ -133,7 +158,11 @@ namespace EpicLootProgressionFix
                     if (failed.Contains(zone) || !GeneratedZones(ZoneSystem.instance).Contains(zone) || !Locations(ZoneSystem.instance).TryGetValue(zone, out var instance) || ConfiguredEntry(instance) == null) continue;
                     var proxy = findProxy(zone, instance.m_location.Hash);
                     if (proxy == null) continue;
-                    try { LocateInterior(zone, proxy, instance.m_location); }
+                    try
+                    {
+                        if (!InteriorLoaded(zone, proxy, instance.m_location)) { loading = true; continue; }
+                        LocateInterior(zone, proxy, instance.m_location);
+                    }
                     catch (Exception error)
                     {
                         failed.Add(zone);
@@ -146,8 +175,15 @@ namespace EpicLootProgressionFix
                     if (squared >= distance) continue;
                     closest = proxy; dungeon = zone; distance = squared;
                 }
+            if (loading)
+            {
+                if (!entrySeen.ContainsKey(player)) entrySeen[player] = Now;
+                return;
+            }
+            long seen = entrySeen.TryGetValue(player, out long first) ? first : Now;
+            entrySeen.Remove(player);
             if (closest == null) return;
-            DungeonResetTimers.Start(closest);
+            DungeonResetTimers.Start(closest, seen);
             playerDungeons[player] = dungeon;
         }
 
@@ -230,77 +266,125 @@ namespace EpicLootProgressionFix
         internal static void LocateInterior(Vector2s zone, ZDO proxy, ZoneSystem.ZoneLocation location)
         {
             if (interiorProxies.TryGetValue(zone, out var known) && known == proxy.m_uid) return;
-            location.m_prefab.Load();
-            try
+            var shape = Shape(location.Hash, location.m_prefab, locationShapes, TakeLocation);
+            Bounds bounds;
+            if (shape.Generator)
             {
-                var prefab = location.m_prefab.Asset;
-                var component = prefab.GetComponent<Location>();
-                var generator = component.m_generator != null ? component.m_generator : prefab.GetComponentInChildren<DungeonGenerator>(true);
-                Bounds bounds;
-                if (generator != null)
-                {
-                    var local = prefab.transform.InverseTransformPoint(generator.transform.position);
-                    var position = proxy.GetPosition() + RegenerationRotation(proxy) * local;
-                    var original = generator.transform.localPosition;
-                    bool custom = component.m_useCustomInteriorTransform && component.m_generator != null && component.m_interiorTransform != null;
-                    if (custom)
-                    {
-                        var offset = component.m_interiorTransform.localPosition;
-                        position = ZoneSystem.GetZonePos(zone) + offset + original;
-                        position.y = proxy.GetPosition().y + offset.y;
-                    }
-                    var center = ZoneSystem.GetZonePos(ZoneSystem.GetZone(position));
-                    center.y = position.y - (custom ? original.y : 0);
-                    bounds = new Bounds(center, generator.m_zoneSize);
-                    var saved = new List<ZDO>();
-                    for (int x = -1; x <= 1; x++)
-                        for (int z = -1; z <= 1; z++) findObjects(new Vector2s(zone.x + x, zone.y + z), saved);
-                    var record = saved.FirstOrDefault(value => value.GetPrefab() == generator.name.GetStableHashCode() && Vector3.Distance(value.GetPosition(), position) < .1f);
-                    if (record == null) throw new InvalidOperationException("The saved dungeon generator could not be located.");
-                    AddRoomBounds(ref bounds, record);
-                }
-                else
-                {
-                    bounds = new Bounds(proxy.GetPosition() + Vector3.up * 5000, new Vector3(64, 500, 64));
-                    foreach (var view in prefab.GetComponentsInChildren<ZNetView>(true))
-                    {
-                        Vector3 position = proxy.GetPosition() + RegenerationRotation(proxy) * prefab.transform.InverseTransformPoint(view.transform.position);
-                        if (position.y > InteriorHeight) bounds.Encapsulate(position);
-                    }
-                }
-                bounds.Expand(4f);
-                interiors[zone] = bounds;
-                interiorProxies[zone] = proxy.m_uid;
+                var position = GeneratorPosition(zone, proxy, shape);
+                var center = ZoneSystem.GetZonePos(ZoneSystem.GetZone(position));
+                center.y = position.y - (shape.Custom ? shape.GeneratorOriginal.y : 0);
+                bounds = new Bounds(center, shape.ZoneSize);
+                var record = FindGeneratorRecord(zone, position, shape) ?? throw new InvalidOperationException("The saved dungeon generator could not be located.");
+                AddRoomBounds(ref bounds, record);
             }
-            finally { location.m_prefab.Release(); }
+            else
+            {
+                bounds = new Bounds(proxy.GetPosition() + Vector3.up * 5000, new Vector3(64, 500, 64));
+                foreach (var local in shape.Views)
+                {
+                    Vector3 position = proxy.GetPosition() + RegenerationRotation(proxy) * local;
+                    if (position.y > InteriorHeight) bounds.Encapsulate(position);
+                }
+            }
+            bounds.Expand(4f);
+            interiors[zone] = bounds;
+            interiorProxies[zone] = proxy.m_uid;
+        }
+
+        // Whether LocateInterior can run without loading a prefab; starts loading the missing ones otherwise.
+        private static bool InteriorLoaded(Vector2s zone, ZDO proxy, ZoneSystem.ZoneLocation location)
+        {
+            if (interiorProxies.TryGetValue(zone, out var known) && known == proxy.m_uid) return true;
+            if (!Loaded(location.Hash, location.m_prefab, locationShapes, loadingLocations, TakeLocation)) return false;
+            var shape = locationShapes[location.Hash];
+            if (!shape.Generator) return true;
+            var record = FindGeneratorRecord(zone, GeneratorPosition(zone, proxy, shape), shape);
+            // LocateInterior reports a missing generator, room layout or room.
+            if (record == null || !record.GetByteArray(RoomData, out var bytes)) return true;
+            bool loaded = true;
+            using var reader = new BinaryReader(new MemoryStream(bytes));
+            int count = reader.ReadInt32();
+            for (int index = 0; index < count; index++)
+            {
+                int hash = reader.ReadInt32();
+                Utils.ReadVector3(reader); Utils.ReadQuaternion(reader);
+                var room = DungeonDB.instance.GetRoom(hash);
+                if (room != null) loaded &= Loaded(hash, room.m_prefab, roomShapes, loadingRooms, TakeRoom);
+            }
+            return loaded;
+        }
+
+        private static T Shape<T>(int key, SoftReference<GameObject> asset, Dictionary<int, T> shapes, Func<GameObject, T> take)
+        {
+            if (shapes.TryGetValue(key, out var shape)) return shape;
+            asset.Load();
+            try { return shapes[key] = take(asset.Asset); }
+            finally { asset.Release(); }
+        }
+
+        private static bool Loaded<T>(int key, SoftReference<GameObject> asset, Dictionary<int, T> shapes, Dictionary<int, SoftReference<GameObject>> loading, Func<GameObject, T> take)
+        {
+            bool started = loading.TryGetValue(key, out var pending);
+            if (!started && shapes.ContainsKey(key)) return true;
+            if (!started) { asset.LoadAsync(); loading[key] = pending = asset; }
+            if (!pending.IsLoaded) return false;
+            try { if (!shapes.ContainsKey(key)) shapes[key] = take(pending.Asset); }
+            finally { pending.Release(); loading.Remove(key); }
+            return true;
+        }
+
+        private static LocationShape TakeLocation(GameObject prefab)
+        {
+            var component = prefab.GetComponent<Location>();
+            var generator = component.m_generator != null ? component.m_generator : prefab.GetComponentInChildren<DungeonGenerator>(true);
+            if (generator == null)
+                return new LocationShape { Views = prefab.GetComponentsInChildren<ZNetView>(true).Select(view => prefab.transform.InverseTransformPoint(view.transform.position)).ToArray() };
+            bool custom = component.m_useCustomInteriorTransform && component.m_generator != null && component.m_interiorTransform != null;
+            return new LocationShape { Generator = true, Custom = custom, GeneratorPrefab = generator.name.GetStableHashCode(),
+                GeneratorLocal = prefab.transform.InverseTransformPoint(generator.transform.position), GeneratorOriginal = generator.transform.localPosition,
+                InteriorOffset = custom ? component.m_interiorTransform.localPosition : Vector3.zero, ZoneSize = generator.m_zoneSize };
+        }
+
+        private static RoomShape TakeRoom(GameObject prefab) => new RoomShape {
+            Half = (Vector3)prefab.GetComponent<Room>().m_size * .5f,
+            Points = prefab.GetComponentsInChildren<ZNetView>(true).Select(view => view.transform.position)
+                .Concat(prefab.GetComponentsInChildren<RoomConnection>(true).Select(connection => connection.transform.position))
+                .Select(point => prefab.transform.InverseTransformPoint(point)).ToArray() };
+
+        private static Vector3 GeneratorPosition(Vector2s zone, ZDO proxy, LocationShape shape)
+        {
+            if (!shape.Custom) return proxy.GetPosition() + RegenerationRotation(proxy) * shape.GeneratorLocal;
+            var position = ZoneSystem.GetZonePos(zone) + shape.InteriorOffset + shape.GeneratorOriginal;
+            position.y = proxy.GetPosition().y + shape.InteriorOffset.y;
+            return position;
+        }
+
+        private static ZDO FindGeneratorRecord(Vector2s zone, Vector3 position, LocationShape shape)
+        {
+            var saved = new List<ZDO>();
+            for (int x = -1; x <= 1; x++)
+                for (int z = -1; z <= 1; z++) findObjects(new Vector2s(zone.x + x, zone.y + z), saved);
+            return saved.FirstOrDefault(value => value.GetPrefab() == shape.GeneratorPrefab && Vector3.Distance(value.GetPosition(), position) < .1f);
         }
 
         private static void AddRoomBounds(ref Bounds bounds, ZDO generator)
         {
-            if (!generator.GetByteArray("roomData".GetStableHashCode(), out var bytes))
+            if (!generator.GetByteArray(RoomData, out var bytes))
                 throw new InvalidOperationException("The dungeon has no saved room layout.");
             using var reader = new BinaryReader(new MemoryStream(bytes));
             int count = reader.ReadInt32();
             for (int index = 0; index < count; index++)
             {
-                var room = DungeonDB.instance.GetRoom(reader.ReadInt32());
+                int hash = reader.ReadInt32();
+                var room = DungeonDB.instance.GetRoom(hash);
                 Vector3 position = Utils.ReadVector3(reader);
                 Quaternion rotation = Utils.ReadQuaternion(reader);
                 if (room == null) throw new InvalidOperationException("The dungeon references a missing room.");
-                room.m_prefab.Load();
-                try
-                {
-                    var prefab = room.m_prefab.Asset;
-                    Vector3 half = (Vector3)prefab.GetComponent<Room>().m_size * .5f;
-                    for (int x = -1; x <= 1; x += 2)
-                        for (int y = -1; y <= 1; y += 2)
-                            for (int z = -1; z <= 1; z += 2) bounds.Encapsulate(position + rotation * Vector3.Scale(half, new Vector3(x, y, z)));
-                    foreach (var view in prefab.GetComponentsInChildren<ZNetView>(true))
-                        bounds.Encapsulate(position + rotation * prefab.transform.InverseTransformPoint(view.transform.position));
-                    foreach (var connection in prefab.GetComponentsInChildren<RoomConnection>(true))
-                        bounds.Encapsulate(position + rotation * prefab.transform.InverseTransformPoint(connection.transform.position));
-                }
-                finally { room.m_prefab.Release(); }
+                var shape = Shape(hash, room.m_prefab, roomShapes, TakeRoom);
+                for (int x = -1; x <= 1; x += 2)
+                    for (int y = -1; y <= 1; y += 2)
+                        for (int z = -1; z <= 1; z += 2) bounds.Encapsulate(position + rotation * Vector3.Scale(shape.Half, new Vector3(x, y, z)));
+                foreach (var point in shape.Points) bounds.Encapsulate(position + rotation * point);
             }
         }
 
@@ -432,7 +516,12 @@ namespace EpicLootProgressionFix
             operation.Created.Add(__result);
         }
         private static void RecordView(ZNetView __instance) { if (operation != null && __instance.GetZDO() != null) operation.Views.Add(__instance); }
-        private static void ClearWorld() { occupied.Clear(); failed.Clear(); interiors.Clear(); interiorProxies.Clear(); playerDungeons.Clear(); running = false; nextSweep = 0; DungeonOccupancy.Clear(); }
+        private static void ClearWorld()
+        {
+            occupied.Clear(); failed.Clear(); interiors.Clear(); interiorProxies.Clear(); playerDungeons.Clear(); entrySeen.Clear(); running = false; nextSweep = 0; DungeonOccupancy.Clear();
+            foreach (var pending in loadingLocations.Values.Concat(loadingRooms.Values)) pending.Release();
+            loadingLocations.Clear(); loadingRooms.Clear();
+        }
     }
 
     internal static class DungeonResetTimers
@@ -441,11 +530,11 @@ namespace EpicLootProgressionFix
 
         internal static long Read(ZDO proxy) => proxy.GetLong(TimerKey);
 
-        internal static void Start(ZDO proxy)
+        internal static void Start(ZDO proxy, long at)
         {
             if (Read(proxy) > 0) return;
             proxy.SetOwner(ZDOMan.GetSessionID());
-            proxy.Set(TimerKey, DungeonInteriors.Now);
+            proxy.Set(TimerKey, at);
         }
     }
 }
