@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using UnityEngine;
@@ -9,11 +10,30 @@ namespace EpicLootProgressionFix
 {
     internal static partial class SleepEnemyPause
     {
+        // Each clock key of a prefab, with the age in seconds from which every reader of that clock acts the same however much
+        // older it is: the spawn interval times the most spawns rolled at once, the respawn, trigger, hatch and growth times,
+        // a full regeneration and being fed. Such a clock already that old when the night started stays as it is, since a
+        // shifted copy would be read the same way; leaving the far, long-unvisited areas' objects unwritten keeps the next
+        // save from rewriting almost the whole world. A clock without a known age always shifts.
         private sealed class NativeClockKeys
         {
-            internal readonly HashSet<int> Ticks = new(), Seconds = new();
+            internal readonly Dictionary<int, double> Ticks = new(), Seconds = new();
             internal bool Character, Neutral;
         }
+        private const double SettledMarginSeconds = 1d;
+        // The game keeps a ZDO's long and float values in these per-object tables; reading them visits only the objects and
+        // clocks that exist instead of every world object and each of the hundreds of keys a zone's spawner could hold.
+        private static readonly FieldInfo StoredLongsField = AccessTools.Field(typeof(ZDOExtraData), "s_longs");
+        private static readonly FieldInfo StoredFloatsField = AccessTools.Field(typeof(ZDOExtraData), "s_floats");
+        private static readonly AccessTools.FieldRef<BinarySearchDictionary<int, long>, int[]> LongKeys = AccessTools.FieldRefAccess<BinarySearchDictionary<int, long>, int[]>("m_keys");
+        private static readonly AccessTools.FieldRef<BinarySearchDictionary<int, long>, long[]> LongValues = AccessTools.FieldRefAccess<BinarySearchDictionary<int, long>, long[]>("m_values");
+        private static readonly AccessTools.FieldRef<BinarySearchDictionary<int, long>, ushort> LongCount = AccessTools.FieldRefAccess<BinarySearchDictionary<int, long>, ushort>("m_length");
+        private static readonly AccessTools.FieldRef<BinarySearchDictionary<int, float>, int[]> FloatKeys = AccessTools.FieldRefAccess<BinarySearchDictionary<int, float>, int[]>("m_keys");
+        private static readonly AccessTools.FieldRef<BinarySearchDictionary<int, float>, float[]> FloatValues = AccessTools.FieldRefAccess<BinarySearchDictionary<int, float>, float[]>("m_values");
+        private static readonly AccessTools.FieldRef<BinarySearchDictionary<int, float>, ushort> FloatCount = AccessTools.FieldRefAccess<BinarySearchDictionary<int, float>, ushort>("m_length");
+        private static Dictionary<ZDOID, BinarySearchDictionary<int, long>> storedLongs;
+        private static Dictionary<ZDOID, BinarySearchDictionary<int, float>> storedFloats;
+        private static int pheromoneMost;
         private static readonly Dictionary<(ZDOID Id, int Key), ZDO> SpawnClocks = new();
         private static readonly Dictionary<(ZDOID Id, int Key), ZDO> SpawnSecondClocks = new();
         private static readonly Dictionary<int, NativeClockKeys> NativeClocks = new();
@@ -77,23 +97,30 @@ namespace EpicLootProgressionFix
             if (value > 0 && !SpawnClocks.ContainsKey((data.m_uid, key))) SpawnClocks.Add((data.m_uid, key), data);
         }
 
-        private static void RememberSeconds(ZDO data, int key)
-        {
-            float value = data.GetFloat(key);
-            if (value > 0f && !SpawnSecondClocks.ContainsKey((data.m_uid, key))) SpawnSecondClocks.Add((data.m_uid, key), data);
-        }
+        private static void Limit(Dictionary<int, double> keys, int key, double seconds) =>
+            keys[key] = keys.TryGetValue(key, out double known) ? Math.Max(known, seconds) : seconds;
+
+        // A zone rolls min(most at once, elapsed / interval) spawns. Night berserker entries use their own interval, and a
+        // pheromone potion can raise most at once to its own limit while its drinker stands in the zone.
+        private static double SpawnLimit(SpawnSystem.SpawnData spawn) =>
+            (spawn.m_maxSpawned == 0 ? 1d : Math.Max(spawn.m_maxSpawned, pheromoneMost)) *
+            (OrdinaryCreatureSpawns.Berserker(spawn) ? Math.Max(spawn.m_spawnInterval, OrdinaryCreatureSpawns.BerserkerInterval) : spawn.m_spawnInterval);
 
         private static void SpawnKeys(NativeClockKeys keys, List<SpawnSystem.SpawnData> spawners, string salt)
         {
             if (spawners == null) return;
             for (int index = 0; index < spawners.Count; index++)
-                if (EnemySpawn(spawners[index])) keys.Ticks.Add((salt + spawners[index].m_prefab.name + (index + 1)).GetStableHashCode());
+                if (EnemySpawn(spawners[index])) Limit(keys.Ticks, (salt + spawners[index].m_prefab.name + (index + 1)).GetStableHashCode(), SpawnLimit(spawners[index]));
         }
 
         private static void CatalogNativeClocks()
         {
             NativeClocks.Clear();
             if (!ZNetScene.instance) return;
+            pheromoneMost = ObjectDB.instance
+                ? ObjectDB.instance.m_StatusEffects.OfType<SE_Stats>().Where(effect => effect.m_pheromoneTarget != null && !effect.m_pheromoneFlee)
+                    .Select(effect => effect.m_pheromoneMaxInstanceOverride).DefaultIfEmpty(0).Max()
+                : int.MaxValue;
             var alternatives = AltBiomeList.m_altBiomes.Distinct().ToArray();
             foreach (var entry in ScenePrefabs(ZNetScene.instance))
             {
@@ -111,29 +138,77 @@ namespace EpicLootProgressionFix
                         for (int index = 0; index < alternatives.Length; index++) SpawnKeys(keys, alternative.m_spawn, "m" + index);
                 }
                 var creatureSpawner = prefab.GetComponent<CreatureSpawner>();
-                if (creatureSpawner && EnemyProduct(creatureSpawner.m_creaturePrefab)) keys.Ticks.Add(ZDOVars.s_aliveTime);
+                // The Dyrnwyn champion's spawner returns him a day after he was last seen alive.
+                if (creatureSpawner && EnemyProduct(creatureSpawner.m_creaturePrefab))
+                    Limit(keys.Ticks, ZDOVars.s_aliveTime, Math.Max(0d, creatureSpawner.m_respawnTimeMinuts) * 60d);
+                if (creatureSpawner && EnemyProduct(creatureSpawner.m_creaturePrefab) && DyrnwynFragments.ReturnsDaily(prefab.name))
+                    Limit(keys.Ticks, ZDOVars.s_aliveTime, EnvMan.instance ? EnvMan.instance.m_dayLengthSec : double.PositiveInfinity);
                 var trigger = prefab.GetComponent<TriggerSpawner>();
-                if (trigger && trigger.m_creaturePrefabs.Any(EnemyProduct)) keys.Ticks.Add(ZDOVars.s_spawnTime);
+                if (trigger && trigger.m_creaturePrefabs.Any(EnemyProduct)) Limit(keys.Ticks, ZDOVars.s_spawnTime, Math.Max(0d, trigger.m_minSpawnInterval) * 60d);
                 var egg = prefab.GetComponent<EggGrow>();
-                if (egg && !egg.m_tamed && EnemyProduct(egg.m_grownPrefab)) keys.Seconds.Add(ZDOVars.s_growStart);
+                if (egg && !egg.m_tamed && EnemyProduct(egg.m_grownPrefab)) Limit(keys.Seconds, ZDOVars.s_growStart, Math.Max(0d, egg.m_growTime));
                 var character = prefab.GetComponent<Character>();
                 if (character && prefab.GetComponent<MonsterAI>() && character.m_faction != Character.Faction.Players)
                 {
                     keys.Character = true; keys.Neutral = character.m_faction == Character.Faction.Dverger;
-                    keys.Ticks.Add(ZDOVars.s_spawnTime); keys.Ticks.Add(ZDOVars.s_worldTimeHash);
-                    if (prefab.GetComponent<Tameable>()) keys.Ticks.Add(ZDOVars.s_tameLastFeeding);
+                    // A wild creature's age is read when it grows up and by the fresh-spawn setup; its regeneration clock
+                    // heals it fully once a full regeneration has passed.
+                    var growup = prefab.GetComponent<Growup>();
+                    Limit(keys.Ticks, ZDOVars.s_spawnTime, Math.Max(growup ? growup.m_growTime : 0d, FreshCreatureSpawns.ReplicaWindow / (double)TimeSpan.TicksPerSecond));
+                    Limit(keys.Ticks, ZDOVars.s_worldTimeHash, Math.Max(0d, character.m_regenAllHPTime));
+                    var tameable = prefab.GetComponent<Tameable>();
+                    if (tameable) Limit(keys.Ticks, ZDOVars.s_tameLastFeeding, Math.Max(0d, tameable.m_fedDuration));
                 }
                 if (keys.Ticks.Count > 0 || keys.Seconds.Count > 0) NativeClocks.Add(entry.Key, keys);
             }
         }
 
+        private static bool ClockOwner(ZDO data, out NativeClockKeys keys) =>
+            NativeClocks.TryGetValue(data.GetPrefab(), out keys) &&
+            !(keys.Character && (data.GetBool(ZDOVars.s_tamed) || keys.Neutral && !data.GetBool(ZDOVars.s_aggravated)));
+
         private static void RememberEntityClocks(ZDO data)
         {
-            if (!spawningSuspended || data == null || !NativeClocks.TryGetValue(data.GetPrefab(), out var keys) ||
-                keys.Character && (data.GetBool(ZDOVars.s_tamed) || keys.Neutral && !data.GetBool(ZDOVars.s_aggravated))) return;
-            foreach (int key in keys.Ticks) RememberTick(data, key);
-            foreach (int key in keys.Seconds) RememberSeconds(data, key);
+            if (!spawningSuspended || data == null || !ClockOwner(data, out var keys)) return;
+            if (keys.Ticks.Count > 0 && storedLongs != null && storedLongs.TryGetValue(data.m_uid, out var longs)) RememberTicks(data, keys, longs);
+            if (keys.Seconds.Count > 0 && storedFloats != null && storedFloats.TryGetValue(data.m_uid, out var floats)) RememberSeconds(data, keys, floats);
         }
+
+        private static void RememberTicks(ZDO data, NativeClockKeys keys, BinarySearchDictionary<int, long> longs)
+        {
+            int[] stored = LongKeys(longs); long[] values = LongValues(longs);
+            for (int index = LongCount(longs) - 1; index >= 0; index--)
+                if (values[index] > 0L && keys.Ticks.ContainsKey(stored[index]) && !SpawnClocks.ContainsKey((data.m_uid, stored[index])))
+                    SpawnClocks.Add((data.m_uid, stored[index]), data);
+        }
+
+        private static void RememberSeconds(ZDO data, NativeClockKeys keys, BinarySearchDictionary<int, float> floats)
+        {
+            int[] stored = FloatKeys(floats); float[] values = FloatValues(floats);
+            for (int index = FloatCount(floats) - 1; index >= 0; index--)
+                if (values[index] > 0f && keys.Seconds.ContainsKey(stored[index]) && !SpawnSecondClocks.ContainsKey((data.m_uid, stored[index])))
+                    SpawnSecondClocks.Add((data.m_uid, stored[index]), data);
+        }
+
+        // Only an object with stored long or float values can hold a clock, and about one in ten of the world's objects has any.
+        private static void RememberWorldClocks()
+        {
+            if (ZDOMan.instance == null) return;
+            var objects = WorldObjects(ZDOMan.instance);
+            foreach (var entry in storedLongs)
+                if (objects.TryGetValue(entry.Key, out var data) && ClockOwner(data, out var keys) && keys.Ticks.Count > 0) RememberTicks(data, keys, entry.Value);
+            if (!NativeClocks.Values.Any(keys => keys.Seconds.Count > 0)) return;
+            foreach (var entry in storedFloats)
+                if (objects.TryGetValue(entry.Key, out var data) && ClockOwner(data, out var keys) && keys.Seconds.Count > 0) RememberSeconds(data, keys, entry.Value);
+        }
+
+        private static double TickLimit(ZDO data, int key) =>
+            NativeClocks.TryGetValue(data.GetPrefab(), out var keys) && keys.Ticks.TryGetValue(key, out double limit) ? limit : double.PositiveInfinity;
+
+        private static double SecondLimit(ZDO data, int key) =>
+            NativeClocks.TryGetValue(data.GetPrefab(), out var keys) && keys.Seconds.TryGetValue(key, out double limit) ? limit : double.PositiveInfinity;
+
+        private static bool Settled(double ageSeconds, double limitSeconds) => ageSeconds >= limitSeconds + SettledMarginSeconds;
 
         private static void ObserveSpawnClocks(SpawnSystem __instance, List<SpawnSystem.SpawnData> spawners, string groupSalt)
         {
@@ -147,7 +222,9 @@ namespace EpicLootProgressionFix
             SpawnClocks.Clear(); SpawnSecondClocks.Clear(); PersistentClocks.Clear();
             CaptureModClocks();
             CatalogNativeClocks();
-            if (ZDOMan.instance != null) foreach (var data in WorldObjects(ZDOMan.instance).Values) RememberEntityClocks(data);
+            storedLongs = (Dictionary<ZDOID, BinarySearchDictionary<int, long>>)StoredLongsField.GetValue(null);
+            storedFloats = (Dictionary<ZDOID, BinarySearchDictionary<int, float>>)StoredFloatsField.GetValue(null);
+            RememberWorldClocks();
             foreach (var system in UnityEngine.Object.FindObjectsByType<SpawnSystem>(FindObjectsSortMode.None))
             {
                 foreach (var list in system.m_spawnLists) RememberClocks(system, list.m_spawners, "b_");
@@ -172,7 +249,12 @@ namespace EpicLootProgressionFix
                     (data.IsOwner() || ZNet.instance.IsServer() && !data.HasOwner()))
                 {
                     long current = data.GetLong(clock.Key.Key);
-                    if (current > 0L) data.Set(clock.Key.Key, current + Math.Min(Remaining(data), Math.Max(0L, stopped - current)));
+                    if (current > 0L)
+                    {
+                        long shifted = current + Math.Min(Remaining(data), Math.Max(0L, stopped - current));
+                        if (Settled((stopped - shifted) / (double)TimeSpan.TicksPerSecond, TickLimit(data, clock.Key.Key))) continue;
+                        data.Set(clock.Key.Key, shifted);
+                    }
                     adjusted.Add(data);
                 }
             }
@@ -184,7 +266,12 @@ namespace EpicLootProgressionFix
                     (data.IsOwner() || ZNet.instance.IsServer() && !data.HasOwner()))
                 {
                     float current = data.GetFloat(clock.Key.Key);
-                    if (current > 0f) data.Set(clock.Key.Key, current + (float)Math.Min(Remaining(data) / (double)TimeSpan.TicksPerSecond, Math.Max(0d, stoppedSeconds - current)));
+                    if (current > 0f)
+                    {
+                        float shifted = current + (float)Math.Min(Remaining(data) / (double)TimeSpan.TicksPerSecond, Math.Max(0d, stoppedSeconds - current));
+                        if (Settled(stoppedSeconds - shifted, SecondLimit(data, clock.Key.Key))) continue;
+                        data.Set(clock.Key.Key, shifted);
+                    }
                     adjusted.Add(data);
                 }
             }
@@ -197,6 +284,6 @@ namespace EpicLootProgressionFix
         }
 
         private static partial void ClearSpawning()
-        { SpawnClocks.Clear(); SpawnSecondClocks.Clear(); PersistentClocks.Clear(); NativeClocks.Clear(); spawningSuspended = false; }
+        { SpawnClocks.Clear(); SpawnSecondClocks.Clear(); PersistentClocks.Clear(); NativeClocks.Clear(); storedLongs = null; storedFloats = null; spawningSuspended = false; }
     }
 }

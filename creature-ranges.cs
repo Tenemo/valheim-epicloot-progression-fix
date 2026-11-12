@@ -42,7 +42,10 @@ namespace EpicLootProgressionFix
     internal static class OrdinaryCreatureSpawns
     {
         // Fuling berserkers take a fifth of the Vile's night spawns: its 25% every 4000 s, split into 20% and 5%.
-        private const float VileChance = 20f, BerserkerChance = 5f, BerserkerInterval = 4000f;
+        private const float VileChance = 20f, BerserkerChance = 5f;
+        internal const float BerserkerInterval = 4000f;
+
+        internal static bool Berserker(SpawnSystem.SpawnData entry) => entry.m_prefab && entry.m_name == "GoblinBrute" && entry.m_prefab.name == "GoblinBrute";
 
         // Clone before PheromoneSpawns, which then clones and tracks the potion's final entries itself.
         [HarmonyPriority(Priority.First)]
@@ -60,7 +63,7 @@ namespace EpicLootProgressionFix
                     (entry.m_name == "Jotun Witch Patrol" && entry.m_prefab.name == "JotunWitch" ||
                      entry.m_name == "Jotun Melee Patrol" && entry.m_prefab.name == "JotunWarrior");
                 bool vile = entry.m_prefab && entry.m_name == "Unbjorn" && entry.m_prefab.name == "Unbjorn";
-                bool berserker = entry.m_prefab && entry.m_name == "GoblinBrute" && entry.m_prefab.name == "GoblinBrute";
+                bool berserker = Berserker(entry);
                 if (!distance && !patrol && !vile && !berserker) continue;
                 if (adjusted == null) adjusted = new List<SpawnSystem.SpawnData>(spawners);
                 var copy = entry.Clone();

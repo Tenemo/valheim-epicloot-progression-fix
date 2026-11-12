@@ -17,7 +17,7 @@ namespace EpicLootProgressionFix
         private static int pendingCount;
         private static readonly Dictionary<ZDOID, long> recentInstances = new Dictionary<ZDOID, long>();
         private static readonly Queue<ZDOID> recentOrder = new Queue<ZDOID>();
-        private const long ReplicaWindow = 5 * TimeSpan.TicksPerSecond;
+        internal const long ReplicaWindow = 5 * TimeSpan.TicksPerSecond;
         // SLS retries a failed setup five times a second apart, and a client waits on its owner's setup. A creature whose
         // setup never finishes appears without it after this many seconds rather than staying hidden and frozen.
         internal const float MaximumWait = 10f;

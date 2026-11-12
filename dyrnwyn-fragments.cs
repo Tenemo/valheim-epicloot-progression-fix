@@ -276,5 +276,7 @@ namespace EpicLootProgressionFix
         {
             if (ChampionSpawners.ContainsKey(Name(__instance.gameObject))) __instance.m_respawnTimeMinuts = EnvMan.instance.m_dayLengthSec / 60f;
         }
+
+        internal static bool ReturnsDaily(string spawner) => ChampionSpawners.ContainsKey(spawner);
     }
 }
