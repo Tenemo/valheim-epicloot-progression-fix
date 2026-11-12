@@ -1,6 +1,7 @@
 # 1.24.1
 
 - Dropped items no longer stop partway to you and stay on the ground in gardens and other spots crowded with mushrooms, flowers and other pickables, which happened mostly with a larger pickup range.
+- Dropped items pulled toward you no longer hang in the air and fall back when you run away from them or they come up a slope.
 
 # 1.24.0
 
