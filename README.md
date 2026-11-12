@@ -40,7 +40,7 @@ The aim is to stay as close to **vanilla Valheim + EpicLoot** as possible: keep 
 
 ## Mods we use
 
-**We recommend the whole setup, including its configuration.** Installing the same mods with different settings will give you different loot, recipes, dungeon resets and balance.
+**We recommend the whole setup, including its configuration.** Installing the same mods with different settings will give you different loot, recipes, dungeon resets and balance. [TenemoPack](https://valheim.hexium.gg/mods/Tenemo/TenemoPack) installs them with their settings through Gale. It leaves out ServerCharacters, Dyrr, FastLink, DiscordBot_AWL, DiscordConnector and LetMeSleep, which only suit our own server.
 
 - **Loot and combat:** EpicLoot, StarLevelSystem, Drop That, FortifySkillsReborn, SkilledCarryWeight and CombatStats.
 - **Crafting and inventory:** AAA_Crafting, AzuCraftyBoxes, AzuWorkbenchTweaks, Quick Stack Store Sort Trash Restock, EquipmentAndQuickSlots, MultiUserChest, ItemStacksItemWeights and MouseTweaks.
