@@ -333,9 +333,11 @@ namespace EpicLootProgressionFix
                 controlDirectory = Path.Combine(Paths.BepInExRootPath, "server-control");
                 Directory.CreateDirectory(controlDirectory);
                 File.Delete(Path.Combine(controlDirectory, "request.json"));
+                ControlFiles.Start(controlDirectory, logger);
                 nextCheckpoint = now + Plugin.CharacterCheckpointMinutes.Value * 60f;
                 WriteStatus();
             }
+            ControlFiles.AcceptRequests = !running;
             if (now < nextPoll) return;
             nextPoll = now + 0.5f;
             try
@@ -343,11 +345,9 @@ namespace EpicLootProgressionFix
                 if (running) Advance(now);
                 else
                 {
-                    string path = Path.Combine(controlDirectory, "request.json");
-                    if (File.Exists(path))
+                    if (ControlFiles.TakeRequest(out string text))
                     {
-                        var request = JsonConvert.DeserializeObject<Request>(File.ReadAllText(path));
-                        File.Delete(path);
+                        var request = JsonConvert.DeserializeObject<Request>(text);
                         if (request == null || request.pid != ProcessId || !Guid.TryParseExact(request.id, "N", out _) ||
                             (request.action != "stop" && request.action != "checkpoint"))
                             throw new InvalidDataException("Invalid or stale server-control request.");
@@ -410,14 +410,14 @@ namespace EpicLootProgressionFix
             if (network.GetPeers().Count != 0) throw new IOException("A connection remains; shutdown refused.");
             if (!network.EnoughDiskSpaceAvailable(out _) || SaveSystem.HasSessionFlag(SaveSystemSessionFlags.DontSaveWorld))
                 throw new IOException("The game cannot safely save the world; shutdown refused.");
-            phase = "saving-world"; WriteStatus();
+            phase = "saving-world"; WriteStatus(true);
             uint before = SaveSystem.GetSaveNumber();
             network.Save(true, false, false);
             savedWorld = SaveSystem.GetSaveNumber();
             string directory = ZNet.World.GetSaveDirectory(FileHelpers.FileSource.Local);
             if (savedWorld <= before || !File.Exists(Path.Combine(directory, SaveSystem.MainOKFileName(false))))
                 throw new IOException("A new completed world save was not written; shutdown refused.");
-            phase = "stopping"; WriteStatus();
+            phase = "stopping"; WriteStatus(true);
             logger.LogInfo("Verified shutdown: " + pending.Count + " character(s) saved and disconnected; world save " + savedWorld + " complete.");
             quitting = true;
             shutdownGame(Game.instance, false);
@@ -431,7 +431,8 @@ namespace EpicLootProgressionFix
             WriteStatus();
         }
 
-        private static void WriteStatus()
+        // The server scripts wait for the stopping status, so the shutdown's own steps write it before the game quits.
+        private static void WriteStatus(bool now = false)
         {
             if (controlDirectory == null) return;
             var status = new {
@@ -440,9 +441,96 @@ namespace EpicLootProgressionFix
                 players = pending.Values.Select(item => new { name = item.Name, account = item.Account,
                     saved = item.Saved != null, error = item.Error }).ToArray()
             };
-            // Read only by the server scripts on this machine, every few seconds; it need not wait for the disk.
-            WholeFile.Replace(Path.Combine(controlDirectory, "status.json"), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(status)), false);
+            ControlFiles.Post(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(status)), now);
             nextStatus = Time.realtimeSinceStartup + 5f;
+        }
+
+        // The server scripts' request and status files are read and written on this thread: a file call can wait seconds
+        // while Windows takes a snapshot of the disk, and the game must not stop for it. The status file is read only by
+        // the scripts on this machine, every few seconds, so it need not wait for the disk either.
+        private static class ControlFiles
+        {
+            private static readonly object Gate = new(), WriteGate = new();
+            private static readonly AutoResetEvent Wake = new(false);
+            private static Thread thread;
+            private static ManualLogSource log;
+            private static string directory, request, requestError, lastFailure;
+            private static byte[] status;
+            private static long posted, written;
+            private static int generation;
+            internal static volatile bool AcceptRequests;
+
+            internal static void Start(string folder, ManualLogSource logger)
+            {
+                lock (Gate) { directory = folder; request = requestError = null; generation++; }
+                log = logger;
+                if (thread != null) return;
+                thread = new Thread(Run) { IsBackground = true, Name = "Server control files" };
+                thread.Start();
+            }
+
+            internal static void Post(byte[] bytes, bool now)
+            {
+                long sequence; string folder;
+                lock (Gate) { status = bytes; sequence = ++posted; folder = directory; }
+                if (now) Write(folder, bytes, sequence);
+                else Wake.Set();
+            }
+
+            // A request the scripts left, already removed from disk; a file that could not be read fails like an invalid one.
+            internal static bool TakeRequest(out string text)
+            {
+                lock (Gate)
+                {
+                    string failure = requestError;
+                    text = request; request = requestError = null;
+                    if (failure != null) throw new InvalidDataException(failure);
+                    return text != null;
+                }
+            }
+
+            private static void Write(string folder, byte[] bytes, long sequence)
+            {
+                lock (WriteGate)
+                {
+                    if (sequence <= written) return;
+                    WholeFile.Replace(Path.Combine(folder, "status.json"), bytes, false);
+                    written = sequence;
+                }
+            }
+
+            private static void Run()
+            {
+                while (true)
+                {
+                    Wake.WaitOne(500);
+                    string folder; byte[] bytes; long sequence; int current; bool waiting;
+                    lock (Gate) { folder = directory; bytes = status; sequence = posted; current = generation; waiting = request != null || requestError != null; }
+                    try
+                    {
+                        if (bytes != null) Write(folder, bytes, sequence);
+                        lastFailure = null;
+                    }
+                    catch (Exception exception) { Report("Server-control status write failed: " + exception.GetBaseException().Message); }
+                    if (!AcceptRequests || waiting || folder == null) continue;
+                    string path = Path.Combine(folder, "request.json"), text = null, failure = null;
+                    try
+                    {
+                        if (!File.Exists(path)) continue;
+                        text = File.ReadAllText(path);
+                        File.Delete(path);
+                    }
+                    catch (Exception exception) { failure = exception.GetBaseException().Message; }
+                    lock (Gate) if (generation == current) { request = failure == null ? text : null; requestError = failure; }
+                }
+            }
+
+            private static void Report(string message)
+            {
+                if (message == lastFailure) return;
+                lastFailure = message;
+                log?.LogError(message);
+            }
         }
     }
 }
