@@ -1,0 +1,10 @@
+[package]
+namespace = "Tenemo"
+name = "EpicLoot_ProgressionFix"
+
+[publish]
+repository = "https://thunderstore.io"
+communities = ["valheim"]
+
+[publish.categories]
+valheim = ["mods", "tweaks", "client-side", "server-side", "deep-north-update", "ai-generated"]

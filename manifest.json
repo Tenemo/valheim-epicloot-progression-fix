@@ -1,0 +1,11 @@
+{
+  "name": "EpicLoot_ProgressionFix",
+  "version_number": "1.24.1",
+  "website_url": "",
+  "description": "Opinionated EpicLoot balance, crafting progression, combat, loot and inventory fixes, with optional mod integrations. Install on server and clients.",
+  "dependencies": [
+    "denikson-BepInExPack_Valheim-5.4.2360",
+    "ValheimModding-Jotunn-2.30.2",
+    "RandyKnapp-EpicLoot-0.15.6"
+  ]
+}
