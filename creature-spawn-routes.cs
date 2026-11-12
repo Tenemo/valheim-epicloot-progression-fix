@@ -24,11 +24,21 @@ namespace EpicLootProgressionFix
         private static NemesisGroundCheck nemesisGround;
         private static string nemesisSpawnKey;
 
+        // Set while a dying creature's loot is created, including the blobs an oozer releases.
+        [ThreadStatic] private static int droppingLoot;
+
         private static void InitializeAdditionalRoutes(IntegrationPatches patches)
         {
             var type = typeof(CreatureSpawnPlacement);
+            patches.Patch(AccessTools.Method(typeof(CharacterDrop), nameof(CharacterDrop.DropItems)),
+                prefix: new HarmonyMethod(type, nameof(BeforeLoot)), finalizer: new HarmonyMethod(type, nameof(AfterLoot)));
             if (StarLevelSystem.Installed)
             {
+                var loot = StarLevelSystem.Assembly.GetType("StarLevelSystem.modules.Loot.LootPerformanceChanges", true);
+                var immediate = AccessTools.Method(loot, "DropItemsImmediate"); var spread = AccessTools.Method(loot, "DropItemsAsync");
+                if (immediate == null || spread?.ReturnType != typeof(IEnumerator)) throw new InvalidOperationException("StarLevelSystem's loot drops changed.");
+                patches.Patch(immediate, prefix: new HarmonyMethod(type, nameof(BeforeLoot)), finalizer: new HarmonyMethod(type, nameof(AfterLoot)));
+                patches.Patch(spread, postfix: new HarmonyMethod(type, nameof(SpreadLoot)));
                 var remote = StarLevelSystem.Assembly.GetType("StarLevelSystem.modules.NemesisSystem.NemesisRemoteSpawnControl", true);
                 nemesisGround = AccessTools.MethodDelegate<NemesisGroundCheck>(AccessTools.Method(remote, "IsSpawnLocationValid"));
                 nemesisSpawnKey = (string)AccessTools.Field(StarLevelSystem.Assembly.GetType("StarLevelSystem.common.DataObjects", true), "SLS_NEMESIS_SPAWN").GetValue(null);
@@ -50,6 +60,29 @@ namespace EpicLootProgressionFix
             var index = Array.Find(epic.GetTypes(), value => value.Name == "WorldBiomeIndex");
             openWater = AccessTools.MethodDelegate<Func<Heightmap.Biome, bool>>(AccessTools.Method(index, "IsOpenWater"));
             patches.Patch(AccessTools.Method(bounty, "SpawnBountyTargets"), prefix: new HarmonyMethod(type, nameof(BeforeBounty)), finalizer: new HarmonyMethod(type, nameof(AfterFactory)));
+        }
+
+        // Creatures in loot, such as the blobs an oozer releases, appear at once where they drop, as natively. Held for a body-clear
+        // spot, each blob waited for the ones before it to hop away, two seconds per try.
+        private static void BeforeLoot() => droppingLoot++;
+        private static Exception AfterLoot(Exception __exception) { droppingLoot--; return __exception; }
+        private static void SpreadLoot(ref IEnumerator __result) => __result = DropLoot(__result);
+
+        private static IEnumerator DropLoot(IEnumerator spawning)
+        {
+            try
+            {
+                while (true)
+                {
+                    bool more;
+                    droppingLoot++;
+                    try { more = spawning.MoveNext(); }
+                    finally { droppingLoot--; }
+                    if (!more) yield break;
+                    yield return spawning.Current;
+                }
+            }
+            finally { (spawning as IDisposable)?.Dispose(); }
         }
 
         private static bool NearEncounterGround(Vector3 point) => Mathf.Abs(point.y - ZoneSystem.instance.GetGroundHeight(point)) <= 8f;

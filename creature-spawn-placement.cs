@@ -103,7 +103,7 @@ namespace EpicLootProgressionFix
 
         private static void Capture(Character __instance)
         {
-            if (__instance is Player || ZNetView.m_useInitZDO || !__instance.GetComponent<BaseAI>()) return;
+            if (__instance is Player || ZNetView.m_useInitZDO || !__instance.GetComponent<BaseAI>() || current == null && droppingLoot > 0) return;
             var view = __instance.GetComponent<ZNetView>();
             if (!view || !view.IsValid() || !view.IsOwner()) return;
             // Native boss offerings, eggs, growth and mod-created replacements have already selected their spawn position.
