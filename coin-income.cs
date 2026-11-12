@@ -58,7 +58,7 @@ namespace EpicLootProgressionFix
             try
             {
                 return new Mutation { Inventory = inventory, Before = Snapshot(inventory), Incoming = incoming,
-                    IncomingPending = incoming == null ? 0 : scope?.LegacyStorage == true && !incoming.m_customData.ContainsKey(PendingKey) ? 0 : Pending(incoming), Currency = incoming?.m_dropPrefab.name,
+                    IncomingPending = incoming == null ? 0 : scope?.Stored == true && !incoming.m_customData.ContainsKey(PendingKey) ? 0 : Pending(incoming), Currency = incoming?.m_dropPrefab.name,
                     Cheated = incoming?.m_cheated ?? false };
             }
             catch (Exception error) { mutations.Remove(inventory); CoinIncomeChannel.Error(error); return null; }
@@ -124,7 +124,8 @@ namespace EpicLootProgressionFix
         internal sealed class Scope : IDisposable
         {
             internal string Source, Reference;
-            internal bool Income, SuppressDebits, LegacyStorage;
+            // Stored: a currency item without the uncredited mark comes out of storage, so it was credited before.
+            internal bool Income, SuppressDebits, Stored;
             internal int? DroppedFresh;
             internal Scope Previous;
             internal List<ItemDrop> Drops = new List<ItemDrop>();
@@ -181,7 +182,7 @@ namespace EpicLootProgressionFix
                 if (!piece && container.m_rootObjectOverride) piece = container.m_rootObjectOverride.GetComponent<Piece>();
                 if (!container.GetComponent<TombStone>() && piece?.IsPlacedByPlayer() != true) return;
                 __state = Enter("opening storage", false);
-                __state.LegacyStorage = true;
+                __state.Stored = true;
             }
             private static Exception Finalizer(Exception __exception, Scope __state) { __state?.Dispose(); return __exception; }
         }
@@ -286,6 +287,24 @@ namespace EpicLootProgressionFix
                 finally { __state.Scope?.Dispose(); }
                 return __exception;
             }
+        }
+        // The enchanting table's Storage keeps only counts. Putting currency in removes it, and taking it out, a refused
+        // deposit coming back or a destroyed table dropping its contents creates new stacks, so all of them are transfers.
+        [HarmonyPatch]
+        private static class EnchantingTableStorage
+        {
+            private static IEnumerable<MethodBase> TargetMethods() => new MethodBase[] {
+                AccessTools.Method(typeof(EnchantingTableStash), nameof(EnchantingTableStash.DepositAll)),
+                AccessTools.Method(typeof(EnchantingTableStash), "RPC_StashChangeResult"),
+                AccessTools.Method(typeof(EpicLoot.CraftingV2.Piece_DropResources_Patch), nameof(EpicLoot.CraftingV2.Piece_DropResources_Patch.Postfix)) };
+            private static void Prefix(out Scope __state)
+            {
+                __state = Enter("transfer", false);
+                if (__state == null) return;
+                __state.Stored = true;
+                __state.DroppedFresh = 0;
+            }
+            private static Exception Finalizer(Exception __exception, Scope __state) { __state?.Dispose(); return __exception; }
         }
         [HarmonyPatch(typeof(Humanoid), nameof(Humanoid.DropItem))]
         private static class Dropping
