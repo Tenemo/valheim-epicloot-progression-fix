@@ -4,6 +4,24 @@ These are the EpicLoot changes we use on our server: loot that follows your craf
 
 **We strongly recommend using all the companion mods listed below, with the same pack settings.** That is the setup we play with, and many of these features rely on those mods working together.
 
+## Screenshots
+
+Enchant shows each effect's chance on the finished item before you spend anything.
+
+![The Enchant tab with a Flametal Breastplate set to Mythic, listing the chance of each effect count, shard slot count and effect](https://raw.githubusercontent.com/Tenemo/valheim-epicloot-progression-fix/main/screenshots/enchant-chances.webp)
+
+Augment shows each effect's chance to appear among your new choices.
+
+![The Augment tab with an Ancient Fenris Coat, listing each effect's chance to appear among up to 5 new choices](https://raw.githubusercontent.com/Tenemo/valheim-epicloot-progression-fix/main/screenshots/augment-chances.webp)
+
+Active effects gathers your health, defenses, movement, attacks and every enchantment you wear in one page of the raven book.
+
+![The Active effects page showing status effects, health and resources, defense, movement and attack totals](https://raw.githubusercontent.com/Tenemo/valheim-epicloot-progression-fix/main/screenshots/active-effects-page.webp)
+
+In the Ashlands, the hammer menu marks the pieces that can't catch fire.
+
+![The hammer's Walls tab in the Ashlands with flame badges on fireproof pieces and the Grausten Wall 2x2 described as fireproof](https://raw.githubusercontent.com/Tenemo/valheim-epicloot-progression-fix/main/screenshots/ashlands-fireproof-build-menu.webp)
+
 ## Performance
 
 **World Performance 0.11.3 or newer is recommended on the server and every client.** It provides the game performance fixes; Progression Fix handles loot, gameplay and its own interface. Without it on the server, creatures stay with a lagging player instead of moving to one whose connection keeps up.
