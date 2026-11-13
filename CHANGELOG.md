@@ -4,6 +4,8 @@
 - A Krigen's charge stops where you stand and slams you, instead of running past and hitting the ground behind you. Sidestep or dodge it to avoid the hit.
 - Creatures no longer fly far across ice when they attack: a Krigen's charge used to carry it 15 to 30 m past you.
 - Creatures that fall into the water climb back out onto shore ice and other ledges instead of floating at the edge, waiting where they fell in or walking around under the ice. Bosses, and creatures resting in the water, stay put.
+- The Wisplight can be refined at the Forge of Potential with the black marble protection idol, past the quality 5 its upgrades stop at.
+- The black metal pickaxe is refined with the black metal battle idol, like the other black metal gear, instead of the black marble one.
 
 # 1.24.1
 
