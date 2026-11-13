@@ -35,6 +35,7 @@ namespace EpicLootProgressionFix
             { "KnifeChitin", "Upgrader2Weapon" },
             { "ShieldSerpentscale", "Upgrader2Armor" },
             { "KnifeSkollAndHati", "Upgrader5Weapon" },
+            { "Demister", "Upgrader5Armor" },
             { "HelmetDNHeavy", "Upgrader7Armor" },
         };
 
