@@ -4,6 +4,7 @@
 - Dropped items pulled toward you no longer hang in the air and fall back when you run away from them or they come up a slope.
 - Coins and gold bounty tokens you put into the enchanting table's Storage and take back out no longer count as newly earned in the server's currency records.
 - A dying oozer releases all its blobs at once again, instead of one every few seconds, and none are lost when there's little room around it.
+- The server no longer freezes for up to 3 seconds when a night is slept, and no longer stops for up to half a second when someone first enters a dungeon, when a dungeon's interior regenerates or while the disk is busy.
 
 # 1.24.0
 
