@@ -48,12 +48,17 @@ namespace EpicLootProgressionFix
         private static readonly Dictionary<int, SoftReference<GameObject>> loadingLocations = new Dictionary<int, SoftReference<GameObject>>();
         private static readonly Dictionary<int, SoftReference<GameObject>> loadingRooms = new Dictionary<int, SoftReference<GameObject>>();
         private static readonly Dictionary<ZDOID, long> entrySeen = new Dictionary<ZDOID, long>();
+        // A regeneration loads its location and every room its dungeon could use. A reset due within PreloadSeconds holds them,
+        // loaded in the background, so the sweep regenerates on the same pass as before without stopping the server to load.
+        private const long PreloadSeconds = 60;
+        private static readonly Dictionary<Vector2s, List<SoftReference<GameObject>>> rebuildAssets = new Dictionary<Vector2s, List<SoftReference<GameObject>>>();
         private static readonly int RoomData = "roomData".GetStableHashCode();
 
         private sealed class LocationShape
         {
             internal bool Generator, Custom;
             internal int GeneratorPrefab;
+            internal Room.Theme Themes;
             internal Vector3 GeneratorLocal, GeneratorOriginal, InteriorOffset, ZoneSize;
             internal Vector3[] Views;
         }
@@ -207,7 +212,7 @@ namespace EpicLootProgressionFix
             foreach (var pair in snapshot)
             {
                 if (!GeneratedZones(ZoneSystem.instance).Contains(pair.Key) || failed.Contains(pair.Key)) continue;
-                try { Reset(pair.Key, config); }
+                try { Regenerate(pair.Key, config, true); }
                 catch (Exception error)
                 {
                     failed.Add(pair.Key);
@@ -221,7 +226,10 @@ namespace EpicLootProgressionFix
             }
         }
 
-        internal static string Reset(Vector2s zone, object config = null)
+        internal static string Reset(Vector2s zone, object config = null) => Regenerate(zone, config, false);
+
+        // The sweep's regenerations load their assets in the background; a reset asked for directly loads them at once.
+        private static string Regenerate(Vector2s zone, object config, bool background)
         {
             if (!Enabled || ZNet.instance == null || !ZNet.instance.IsServer()) return "disabled";
             if (!Locations(ZoneSystem.instance).TryGetValue(zone, out var instance) || instance.m_location == null) return "no location";
@@ -233,15 +241,29 @@ namespace EpicLootProgressionFix
             if (previous <= 0) return "not entered";
             config = config ?? captureConfig.Invoke(null, null);
             float rate = (float)rateFor.Invoke(null, new[] { (object)zone, config });
-            if (!(bool)entryIsDue.Invoke(entry, new object[] { previous, Now, rate })) return "not due";
+            if (!(bool)entryIsDue.Invoke(entry, new object[] { previous, Now, rate }))
+            {
+                if (!background || !(bool)entryIsDue.Invoke(entry, new object[] { previous, Now + PreloadSeconds, rate })) ReleaseRebuild(zone);
+                else if (InteriorLoaded(zone, proxy, instance.m_location))
+                {
+                    LocateInterior(zone, proxy, instance.m_location);
+                    RebuildLoaded(zone, instance.m_location);
+                }
+                return "not due";
+            }
+            if (background && !InteriorLoaded(zone, proxy, instance.m_location)) return "loading";
             LocateInterior(zone, proxy, instance.m_location);
             if (DungeonOccupancy.ContainsPlayer(zone))
             {
+                ReleaseRebuild(zone);
                 if (occupied.Add(zone)) logger.LogInfo($"Interior reset {instance.m_location.m_prefabName} at {zone.x},{zone.y} is due; waiting for its occupants to leave.");
                 return "occupied";
             }
             occupied.Remove(zone);
-            int restored = Rebuild(zone, proxy, instance.m_location);
+            if (background && !RebuildLoaded(zone, instance.m_location)) return "loading";
+            int restored;
+            try { restored = Rebuild(zone, proxy, instance.m_location); }
+            finally { ReleaseRebuild(zone); }
             proxy.SetOwner(ZDOMan.GetSessionID());
             proxy.Set(ResetKey, Now);
             proxy.Set("SLS_LOC_RESET", proxy.GetLong(ResetKey));
@@ -249,6 +271,27 @@ namespace EpicLootProgressionFix
             failed.Remove(zone);
             logger.LogInfo($"Interior reset {instance.m_location.m_prefabName} at {zone.x},{zone.y}: restored {restored} objects; exterior preserved.");
             return "reset";
+        }
+
+        // The game's generator loads every enabled room of its dungeon's themes.
+        private static bool RebuildLoaded(Vector2s zone, ZoneSystem.ZoneLocation location)
+        {
+            if (!rebuildAssets.TryGetValue(zone, out var held))
+            {
+                var shape = locationShapes[location.Hash];
+                held = new List<SoftReference<GameObject>> { location.m_prefab };
+                if (shape.Generator) held.AddRange(DungeonDB.GetRooms().Where(room => (room.m_theme & shape.Themes) != 0 && room.m_enabled).Select(room => room.m_prefab));
+                foreach (var asset in held) asset.LoadAsync();
+                rebuildAssets[zone] = held;
+            }
+            return held.All(asset => asset.IsLoaded);
+        }
+
+        private static void ReleaseRebuild(Vector2s zone)
+        {
+            if (!rebuildAssets.TryGetValue(zone, out var held)) return;
+            foreach (var asset in held) asset.Release();
+            rebuildAssets.Remove(zone);
         }
 
         internal static bool Inside(Vector3 position, Vector2s zone) => position.y > InteriorHeight &&
@@ -340,7 +383,7 @@ namespace EpicLootProgressionFix
             if (generator == null)
                 return new LocationShape { Views = prefab.GetComponentsInChildren<ZNetView>(true).Select(view => prefab.transform.InverseTransformPoint(view.transform.position)).ToArray() };
             bool custom = component.m_useCustomInteriorTransform && component.m_generator != null && component.m_interiorTransform != null;
-            return new LocationShape { Generator = true, Custom = custom, GeneratorPrefab = generator.name.GetStableHashCode(),
+            return new LocationShape { Generator = true, Custom = custom, GeneratorPrefab = generator.name.GetStableHashCode(), Themes = generator.m_themes,
                 GeneratorLocal = prefab.transform.InverseTransformPoint(generator.transform.position), GeneratorOriginal = generator.transform.localPosition,
                 InteriorOffset = custom ? component.m_interiorTransform.localPosition : Vector3.zero, ZoneSize = generator.m_zoneSize };
         }
@@ -519,8 +562,8 @@ namespace EpicLootProgressionFix
         private static void ClearWorld()
         {
             occupied.Clear(); failed.Clear(); interiors.Clear(); interiorProxies.Clear(); playerDungeons.Clear(); entrySeen.Clear(); running = false; nextSweep = 0; DungeonOccupancy.Clear();
-            foreach (var pending in loadingLocations.Values.Concat(loadingRooms.Values)) pending.Release();
-            loadingLocations.Clear(); loadingRooms.Clear();
+            foreach (var pending in loadingLocations.Values.Concat(loadingRooms.Values).Concat(rebuildAssets.Values.SelectMany(held => held))) pending.Release();
+            loadingLocations.Clear(); loadingRooms.Clear(); rebuildAssets.Clear();
         }
     }
 
