@@ -1,6 +1,12 @@
 # 1.26.0
 
-- Staff of Protection reaches allies within 5 m per staff quality level: 5 m at quality 1, 20 m at 4 and 40 m at 8. It used to reach 20 m at every quality.
+- Staff of Protection and Northern Vengeance reach allies within 5 m per staff quality level: 5 m at quality 1, 20 m at 4. Staff of Protection used to reach 20 m at every quality.
+- Staff of Embers' fireball explodes 1 m wider per upgrade: 3 m at quality 1, 6 m at 4.
+- Staff of Fracturing bursts into 2 more splinters per upgrade: 12 at quality 1, 18 at 4.
+- Dundr fires 2 more bolts per upgrade: 12 at quality 1, 18 at 4.
+- Lightning Strike's burst reaches 0.5 m further and can chain to 1 more enemy per upgrade: 2.4 m and up to 6 enemies at quality 1, 3.9 m and up to 9 at 4.
+- Staff of the Wild allows 2 more roots nearby per upgrade: 10 at quality 1, 16 at 4.
+- The Trollstav's landing blast reaches 5 m further per upgrade: 10 m at quality 1, 25 m at 4.
 
 # 1.25.0
 

@@ -43,8 +43,9 @@ namespace EpicLootProgressionFix
                 if (primary.m_bowDraw) AddDraw(rows, player, item);
                 if (primary.m_requiresReload) rows.Add(ReloadRow(item));
                 AddSummons(rows, player, item, qualityLevel);
-                if (primary.m_attackType == Attack.AttackType.Projectile && primary.m_projectiles > 1)
-                    rows.Add("Projectiles per burst: " + primary.m_projectiles);
+                int projectiles = StaffQuality.IsDundr(primary) ? StaffQuality.DundrBolts(primary.m_projectiles, qualityLevel) : primary.m_projectiles;
+                if (primary.m_attackType == Attack.AttackType.Projectile && projectiles > 1)
+                    rows.Add("Projectiles per burst: " + projectiles);
                 if (rows.Count == 0) return;
                 string color = item.GetMagicItem()?.GetColorString() ?? "orange";
                 string replacement = "\n" + string.Join("\n", rows.Select(row => "<color=" + color + ">" + row + "</color>"));
@@ -82,7 +83,8 @@ namespace EpicLootProgressionFix
             var level = spawn.m_levelUpSettings?.AsEnumerable().Reverse().FirstOrDefault(setting => player.GetSkillLevel(setting.m_skill) >= setting.m_skillLevel);
             int following = level == null ? 0 : spawn.m_setMaxInstancesFromWeaponLevel ? quality : level.m_maxSpawns;
             if (spawn.m_commandOnSpawn && following > 0) rows.Add("Follower limit: " + following);
-            if (spawn.m_maxSpawned > 0 && MagicItem.ShowEffectDetails) rows.Add("Summon limit nearby: " + spawn.m_maxSpawned + " per type");
+            int nearby = StaffQuality.IsRoots(spawn) ? StaffQuality.RootLimit(spawn.m_maxSpawned, quality) : spawn.m_maxSpawned;
+            if (nearby > 0 && MagicItem.ShowEffectDetails) rows.Add("Summon limit nearby: " + nearby + " per type");
             if (spawn.m_copySkill != Skills.SkillType.None && spawn.m_copySkillToRandomFactor > 0)
                 rows.Add("Summon damage multiplier: " + (1f + player.GetSkillLevel(spawn.m_copySkill) * spawn.m_copySkillToRandomFactor).ToString("0.###", CultureInfo.CurrentCulture) + "x");
         }
