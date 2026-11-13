@@ -1,18 +1,18 @@
-using System;
 using HarmonyLib;
 
 namespace EpicLootProgressionFix
 {
-    [HarmonyPatch(typeof(ZNetScene), "Awake")]
+    // Staff of Protection reaches 5 m per quality level of the staff that cast it: 5 m at 1, 20 m at 4, 40 m at 8.
+    // The cast's own copy of the application effect is sized before its first hit; the shared prefab stays unchanged.
+    [HarmonyPatch(typeof(Aoe), nameof(Aoe.Setup))]
     internal static class ProtectionRadius
     {
-        [HarmonyPriority(Priority.Last)]
-        private static void Postfix(ZNetScene __instance)
+        private const float MetresPerQuality = 5f;
+
+        private static void Postfix(Aoe __instance, ItemDrop.ItemData item)
         {
-            var prefab = __instance.GetPrefab("staff_shield_aoe");
-            var area = prefab ? prefab.GetComponent<Aoe>() : null;
-            if (!area) throw new InvalidOperationException("Staff of Protection's application effect is missing.");
-            area.m_radius = 20f;
+            if (item != null && Utils.GetPrefabName(__instance.gameObject) == "staff_shield_aoe")
+                __instance.m_radius = MetresPerQuality * item.m_quality;
         }
     }
 }

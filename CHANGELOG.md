@@ -1,3 +1,7 @@
+# 1.26.0
+
+- Staff of Protection reaches allies within 5 m per staff quality level: 5 m at quality 1, 20 m at 4 and 40 m at 8. It used to reach 20 m at every quality.
+
 # 1.25.0
 
 - Andvaranaut's treasure and bounty finder can be extracted into a rune at the enchanting table and put in a shardstone slot, so you can wear it on other gear and keep your belt. Each ring Haldor sells carries one finder: once it's extracted, the ring is a plain ring you can enchant like any other, and enchanting or loot never gives the finder.
