@@ -34,7 +34,6 @@ namespace EpicLootProgressionFix
             { "SledgeStagbreaker", "Upgrader1Weapon" },
             { "KnifeChitin", "Upgrader2Weapon" },
             { "ShieldSerpentscale", "Upgrader2Armor" },
-            { "PickaxeBlackMetal", "Upgrader5Weapon" },
             { "KnifeSkollAndHati", "Upgrader5Weapon" },
             { "HelmetDNHeavy", "Upgrader7Armor" },
         };
