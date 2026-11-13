@@ -7,6 +7,8 @@
 - Lightning Strike's burst reaches 0.5 m further and can chain to 1 more enemy per upgrade: 2.4 m and up to 6 enemies at quality 1, 3.9 m and up to 9 at 4.
 - Staff of the Wild allows 2 more roots nearby per upgrade: 10 at quality 1, 16 at 4.
 - The Trollstav's landing blast reaches 5 m further per upgrade: 10 m at quality 1, 25 m at 4.
+- Echo Spike deals a sixth more damage per upgrade: its returning spike's 100 and final burst's 120 at quality 1 become 150 and 180 at 4.
+- Set items show their set's own rune in the bottom-right corner of the slot instead of the same cross on every set, so you can tell sets apart in your bag, chests and at the enchanting table. The set's name is in the item's tooltip.
 - Auto pickup counts a thrown recalling weapon's weight while it's away, so picking things up meanwhile can no longer leave you overweight when it returns.
 
 # 1.25.0

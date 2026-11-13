@@ -13,6 +13,7 @@ namespace EpicLootProgressionFix
         private const string TrollQualityKey = Plugin.Id + ".trollstav-quality";
         private const string DundrBolt = "staff_lightning_projectile";
         private static readonly ConditionalWeakTable<Attack, StrongBox<int>> SetBolts = new ConditionalWeakTable<Attack, StrongBox<int>>();
+        private static readonly ConditionalWeakTable<GameObject, object> ScaledBursts = new ConditionalWeakTable<GameObject, object>();
 
         // Quality levels above the first.
         private static int Upgrades(int quality) => Mathf.Max(1, quality) - 1;
@@ -24,6 +25,9 @@ namespace EpicLootProgressionFix
         // Staff of the Wild keeps 2 more roots per upgrade.
         internal static bool IsRoots(SpawnAbility spawn) => spawn && Utils.GetPrefabName(spawn.gameObject) == "staff_greenroots_spawn";
         internal static int RootLimit(int limit, int quality) => limit + 2 * Upgrades(quality);
+
+        // Echo Spike deals a sixth more damage per upgrade, 1.5 times at quality 4, as Dundr and Fracturing gain a sixth more shots.
+        internal static float EchoSpikeDamage(int quality) => 1f + Upgrades(quality) / 6f;
 
         [HarmonyPatch(typeof(Aoe), nameof(Aoe.Setup)), HarmonyPostfix]
         private static void ScaleArea(Aoe __instance, Character owner, ItemDrop.ItemData item)
@@ -44,6 +48,12 @@ namespace EpicLootProgressionFix
                     if (item == null || !burst || !original) break;
                     burst.m_radius = original.m_radius + .5f * Upgrades(item.m_quality);
                     burst.m_chainMaxTargets = original.m_chainMaxTargets + Upgrades(item.m_quality);
+                    break;
+                // Echo Spike's final burst. The game sets up only the first of its two area effects, so the burst is scaled whole, once.
+                case "staff_OrbofAhri_aoe":
+                    if (item == null || ScaledBursts.TryGetValue(root, out _)) break;
+                    ScaledBursts.Add(root, root);
+                    foreach (var area in root.GetComponentsInChildren<Aoe>(true)) area.m_damage.Modify(EchoSpikeDamage(item.m_quality));
                     break;
                 // The Trollstav's landing blast reaches 5 m further per upgrade. Its owner is the summoned troll, which carries the
                 // staff's quality because the blast may be released later, by whichever game finishes placing the troll.
@@ -81,6 +91,9 @@ namespace EpicLootProgressionFix
                 case "staff_fireball_projectile": __instance.m_aoe += Upgrades(item.m_quality); break;
                 // Staff of Fracturing bursts into 2 more splinters per upgrade.
                 case "staff_clusterbombstaff_projectile": __instance.m_spawnCount += 2 * Upgrades(item.m_quality); break;
+                // Echo Spike's spike, out and back.
+                case "staff_OrbofAhri_projectile":
+                case "staff_OrbofAhri_projectile_return": __instance.m_damage.Modify(EchoSpikeDamage(item.m_quality)); break;
             }
         }
 
