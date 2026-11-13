@@ -14,6 +14,10 @@ Augment shows each effect's chance to appear among your new choices.
 
 ![The Augment tab with an Ancient Fenris Coat, listing each effect's chance to appear among up to 5 new choices](https://raw.githubusercontent.com/Tenemo/valheim-epicloot-progression-fix/main/screenshots/augment-chances.webp)
 
+Rune icons show their effect and value, and matching runes stack.
+
+![A wardrobe of runes, each icon labelled with its effect's short code and value, with the tooltip of a stack of five Unhindered runes](https://raw.githubusercontent.com/Tenemo/valheim-epicloot-progression-fix/main/screenshots/rune-chest-labels-and-stacks.webp)
+
 Active effects gathers your health, defenses, movement, attacks and every enchantment you wear in one page of the raven book.
 
 ![The Active effects page showing status effects, health and resources, defense, movement and attack totals](https://raw.githubusercontent.com/Tenemo/valheim-epicloot-progression-fix/main/screenshots/active-effects-page.webp)
