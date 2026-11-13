@@ -3,6 +3,7 @@
 - Andvaranaut's treasure and bounty finder can be extracted into a rune at the enchanting table and put in a shardstone slot, so you can wear it on other gear and keep your belt. Each ring Haldor sells carries one finder: once it's extracted, the ring is a plain ring you can enchant like any other, and enchanting or loot never gives the finder.
 - A Krigen's charge stops where you stand and slams you, instead of running past and hitting the ground behind you. Sidestep or dodge it to avoid the hit.
 - Creatures no longer fly far across ice when they attack: a Krigen's charge used to carry it 15 to 30 m past you.
+- Creatures that fall into the water climb back out onto shore ice and other ledges instead of floating at the edge, waiting where they fell in or walking around under the ice. Bosses, and creatures resting in the water, stay put.
 
 # 1.24.1
 
