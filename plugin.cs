@@ -337,6 +337,7 @@ namespace EpicLootProgressionFix
                 Run(typeof(EquipmentTiming), patches => EquipmentTiming.Initialize(patches));
                 Run(typeof(CookingProgress), patches => CookingProgress.Initialize(patches));
                 Run(typeof(CreatureMeleeReach), patches => CreatureMeleeReach.Initialize(patches));
+                Run(typeof(KrigenCharge), patches => KrigenCharge.Initialize(patches));
                 Run(typeof(CreatureReachability), patches => CreatureReachability.Initialize(patches));
                 Run(typeof(TameRiding), patches => TameRiding.Initialize(patches, Config));
                 Run(typeof(SummonOwnership), patches => SummonOwnership.Initialize(patches));

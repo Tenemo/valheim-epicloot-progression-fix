@@ -12,6 +12,7 @@ namespace EpicLootProgressionFix
     internal static class CreatureIceGrip
     {
         private static readonly AccessTools.FieldRef<Character, bool> IceShoes = AccessTools.FieldRefAccess<Character, bool>("m_iceShoes");
+        private static readonly AccessTools.FieldRef<Character, bool> Slipping = AccessTools.FieldRefAccess<Character, bool>("m_slipping");
         private static readonly AccessTools.FieldRef<Character, Vector3> GroundNormal = AccessTools.FieldRefAccess<Character, Vector3>("m_lastGroundNormal");
         // cos 30 degrees: flat ice keeps the skating model for riders.
         private const float SteepGround = .866f;
@@ -45,7 +46,20 @@ namespace EpicLootProgressionFix
                 read.opcode = OpCodes.Call;
                 read.operand = AccessTools.Method(typeof(CreatureIceGrip), nameof(HasIceGrip));
             }
+            if (__originalMethod.Name != "UpdateWalking") return code;
+            // Ice lifts the game's 20 m/s limit on one step's change of velocity so skating can build speed. With grip there is
+            // no skating, and without the limit an attack's root motion, such as the Krigen's charge, carries a creature
+            // 15-30 m across ice instead of the 3 m it moves on other ground.
+            var slipping = AccessTools.Field(typeof(Character), "m_slipping");
+            var limits = Enumerable.Range(3, code.Count - 3).Where(index => code[index].LoadsField(slipping) && code[index - 1].IsLdarg(0) &&
+                code[index - 2].Branches(out _) && code[index - 3].LoadsConstant(20f)).ToArray();
+            if (limits.Length != 1) throw new InvalidOperationException("The native velocity-change limit on ice changed.");
+            code[limits[0]].opcode = OpCodes.Call;
+            code[limits[0]].operand = AccessTools.Method(typeof(CreatureIceGrip), nameof(Unlimited));
             return code;
         }
+
+        // Whether the 20 m/s velocity-change limit is lifted: only for those who skate.
+        private static bool Unlimited(Character character) => Slipping(character) && !HasIceGrip(character);
     }
 }
