@@ -8,6 +8,7 @@ namespace EpicLootProgressionFix
     // A thrown recalling weapon keeps its inventory cell until it returns: automatic placement, capacity checks and moves
     // to a chosen cell treat the kept cell as taken, while merges into existing stacks still happen. EquipmentAndQuickSlots
     // keeps deciding which cells may take an item. The weapon then takes its cell back through native insertion.
+    // Auto pickup also counts the weapon's weight as carried, so items it collects meanwhile cannot overload its return.
     internal static class RecallSlots
     {
         private static readonly ItemDrop.ItemData Kept = new ItemDrop.ItemData();
@@ -24,6 +25,17 @@ namespace EpicLootProgressionFix
             private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
                 Transpilers.CallInstead(instructions, instruction => instruction.Calls(AccessTools.Method(typeof(Inventory), nameof(Inventory.GetItemAt))),
                     AccessTools.Method(typeof(RecallSlots), nameof(Occupant)), 2, "Inventory.FindEmptySlot changed; recalling weapons cannot keep their cells.");
+        }
+
+        [HarmonyPatch(typeof(Player), "AutoPickup")]
+        private static class AutomaticPickupWeight
+        {
+            // Valheim 1.0.15 skips an item when its weight plus the carried weight exceeds the carry limit.
+            private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+                Transpilers.CallInstead(instructions, instruction => instruction.Calls(AccessTools.Method(typeof(ItemDrop.ItemData), nameof(ItemDrop.ItemData.GetWeight))),
+                    AccessTools.Method(typeof(AutomaticPickupWeight), nameof(PickupWeight)), 1, "Player.AutoPickup changed; recalling weapons cannot keep their carry weight.");
+
+            private static float PickupWeight(ItemDrop.ItemData item, int stackOverride) => item.GetWeight(stackOverride) + RecallRecovery.ReservedWeight(item);
         }
 
         [HarmonyPatch(typeof(Inventory), "AddItem", new[] { typeof(ItemDrop.ItemData), typeof(int), typeof(int), typeof(int), typeof(bool) })]

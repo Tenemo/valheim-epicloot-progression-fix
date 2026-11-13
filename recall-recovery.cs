@@ -23,9 +23,9 @@ namespace EpicLootProgressionFix
         }
         private static readonly Dictionary<GameObject, Source> Sources = new();
         private static readonly Dictionary<long, List<ItemDrop.ItemData>> Recovered = new();
-        // The local character's cells kept empty for its thrown weapons, by weapon identity, until each returns. Death,
-        // logout and a new connection release them; a pending weapon still takes its saved cell back if that is free.
-        private static readonly Dictionary<string, Vector2i> Reserved = new();
+        // The local character's cells and carry weight kept for its thrown weapons, by weapon identity, until each returns.
+        // Death, logout and a new connection release them; a pending weapon still takes its saved cell back if that is free.
+        private static readonly Dictionary<string, (Vector2i Cell, ItemDrop.ItemData Item)> Reserved = new();
         private static Player loadedPlayer;
         private static readonly Action<ItemDrop> SaveDrop =
             AccessTools.MethodDelegate<Action<ItemDrop>>(AccessTools.Method(typeof(ItemDrop), "Save"));
@@ -74,7 +74,7 @@ namespace EpicLootProgressionFix
                 if (item.m_customData.TryGetValue(ItemKey, out string previous)) Reserved.Remove(previous);
                 item.m_customData[ItemKey] = Guid.NewGuid().ToString("N");
                 item.m_customData[CellKey] = item.m_gridPos.x + "," + item.m_gridPos.y;
-                Reserved[Identity(item)] = item.m_gridPos;
+                Reserved[Identity(item)] = (item.m_gridPos, item);
             }
             else if (!item.m_customData.ContainsKey(ItemKey)) item.m_customData[ItemKey] = Guid.NewGuid().ToString("N");
             Sources[__instance.gameObject] = new Source { Player = player, Item = item };
@@ -91,12 +91,20 @@ namespace EpicLootProgressionFix
         {
             if (Reserved.Count == 0 || !Local(inventory)) return false;
             string own = item != null && item.m_customData.TryGetValue(ItemKey, out string id) ? id : null;
-            return Reserved.Any(entry => entry.Value == cell && entry.Key != own) && inventory.GetItemAt(cell.x, cell.y) == null;
+            return Reserved.Any(entry => entry.Value.Cell == cell && entry.Key != own) && inventory.GetItemAt(cell.x, cell.y) == null;
         }
 
         // Kept cells that are free within the first rows, where native and EquipmentAndQuickSlots counts see empty cells.
         internal static int ReservedFreeCells(Inventory inventory, int rows) => Reserved.Count == 0 || !Local(inventory) ? 0 :
-            Reserved.Values.Distinct().Count(cell => cell.y < rows && cell.x < inventory.GetWidth() && inventory.GetItemAt(cell.x, cell.y) == null);
+            Reserved.Values.Select(entry => entry.Cell).Distinct().Count(cell => cell.y < rows && cell.x < inventory.GetWidth() && inventory.GetItemAt(cell.x, cell.y) == null);
+
+        // The carry weight of the local character's thrown weapons other than the given item, which are not in the inventory yet.
+        internal static float ReservedWeight(ItemDrop.ItemData item)
+        {
+            if (Reserved.Count == 0) return 0f;
+            string own = item.m_customData.TryGetValue(ItemKey, out string id) ? id : null;
+            return Reserved.Where(entry => entry.Key != own).Sum(entry => entry.Value.Item.GetWeight());
+        }
 
         // A returning weapon's saved cell, while it is inside the local inventory, free and not kept for another weapon.
         internal static bool PreferredCell(Inventory inventory, ItemDrop.ItemData item, out Vector2i cell)
