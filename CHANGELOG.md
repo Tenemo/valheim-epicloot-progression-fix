@@ -1,3 +1,7 @@
+# 1.25.0
+
+- Andvaranaut's treasure and bounty finder can be extracted into a rune at the enchanting table and put in a shardstone slot, so you can wear it on other gear and keep your belt. Each ring Haldor sells carries one finder: once it's extracted, the ring is a plain ring you can enchant like any other, and enchanting or loot never gives the finder.
+
 # 1.24.1
 
 - Dropped items no longer stop partway to you and stay on the ground in gardens and other spots crowded with mushrooms, flowers and other pickables, which happened mostly with a larger pickup range.

@@ -59,7 +59,7 @@ namespace EpicLootProgressionFix
             { "ModifyPhysicalDamage", "PHD" }, { "ModifyElementalDamage", "ED" }, { "AddLightningDamage", "LD" },
             { "AddPoisonDamage", "POD" }, { "AddSpiritDamage", "SPD" }, { "AddLightningResistancePercentage", "LDR" },
             { "AddSpiritResistancePercentage", "SPDR" }, { "AddBluntResistancePercentage", "BDR" },
-            { "AvoidDamageTakenLowHealth", "FEIL" }, { "ModifyLowHealth", "HCT" }, { "Paralyze", "PZ" }
+            { "AvoidDamageTakenLowHealth", "FEIL" }, { "ModifyLowHealth", "HCT" }, { "Paralyze", "PZ" }, { "Andvaranaut", "TBF" }
         };
         private static readonly Dictionary<string, string> StrengthTemplates = new Dictionary<string, string>
         {
