@@ -389,6 +389,7 @@ namespace EpicLootProgressionFix
                 Run(typeof(ComfortBuildActions), patches => ComfortBuildActions.Initialize(patches));
                 Run(typeof(StationCapacity), patches => StationCapacity.Initialize(patches));
                 Run(typeof(ChestHotbarTransfer), patches => ChestHotbarTransfer.Initialize(patches));
+                Run(typeof(CopiedIndestructibleItems), patches => CopiedIndestructibleItems.Initialize(patches));
                 Run(typeof(QuickCartKey), patches => QuickCartKey.Initialize(patches, Logger));
                 Run(typeof(AmmoCountBadge), patches => AmmoCountBadge.Initialize(patches, Logger));
                 Run(typeof(ModSettingsCaption), patches => ModSettingsCaption.Initialize(patches));
