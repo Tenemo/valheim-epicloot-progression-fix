@@ -8,7 +8,8 @@ namespace EpicLootProgressionFix
     // Mist can prevent the native crosshair from acquiring a creature. Keep the normal HUD alive for
     // alerted enemies and animals whose taming has started, including completed tames.
     // World geometry still blocks the camera's view; vegetation and placeable structures do not. An enemy
-    // attacking this player from within the configured attacker range keeps its bar through every obstruction.
+    // attacking this player from within the configured attacker range keeps its bar through every obstruction, and so does
+    // the player's own summon.
     [HarmonyPatch(typeof(EnemyHud), "UpdateHuds")]
     internal static class CombatHealthBars
     {
@@ -62,7 +63,7 @@ namespace EpicLootProgressionFix
             foreach (DictionaryEntry entry in ___m_huds)
             {
                 var character = (Character)entry.Key;
-                if (RecentHitHealthBars.Revealed(character))
+                if (RecentHitHealthBars.Revealed(character) || RecentHitHealthBars.OwnSummon(character))
                 {
                     HoverTimer(entry.Value) = 0f;
                     continue;

@@ -14,6 +14,7 @@
 - The Augment panel's list of possible new enchants shows each enchant's rarity stars, as tooltips and the Enchant panel do.
 - Nemesis minibosses appear only in a biome where their creature lives, so a Fuling Berserker that killed someone at the forest's edge no longer turns up in the Black Forest. A creature the world spawns only in dungeons or after a boss falls, such as a Skeleton, keeps the biome where it killed. Its escorts come from the biome it appears in.
 - A Nemesis miniboss's name ends with the name of the player it killed instead of "of Human".
+- Your summons' health bars, such as Spirit Caller animals and Dead Raiser skeletons, stay on screen at any distance and behind walls until the summon is gone. Bats called by a shardstone still have none.
 
 # 1.25.0
 

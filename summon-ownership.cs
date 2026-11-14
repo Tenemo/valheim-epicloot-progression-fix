@@ -116,6 +116,16 @@ namespace EpicLootProgressionFix
             var data = view && view.IsValid() ? view.GetZDO() : null;
             return data != null && (StaffFor(data) != null || SummonedBats.SummonerId(data) != 0 || data.GetLong("el-sumby", 0L) != 0 || data.GetLong("el-spirit", 0L) != 0);
         }
+        // A summon of the local player other than a shardstone bat: a staff summon, a Hel's Harvest raise or a Spirit Animal.
+        internal static bool OwnSummon(Character character)
+        {
+            var player = Player.m_localPlayer;
+            if (!player || !character || !character.IsTamed() || SummonedBats.IsBat(character)) return false;
+            var data = GameFields.CharacterView(character).GetZDO();
+            long id = player.GetPlayerID();
+            return data.GetLong("el-sumby", 0L) == id || data.GetLong("el-spirit", 0L) == id ||
+                TryGet(character, out long summoner, out _) && summoner == id;
+        }
         internal static Player Summoner(Character character) => TryGet(character, out long player, out _) ? Player.GetPlayer(player) : null;
         internal static bool IsStaff(string prefab) => StaffTypes.ContainsValue(prefab);
         internal static string StaffFor(ZDO data) => data != null && StaffTypes.TryGetValue(data.GetPrefab(), out var staff) ? staff : null;
