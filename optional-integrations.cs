@@ -33,7 +33,7 @@ namespace EpicLootProgressionFix
                 "QuickStackSorting", "QuickStackKey", "QuickStackSingleItems", "ItemActivity+Restocking");
             Add("favorite-storage", "Personal favorites and inventory borders", true, new[] { PluginIds.QuickStack, PluginIds.ItemStacks }, "PersistentFavorites", "SocketFavorites");
             Add("equipment-slots", "Equipment slots, grave recovery and slot shortcuts", true, new[] { PluginIds.EquipmentAndQuickSlots },
-                "EquipmentAndQuickSlots", "AutoPickupKey", "GraveCarryWeight", "GraveSlotRecovery", "InventorySlotKeys", "RecallSlots+QuickSlots");
+                "EquipmentAndQuickSlots", "EquipmentSlotDrops", "AutoPickupKey", "GraveCarryWeight", "GraveSlotRecovery", "InventorySlotKeys", "RecallSlots+QuickSlots");
             Add("quick-stack-equipment", "Quick Stack equipment-slot protection", true, new[] { PluginIds.QuickStack, PluginIds.EquipmentAndQuickSlots }, "QuickStackEquipmentSlots");
             Add("chest-storage", "Nearby chest supply, cooking and station capacity", true, new[] { PluginIds.AzuCraftyBoxes },
                 "AttachedCartMaterials", "BuildMaterialPull", "StationCapacity", "BulkCooking", "BulkProcessing", "BulkFermenting", "StationInputPreviews", "ChestPullingDefaults", "ChestSupplyEligibility", "HelmSimulation+StorageSupply");

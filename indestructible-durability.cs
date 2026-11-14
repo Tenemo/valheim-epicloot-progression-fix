@@ -17,6 +17,10 @@ namespace EpicLootProgressionFix
         private static readonly ConditionalWeakTable<ItemDrop.ItemData.SharedData, ItemDrop.ItemData.SharedData> Originals =
             new ConditionalWeakTable<ItemDrop.ItemData.SharedData, ItemDrop.ItemData.SharedData>();
 
+        // The shared data a protected copy was made from; any other shared data is its own original.
+        internal static ItemDrop.ItemData.SharedData Original(ItemDrop.ItemData.SharedData shared) =>
+            shared != null && Originals.TryGetValue(shared, out var original) ? original : shared;
+
         private static void Prefix(ItemDrop.ItemData item)
         {
             if (item?.m_shared != null && !Remembered.TryGetValue(item, out _) && Originals.TryGetValue(item.m_shared, out var original))
