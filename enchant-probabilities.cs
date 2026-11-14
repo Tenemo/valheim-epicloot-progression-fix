@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -339,7 +340,10 @@ namespace EpicLootProgressionFix
                     void Run(Action<int> action)
                     {
                         if (workers == 1 || parents < 1024) for (int worker = 0; worker < workers; worker++) action(worker);
-                        else Parallel.For(0, workers, options, action);
+                        else
+                            try { Parallel.For(0, workers, options, action); }
+                            // Report a worker's own error, not an aggregate whose message names none.
+                            catch (AggregateException error) { ExceptionDispatchInfo.Capture(error.Flatten().InnerExceptions[0]).Throw(); }
                     }
                     // Each worker follows the states of its own shard, a slice per round.
                     int rounds = last ? 1 : (int)(1 + parents * count / RoundTransitions);
