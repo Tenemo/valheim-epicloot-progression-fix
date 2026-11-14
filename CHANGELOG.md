@@ -18,6 +18,7 @@
 - Your summons' health bars, such as Spirit Caller animals and Dead Raiser skeletons, stay on screen at any distance and behind walls until the summon is gone. Bats called by a shardstone still have none.
 - An item that held an Indestructible rune while passing through a chest wears again when you take the rune out, and takes the rune back, instead of refusing it with "it never wears out".
 - With the inventory open, point at an item in your bag or an open chest and press a quick slot key (Z X V B N M by default, or whatever you set) to put it in that quick slot, as 1-8 do for the hotbar.
+- Skill levels above 100 from armor sets, trinkets, Forsaken powers and potions now count the same as enchantment levels: they keep improving attack and draw stamina, block armor, run and swim speed, building stamina, tool wear and Farming, Cooking and Crafting bonuses, not just damage and carry weight.
 
 # 1.25.0
 
