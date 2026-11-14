@@ -24,6 +24,12 @@ namespace EpicLootProgressionFix
         private static object invalid;
         private static List<GameObject> accepted;
         private static Dictionary<GameObject, Placement> placements;
+        // EpicLoot stamps Green Thumb on each plant from what is in hand when it is placed, but PlantEasily places a batch
+        // two per frame after the click. A batch keeps the Green Thumb the click had, even if the player takes out another tool.
+        private static float batchGreenThumb;
+        private static readonly int GreenThumbStamp = EpicLoot.MagicItemEffects.GreenThumb.ZdoKey.GetStableHashCode();
+        private static readonly Action<Plant> ShowGreenThumb = AccessTools.MethodDelegate<Action<Plant>>(
+            AccessTools.Method(typeof(EpicLoot.MagicItemEffects.GreenThumb), "AttachVfx") ?? throw new MissingMethodException("EpicLoot's Green Thumb effect moved."));
         private static readonly Action<Player, bool> RefreshGhost = AccessTools.MethodDelegate<Action<Player, bool>>(AccessTools.Method(typeof(Player), "UpdatePlacementGhost"));
         private static readonly Action<Player> RecreateGhost = AccessTools.MethodDelegate<Action<Player>>(AccessTools.Method(typeof(Player), "SetupPlacementGhost"));
 
@@ -52,6 +58,17 @@ namespace EpicLootProgressionFix
             harmony.Patch(AccessTools.Method(controller, "BulkPlanting"), postfix: new HarmonyMethod(self, nameof(CleanupBatch)));
             harmony.Patch(AccessTools.EnumeratorMoveNext(AccessTools.Method(controller, "BulkPlanting")), transpiler: new HarmonyMethod(self, nameof(UseAcceptedGhosts)));
             harmony.Patch(AccessTools.Method(controller, "PlacePiece"), prefix: new HarmonyMethod(self, nameof(UseAcceptedPosition)), finalizer: new HarmonyMethod(self, nameof(RemoveCarrier)));
+            harmony.Patch(AccessTools.Method(typeof(Piece), nameof(Piece.SetCreator)),
+                postfix: new HarmonyMethod(self, nameof(KeepBatchGreenThumb)) { priority = Priority.Last, after = new[] { PluginIds.EpicLoot } });
+        }
+
+        private static void KeepBatchGreenThumb(Piece __instance)
+        {
+            if (accepted == null || batchGreenThumb <= 0f || !(__instance.GetComponent<Plant>() is Plant plant)) return;
+            var view = __instance.GetComponent<ZNetView>();
+            if (!view || !view.IsValid() || !view.IsOwner() || view.GetZDO().GetFloat(GreenThumbStamp) == batchGreenThumb) return;
+            view.GetZDO().Set(GreenThumbStamp, batchGreenThumb);
+            ShowGreenThumb(plant);
         }
 
         // A settled preview has already lost its ZNetView. Growing the pool from that preview leaves Plant.Awake
@@ -98,6 +115,7 @@ namespace EpicLootProgressionFix
         {
             accepted = ((List<GameObject>)valid.GetValue(null)).ToList();
             placements = accepted.ToDictionary(ghost => ghost, ghost => new Placement(ghost));
+            batchGreenThumb = Player.m_localPlayer && EpicLoot.PlayerExtensions.HasActiveMagicEffect(Player.m_localPlayer, EpicLoot.MagicEffectType.GreenThumb, out float value) ? value : 0f;
         }
 
         private static List<GameObject> AcceptedGhosts() => accepted;
@@ -127,7 +145,7 @@ namespace EpicLootProgressionFix
         private static IEnumerator CompleteBatch(IEnumerator batch)
         {
             try { while (batch.MoveNext()) yield return batch.Current; }
-            finally { (batch as IDisposable)?.Dispose(); accepted = null; placements = null; }
+            finally { (batch as IDisposable)?.Dispose(); accepted = null; placements = null; batchGreenThumb = 0f; }
         }
     }
 }

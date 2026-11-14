@@ -12,6 +12,7 @@
 - Attack eitr cost works on Dundr: on the staff, your armor or your set it lowers the eitr each reload drains and the eitr you need to start one, and Dundr can roll it again. Dundr's tooltip shows the eitr each reload takes instead of eitr per second.
 - Fire rate also makes Dundr reload faster, for the same eitr per reload: +50% shortens a 0.95 s reload to 0.63 s. Attack speed still speeds up only the shot.
 - Enchantments that would do nothing no longer roll, etch or socket on these items: Attack speed on the Serving Tray, Chain lightning on the Staff of Protection, Trollstav and Northern Vengeance, Executioner on the Scythe, Snow Shovel, Staff of Protection and Trollstav, and the Cyan shardstone on the Scythe, Snow Shovel and Sparkler.
+- Every crop in a PlantEasily grid gets your cultivator's Green Thumb, even if you take out another tool while the grid is still being planted. Before, crops planted after the switch grew at the normal speed.
 
 # 1.26.0
 
