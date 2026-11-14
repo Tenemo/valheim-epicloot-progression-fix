@@ -38,6 +38,11 @@ namespace EpicLootProgressionFix
                     text.fontSizeMax = Mathf.RoundToInt(text.fontSize * 1.5f);
                     text.fontSizeMin = Mathf.Min(8f, text.fontSize);
                     text.enableAutoSizing = true;
+                    // EpicLoot draws the count in a plain white font that vanishes on bright item pictures. Use the
+                    // inventory's count font and its dark outline instead, at the same size.
+                    var inventoryCount = RuneIconLabels.FontTemplate;
+                    text.font = inventoryCount.font;
+                    text.fontSharedMaterial = inventoryCount.fontSharedMaterial;
                 }
             }
             display.RefreshCount();
