@@ -32,6 +32,7 @@ namespace EpicLootProgressionFix
         private static Texture2D frost, cracks, glints, glow;
         private static Rect number;
         private static float gameBold = -1f, healthOutline;
+        private static int shownAmount = -1;
         private static Color healthOutlineColor;
         private static bool healthStyled;
         private static readonly Vector3[] Corners = new Vector3[4];
@@ -112,6 +113,7 @@ namespace EpicLootProgressionFix
             // The shield number copies the health number, outside the mask and drawn last.
             shieldText = Object.Instantiate(health.gameObject, top, false).GetComponent<TMP_Text>();
             shieldText.name = "ProtectionNumber";
+            shownAmount = -1;
             shieldText.transform.SetAsLastSibling();
             shieldText.fontMaterial = shieldMaterial = new Material(health.fontSharedMaterial);
             shieldText.color = ShieldBlue;
@@ -224,7 +226,8 @@ namespace EpicLootProgressionFix
         {
             var health = hud.m_healthText.transform;
             var text = shieldText.transform;
-            shieldText.text = Mathf.CeilToInt(remaining).ToString();
+            int amount = Mathf.CeilToInt(remaining);
+            if (amount != shownAmount) shieldText.text = (shownAmount = amount).ToString();
             text.rotation = health.rotation;
             Vector3 scale = health.lossyScale, parent = text.parent.lossyScale;
             text.localScale = new Vector3(scale.x / parent.x, scale.y / parent.y, 1f);

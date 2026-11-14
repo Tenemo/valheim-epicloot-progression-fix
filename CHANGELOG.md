@@ -22,9 +22,10 @@
 - In Convert Materials, pointing at a recipe or at an item in Items Produced shows how many of that item you carry and have in nearby storage.
 - Etching a rune over an augmented enchantment no longer marks the new enchantment as augmented. Augmenting it later costs the same as augmenting any enchantment you haven't augmented yet.
 - Etched runes are named after the enchantment they hold, such as "Rune: Physical damage reduction 12.74%", instead of "Etched Mythic runestone", and their tooltip says how to socket or etch them instead of calling them a crafting material.
-- Staff of Protection's bubble shows on your health bar as a thin layer of ice over as much health as it can still absorb, reaching past the top of the bar when it's larger than your health. Its remaining amount appears in blue just above your health number.
+- Staff of Protection's bubble shows on your health bar as a thin layer of ice covering as much of the bar as the damage it can still absorb, reaching past the top of the bar when it's larger than your health. Its remaining amount appears in blue just above your health number.
 - Items your auto pickup pulls keep up with you while you run, closing in at 15 m/s however fast you go, instead of trailing behind and dropping out of reach once you run about 15 m/s or faster.
 - Worn Indestructible gear comes off when you drag it from its equipment slot onto an empty bag cell, and goes on when you drag it from a chest onto its slot.
+- The enchanting table's cost counts use the same outlined numbers as your bag, so they stay readable on bright item pictures.
 
 # 1.25.0
 
