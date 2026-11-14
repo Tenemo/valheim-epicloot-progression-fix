@@ -56,7 +56,7 @@ namespace EpicLootProgressionFix
             { QuickStack, new[] { new System.Version("1.4.16") } },
             { EquipmentAndQuickSlots, new[] { new System.Version("3.2.1") } },
             { DropThat, new[] { new System.Version("3.1.7") } },
-            { StarLevelSystem, new[] { new System.Version("1.32.0") } },
+            { StarLevelSystem, new[] { new System.Version("1.32.0"), new System.Version("1.33.0") } },
             { DiscordBot, new[] { new System.Version("1.4.11") } },
             { DiscordConnector, new[] { new System.Version("3.2.0") } },
             { FedoHud, new[] { new System.Version("1.1.2") } },
