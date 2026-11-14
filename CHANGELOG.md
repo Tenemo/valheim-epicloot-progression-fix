@@ -1,6 +1,7 @@
 # 1.27.0
 
 - Staff of Frost aims tighter and hits harder with each upgrade: its shards spread 5 degrees at quality 1, 2.9 at 4 and 1.3 at 12, and deal a sixth more damage per upgrade on top of the game's own, so 30 frost per shard at quality 1 becomes 54 at 4 and 147 at 12.
+- Staff of Protection's ice on your health bar is easier to see through: the frosted tint is gone and its cracks are thin and sharp, so your health stays clear beneath it.
 
 # 1.26.0
 

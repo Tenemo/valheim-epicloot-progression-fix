@@ -6,7 +6,7 @@ using UnityEngine.UI;
 
 namespace EpicLootProgressionFix
 {
-    // Shows the protection bubble on the health bar as thin cracked ice, at the bar's own scale: it starts at the bar's empty
+    // Shows the protection bubble on the health bar as thin, sharp ice cracks, at the bar's own scale: it starts at the bar's empty
     // end and covers as much health as the bubble absorbs, continuing past the bar's full end when the bubble is larger.
     // The bubble's remaining amount appears in blue just above the health number.
     internal static class ProtectionHealthBar
@@ -16,7 +16,7 @@ namespace EpicLootProgressionFix
         private static readonly AccessTools.FieldRef<SE_Shield, float> Damage = AccessTools.FieldRefAccess<SE_Shield, float>("m_damage");
         private static readonly AccessTools.FieldRef<GuiBar, RectTransform> Bar = AccessTools.FieldRefAccess<GuiBar, RectTransform>("m_bar");
         private static readonly AccessTools.FieldRef<GuiBar, float> Width = AccessTools.FieldRefAccess<GuiBar, float>("m_width");
-        private static readonly Color Ice = new Color(.8f, .94f, 1f, .1f), Cracks = new Color(.45f, .7f, .9f, .8f), ShieldBlue = new Color(.55f, .85f, 1f);
+        private static readonly Color Cracks = new Color(.45f, .7f, .9f, .56f), ShieldBlue = new Color(.55f, .85f, 1f);
         private const float Margin = 12f, OutlineWidth = .25f, ExtraBold = .15f;
 
         private sealed class View
@@ -29,7 +29,7 @@ namespace EpicLootProgressionFix
         private static RectTransform clip;
         private static TMP_Text shieldText, healthText;
         private static Material shieldMaterial;
-        private static Texture2D frost, cracks, glints, glow;
+        private static Texture2D cracks, glints, glow;
         private static Rect number;
         private static float gameBold = -1f, healthOutline;
         private static int shownAmount = -1;
@@ -137,11 +137,10 @@ namespace EpicLootProgressionFix
                 image.rectTransform.anchorMin = image.rectTransform.anchorMax = image.rectTransform.pivot = Vector2.zero;
                 view.Images.Add(image);
             }
-            Add("Ice", frost, Ice);
             Add("Cracks", cracks, Cracks);
             Add("Glints", glints, Color.white);
-            Add("Top", Texture2D.whiteTexture, new Color(.88f, .98f, 1f, .95f));
-            Add("Bottom", Texture2D.whiteTexture, new Color(.7f, .9f, 1f, .8f));
+            Add("Top", Texture2D.whiteTexture, new Color(.88f, .98f, 1f, .475f));
+            Add("Bottom", Texture2D.whiteTexture, new Color(.7f, .9f, 1f, .4f));
             Add("EdgeGlow", glow, new Color(.75f, .95f, 1f, .85f));
             Add("Edge", Texture2D.whiteTexture, new Color(.95f, 1f, 1f, 1f));
             return view;
@@ -241,48 +240,40 @@ namespace EpicLootProgressionFix
             float time = Time.unscaledTime, pulse = .8f + .2f * Mathf.Sin(time * 2.2f);
             const float edge = 1.5f;
             Place(images[0], 0f, 0f, length, height);
-            images[0].uvRect = new Rect(0f, 0f, length / (height * 2f), 1f);
+            images[0].uvRect = new Rect(0f, 0f, length / (height * 2.2f), 1f);
             Place(images[1], 0f, 0f, length, height);
-            images[1].uvRect = new Rect(0f, 0f, length / (height * 2.2f), 1f);
-            Place(images[2], 0f, 0f, length, height);
-            images[2].uvRect = new Rect(.37f, .11f, length / 60f, height / 60f);
-            images[2].color = new Color(1f, 1f, 1f, .5f + .5f * Mathf.Abs(Mathf.Sin(time * 1.7f)));
-            Place(images[3], 0f, height - edge, length, edge);
-            Place(images[4], 0f, 0f, length, edge);
-            Place(images[5], length - 10f, -3f, 20f, height + 6f);
-            images[5].color = new Color(.75f, .95f, 1f, .85f * pulse);
-            Place(images[6], length - 1.5f, -1f, 3f, height + 2f);
+            images[1].uvRect = new Rect(.37f, .11f, length / 60f, height / 60f);
+            images[1].color = new Color(1f, 1f, 1f, .25f + .25f * Mathf.Abs(Mathf.Sin(time * 1.7f)));
+            Place(images[2], 0f, height - edge, length, edge);
+            Place(images[3], 0f, 0f, length, edge);
+            Place(images[4], length - 10f, -3f, 20f, height + 6f);
+            images[4].color = new Color(.75f, .95f, 1f, .85f * pulse);
+            Place(images[5], length - 1.5f, -1f, 3f, height + 2f);
         }
 
         private static void MakeTextures()
         {
-            if (frost && cracks && glints && glow) return;
-            // Frosted ice: mottled pale blue, brighter along one side.
-            frost = New(64, 32, TextureWrapMode.Repeat, (x, y) =>
-            {
-                float u = x / 64f * 2f * Mathf.PI, v = y / 31f;
-                float mottle = .5f + .25f * Mathf.Sin(3f * u + 2f * Mathf.Sin(v * 6f)) + .25f * Mathf.Sin(5f * u + v * 9f);
-                float shade = .82f + .12f * mottle + .06f * Mathf.Exp(-Mathf.Pow((v - .78f) / .12f, 2f));
-                return new Color(shade, shade, shade, 1f);
-            });
-            // Ice cracks: the edges between cells of a tiling Voronoi pattern.
+            if (cracks && glints && glow) return;
+            // Ice cracks: the edges between cells of a tiling Voronoi pattern, drawn at four times the cells' grid so the lines
+            // stay thin and sharp on the bar while the red health beneath them stays clear.
+            const int detail = 4;
             var random = new System.Random(11);
             var seeds = new Vector2[11];
-            for (int i = 0; i < seeds.Length; i++) seeds[i] = new Vector2(random.Next(64), random.Next(32));
-            cracks = New(64, 32, TextureWrapMode.Repeat, (x, y) =>
+            for (int i = 0; i < seeds.Length; i++) seeds[i] = new Vector2(random.Next(64) * detail, random.Next(32) * detail);
+            cracks = New(64 * detail, 32 * detail, TextureWrapMode.Repeat, (x, y) =>
             {
                 float first = float.MaxValue, second = float.MaxValue;
                 foreach (var seed in seeds)
                 {
                     float dx = Mathf.Abs(x - seed.x), dy = Mathf.Abs(y - seed.y);
-                    dx = Mathf.Min(dx, 64f - dx); dy = Mathf.Min(dy, 32f - dy);
+                    dx = Mathf.Min(dx, 64f * detail - dx); dy = Mathf.Min(dy, 32f * detail - dy);
                     float distance = Mathf.Sqrt(dx * dx + dy * dy);
                     if (distance < first) { second = first; first = distance; }
                     else if (distance < second) second = distance;
                 }
-                float gap = second - first;
-                return new Color(1f, 1f, 1f, Mathf.Exp(-gap * gap / 1.1f) * .9f);
-            });
+                float gap = (second - first) / 2f;
+                return new Color(1f, 1f, 1f, 1f - Mathf.SmoothStep(0f, 1f, (gap - 1.2f) / 1.2f));
+            }, true);
             // Four-pointed glints.
             var points = new Vector2[7];
             for (int i = 0; i < points.Length; i++) points[i] = new Vector2(random.Next(64), random.Next(64));
@@ -300,9 +291,12 @@ namespace EpicLootProgressionFix
             glow = New(32, 4, TextureWrapMode.Clamp, (x, y) => new Color(1f, 1f, 1f, Mathf.Exp(-Mathf.Pow((x / 31f - .5f) / .2f, 2f))));
         }
 
-        private static Texture2D New(int width, int height, TextureWrapMode wrap, System.Func<int, int, Color> pixel)
+        private static Texture2D New(int width, int height, TextureWrapMode wrap, System.Func<int, int, Color> pixel, bool mipmaps = false)
         {
-            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { wrapMode = wrap, filterMode = FilterMode.Bilinear, hideFlags = HideFlags.HideAndDontSave };
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, mipmaps)
+            {
+                wrapMode = wrap, filterMode = mipmaps ? FilterMode.Trilinear : FilterMode.Bilinear, anisoLevel = mipmaps ? 4 : 1, hideFlags = HideFlags.HideAndDontSave
+            };
             var pixels = new Color[width * height];
             for (int y = 0; y < height; y++)
                 for (int x = 0; x < width; x++)
