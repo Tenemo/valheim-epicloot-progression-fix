@@ -20,6 +20,7 @@
 - With the inventory open, point at an item in your bag or an open chest and press a quick slot key (Z X V B N M by default, or whatever you set) to put it in that quick slot, as 1-8 do for the hotbar.
 - Skill levels above 100 from armor sets, trinkets, Forsaken powers and potions now count the same as enchantment levels: they keep improving attack and draw stamina, block armor, run and swim speed, building stamina, tool wear and Farming, Cooking and Crafting bonuses, not just damage and carry weight.
 - In Convert Materials, pointing at a recipe or at an item in Items Produced shows how many of that item you carry and have in nearby storage.
+- Etching a rune over an augmented enchantment no longer marks the new enchantment as augmented. Augmenting it later costs the same as augmenting any enchantment you haven't augmented yet.
 
 # 1.25.0
 
