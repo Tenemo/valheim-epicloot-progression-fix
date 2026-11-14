@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -71,6 +73,58 @@ namespace EpicLootProgressionFix
                     if (data != null) __instance.m_radius = 10f + 5f * Upgrades(data.GetInt(TrollQualityKey, 1));
                     break;
             }
+        }
+
+        // Tooltip rows for what each upgrade grows, at the quality the tooltip shows.
+        internal static IEnumerable<string> TooltipRows(ItemDrop.ItemData item, int quality)
+        {
+            var projectile = item.m_shared.m_attack?.m_attackProjectile;
+            if (!projectile) yield break;
+            int upgrades = Upgrades(quality);
+            switch (projectile.name)
+            {
+                case "staff_shield_aoe":
+                case "staff_FrostOrbs_aoe":
+                    yield return "Reaches allies within: " + 5 * Mathf.Max(1, quality) + " m";
+                    break;
+                case "staff_fireball_projectile":
+                    yield return "Blast radius: " + Number(projectile.GetComponent<Projectile>().m_aoe + upgrades) + " m";
+                    break;
+                case "staff_clusterbombstaff_projectile":
+                    yield return "Splinters: " + (projectile.GetComponent<Projectile>().m_spawnCount + 2 * upgrades);
+                    break;
+                case "staff_thunderblood_projectile":
+                    var burst = Chaining(projectile.GetComponent<Projectile>().m_spawnOnHit);
+                    if (!burst) break;
+                    yield return "Blast radius: " + Number(burst.m_radius + .5f * upgrades) + " m";
+                    yield return "Chains to: up to " + (burst.m_chainMaxTargets + upgrades) + " enemies";
+                    break;
+                case "staff_redtroll_spawn":
+                    yield return "Landing blast radius: " + (10 + 5 * upgrades) + " m";
+                    break;
+                case "staff_OrbofAhri_projectile":
+                    float factor = UpgradeDamage(quality);
+                    var back = projectile.GetComponent<Projectile>().m_spawnOnHit?.GetComponent<Projectile>();
+                    if (back) yield return "Returning spike: " + Damage(back.m_damage, factor);
+                    // The burst's blast, and its lightning rod: a column 0.4 m wide where the spike lands, so it strikes only
+                    // the target the spike hits.
+                    var areas = ZNetScene.instance ? ZNetScene.instance.GetPrefab("staff_OrbofAhri_aoe")?.GetComponentsInChildren<Aoe>(true) : null;
+                    var blast = areas?.FirstOrDefault(area => !area.m_useCollider);
+                    var rod = areas?.FirstOrDefault(area => area.m_useCollider);
+                    if (blast) yield return "Final burst: " + Damage(blast.m_damage, factor) + (rod ? ", plus " + Damage(rod.m_damage, factor) + " to the target the spike hits" : "");
+                    break;
+            }
+        }
+
+        private static string Number(float value) => value.ToString("0.#", CultureInfo.CurrentCulture);
+
+        private static string Damage(HitData.DamageTypes damage, float factor)
+        {
+            var parts = new List<string>();
+            void Add(float value, string name) { if (value > 0) parts.Add(Mathf.RoundToInt(value * factor) + " " + name); }
+            Add(damage.m_damage, "damage"); Add(damage.m_blunt, "blunt"); Add(damage.m_slash, "slash"); Add(damage.m_pierce, "pierce");
+            Add(damage.m_fire, "fire"); Add(damage.m_frost, "frost"); Add(damage.m_lightning, "lightning"); Add(damage.m_poison, "poison"); Add(damage.m_spirit, "spirit");
+            return string.Join(", ", parts);
         }
 
         private static Aoe Chaining(GameObject effect) => effect ? effect.GetComponentsInChildren<Aoe>(true).FirstOrDefault(area => area.m_chainObj) : null;

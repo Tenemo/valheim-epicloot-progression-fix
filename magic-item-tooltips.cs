@@ -46,6 +46,7 @@ namespace EpicLootProgressionFix
                 int projectiles = StaffQuality.IsDundr(primary) ? StaffQuality.DundrBolts(primary.m_projectiles, qualityLevel) : primary.m_projectiles;
                 if (primary.m_attackType == Attack.AttackType.Projectile && projectiles > 1)
                     rows.Add("Projectiles per burst: " + projectiles);
+                rows.AddRange(StaffQuality.TooltipRows(item, qualityLevel));
                 if (rows.Count == 0) return;
                 string color = item.GetMagicItem()?.GetColorString() ?? "orange";
                 string replacement = "\n" + string.Join("\n", rows.Select(row => "<color=" + color + ">" + row + "</color>"));
@@ -73,7 +74,8 @@ namespace EpicLootProgressionFix
             return "Reload: " + Number(item.GetWeaponLoadingTime()) + " s" + (drains.Count == 0 ? "" : "; " + string.Join("; ", drains));
         }
 
-        // A single summon per cast goes without saying, and the cap shared by everyone's summons shows only with Shift.
+        // A single summon per cast goes without saying, and the cap shared by everyone's summons shows only with Shift, except
+        // Staff of the Wild's, which grows with each upgrade.
         private static void AddSummons(List<string> rows, Player player, ItemDrop.ItemData item, int quality)
         {
             var spawn = Summoning(item);
@@ -84,7 +86,7 @@ namespace EpicLootProgressionFix
             int following = level == null ? 0 : spawn.m_setMaxInstancesFromWeaponLevel ? quality : level.m_maxSpawns;
             if (spawn.m_commandOnSpawn && following > 0) rows.Add("Follower limit: " + following);
             int nearby = StaffQuality.IsRoots(spawn) ? StaffQuality.RootLimit(spawn.m_maxSpawned, quality) : spawn.m_maxSpawned;
-            if (nearby > 0 && MagicItem.ShowEffectDetails) rows.Add("Summon limit nearby: " + nearby + " per type");
+            if (nearby > 0 && (MagicItem.ShowEffectDetails || StaffQuality.IsRoots(spawn))) rows.Add("Summon limit nearby: " + nearby + " per type");
             if (spawn.m_copySkill != Skills.SkillType.None && spawn.m_copySkillToRandomFactor > 0)
                 rows.Add("Summon damage multiplier: " + (1f + player.GetSkillLevel(spawn.m_copySkill) * spawn.m_copySkillToRandomFactor).ToString("0.###", CultureInfo.CurrentCulture) + "x");
         }
