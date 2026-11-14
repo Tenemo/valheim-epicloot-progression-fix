@@ -11,6 +11,8 @@
 - Set items show their set's own rune in the bottom-right corner of the slot instead of the same cross on every set, so you can tell sets apart in your bag, chests and at the enchanting table. The set's name is in the item's tooltip.
 - Auto pickup counts a thrown recalling weapon's weight while it's away, so picking things up meanwhile can no longer leave you overweight when it returns.
 - An enchant's rarity stars show how rarely it actually appears on the gear it can roll on, unique legendaries included. Elemental damage reduction and Apportation now have 3 stars, and Indestructible, Executioner, Physical damage reduction, Warmth and Waterproof 1. Lifesteal, Heal on kill, Spellblade, Eitr Weaving, All weapon damage and Chain lightning gain 1 star, and Attack speed, Quick draw and Bow draw stamina cost lose theirs.
+- Nemesis minibosses appear only in a biome where their creature lives, so a Fuling Berserker that killed someone at the forest's edge no longer turns up in the Black Forest. A creature the world spawns only in dungeons or after a boss falls, such as a Skeleton, keeps the biome where it killed. Its escorts come from the biome it appears in.
+- A Nemesis miniboss's name ends with the name of the player it killed instead of "of Human".
 
 # 1.25.0
 
