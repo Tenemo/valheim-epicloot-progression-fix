@@ -3,6 +3,7 @@
 - Staff of Frost aims tighter and hits harder with each upgrade: its shards spread 5 degrees at quality 1, 2.9 at 4 and 1.3 at 12, and deal a sixth more damage per upgrade on top of the game's own, so 30 frost per shard at quality 1 becomes 54 at 4 and 147 at 12.
 - Staff of Protection's ice on your health bar is easier to see through: the frosted tint is gone and its cracks are thin and sharp, so your health stays clear beneath it.
 - Staff tooltips show what each upgrade grows, both on the staff and in the Galdr table's upgrade preview: Staff of Protection's and Northern Vengeance's reach, Staff of Embers' and Lightning Strike's blast radius, Lightning Strike's chain targets, Staff of Fracturing's splinters, the Trollstav's landing blast and Echo Spike's damage. Echo Spike's 400 lightning, which strikes only the target its spike hits, is listed with its final burst. Staff of the Wild's root limit shows without holding Shift.
+- An upgraded item with a maximum durability enchantment comes out at full durability, as every other upgraded item does, instead of looking worn.
 
 # 1.26.0
 
