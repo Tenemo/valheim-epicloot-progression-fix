@@ -47,8 +47,8 @@ namespace EpicLootProgressionFix
         private static readonly HashSet<string> Hits = new HashSet<string>
         {
             MagicEffectType.EitrLeech, MagicEffectType.ChanceDoubleDamage, MagicEffectType.LifeGainOnHit, MagicEffectType.HealthGainPerXDamageDone,
-            MagicEffectType.EitrImbueAttack,
         };
+        private static readonly string[] AddsPhysical = { MagicEffectType.AddBluntDamage, MagicEffectType.AddSlashingDamage, MagicEffectType.AddPiercingDamage };
         private static readonly HashSet<Skills.SkillType> ChainSkills = new HashSet<Skills.SkillType>
         {
             Skills.SkillType.Swords, Skills.SkillType.Clubs, Skills.SkillType.Knives, Skills.SkillType.Unarmed, Skills.SkillType.Axes, Skills.SkillType.Polearms,
@@ -66,7 +66,8 @@ namespace EpicLootProgressionFix
             MagicEffectType.Indestructible, MagicEffectType.RecallWeapon, MagicEffectType.Apportation, MagicEffectType.CloseQuarter,
             MagicEffectType.ModifyDrawStaminaUse, MagicEffectType.ModifyAttackStaminaUse, MagicEffectType.IncreaseHarvestDamage,
             MagicEffectType.IncreaseMeleeSkills, MagicEffectType.ModifyAttackHealthUse, MagicEffectType.FrostDamageAOE,
-            MagicEffectType.ModifySummonDamage, MagicEffectType.ModifySummonHealth,
+            MagicEffectType.ModifySummonDamage, MagicEffectType.ModifySummonHealth, MagicEffectType.ModifyAttackSpeed,
+            MagicEffectType.ModifyAttackSpeedLowHealth, MagicEffectType.Executioner, MagicEffectType.EitrImbueAttack,
         }));
         private static bool checkingOccupants;
 
@@ -87,23 +88,37 @@ namespace EpicLootProgressionFix
             // Staves, bows and crossbows keep a secondary attack without an animation, which no control can start.
             var attacks = new[] { shared.m_attack, shared.m_secondaryAttack }.Where(attack => attack != null && !string.IsNullOrEmpty(attack.m_attackAnimation)).ToList();
             bool damage = Total(shared.m_damages) > 0f || Total(shared.m_damagesPerLevel) > 0f || ammunition;
+            bool projectile = attacks.Any(attack => attack.m_attackProjectile && attack.m_attackProjectile.GetComponent<Projectile>());
+            // The Scythe and Snow Shovel swing for no damage; the Staff of Protection and Trollstav hit nothing themselves, and
+            // Northern Vengeance's retaliation uses no skill and carries neither effect.
+            bool ownHits = !weapon || damage || projectile;
 
             // Dead Raiser and the other casts that summon or protect; Echo Spike and bows launch real projectiles.
             if (effectType == MagicEffectType.ModifyProjectileSpeed)
-                return weapon && !ammunition && !attacks.Any(attack => attack.m_attackProjectile && attack.m_attackProjectile.GetComponent<Projectile>()) &&
-                    !Throwable(item, magic) ? "it launches no projectile" : null;
+                return weapon && !ammunition && !projectile && !Throwable(item, magic) ? "it launches no projectile" : null;
             // The Scythe, Snow Shovel, Sparkler, Hammer and Blood Magic staves; an iron sword, any bow and any shield stay.
             if (WeaponDamage.Contains(effectType))
                 return builds ? "a build tool never attacks" : (weapon || torch) && !damage ? "it deals no weapon damage" : null;
             // Spears, fist weapons and the fire staff stop at two strikes; an iron sword and armor stay.
             if (effectType == MagicEffectType.OffSetAttack)
                 return builds ? "a build tool never attacks" : weapon && attacks.All(attack => attack.m_attackChainLevels < 3) ? "no attack reaches a third combo strike" : null;
-            // Pickaxes, the Scythe and the fishing rod; swords stay.
+            // Pickaxes, the Scythe, the fishing rod, the Staff of Protection and Trollstav; swords and Echo Spike stay.
             if (effectType == MagicEffectType.ChainLightning)
-                return !ChainSkills.Contains(shared.m_skillType) ? "its hits use a skill chain lightning ignores" : null;
-            // Dundr pays its eitr while reloading; the fire staff, spellsword weapons and drawn bows stay.
+                return !ChainSkills.Contains(shared.m_skillType) ? "its hits use a skill chain lightning ignores" : !ownHits ? "it never hits anything itself" : null;
+            // The Scythe, Snow Shovel, Staff of Protection and Trollstav; swords and Echo Spike stay.
+            if (effectType == MagicEffectType.Executioner)
+                return !ownHits ? "it deals no damage of its own" : null;
+            // The Scythe, Snow Shovel and Sparkler; swords, clubs and bows stay.
+            if (effectType == MagicEffectType.EitrImbueAttack)
+                return builds ? "a build tool never hits" : (weapon || torch) && !ammunition && Physical(shared.m_damages) + Physical(shared.m_damagesPerLevel) <= 0f &&
+                    !AddsPhysical.Any(added => magic.HasEffect(added, includeSocketed: true)) ? "it deals no physical damage" : null;
+            // The Serving Tray and the other build tools; an iron sword stays.
+            if (effectType == MagicEffectType.ModifyAttackSpeed || effectType == MagicEffectType.ModifyAttackSpeedLowHealth)
+                return builds ? "a build tool never attacks" : null;
+            // Pickaxes; the fire staff, Dundr's eitr-draining reload, spellsword weapons and drawn bows stay.
             if (effectType == MagicEffectType.ModifyAttackEitrUse)
-                return held && !attacks.Any(attack => attack.m_attackEitr > 0f || attack.m_bowDraw) && !SpellbladeMagicSwords.IsSpellswordOnceMagic(item) ? "its attacks cost no eitr" : null;
+                return held && !attacks.Any(attack => attack.m_attackEitr > 0f || attack.m_bowDraw || attack.m_requiresReload && attack.m_reloadEitrDrain > 0f) &&
+                    !SpellbladeMagicSwords.IsSpellswordOnceMagic(item) ? "its attacks cost no eitr" : null;
             // The Dverger circlet and seasonal hats; an iron helmet stays.
             if (effectType == MagicEffectType.Indestructible)
                 return !Indestructible.OriginallyUsesDurability(item) ? "it never wears out" : null;
@@ -162,6 +177,8 @@ namespace EpicLootProgressionFix
 
         private static float Total(HitData.DamageTypes damage) => damage.m_damage + damage.m_blunt + damage.m_slash + damage.m_pierce + damage.m_chop +
             damage.m_pickaxe + damage.m_fire + damage.m_frost + damage.m_lightning + damage.m_poison + damage.m_spirit;
+
+        private static float Physical(HitData.DamageTypes damage) => damage.m_blunt + damage.m_slash + damage.m_pierce;
 
         private static bool Allows(ItemDrop.ItemData item, MagicItem magic, string effectType) =>
             MagicItemEffectDefinitions.TryGet(effectType, out var definition) &&

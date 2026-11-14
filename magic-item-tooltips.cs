@@ -41,7 +41,7 @@ namespace EpicLootProgressionFix
                 var secondary = item.m_shared.m_secondaryAttack;
                 if (secondary != null && !string.IsNullOrEmpty(secondary.m_attackAnimation)) AddAttack(rows, player, item, secondary, "Secondary attack cost");
                 if (primary.m_bowDraw) AddDraw(rows, player, item);
-                if (primary.m_requiresReload) rows.Add(ReloadRow(item));
+                if (primary.m_requiresReload) rows.Add(ReloadRow(player, item));
                 AddSummons(rows, player, item, qualityLevel);
                 int projectiles = StaffQuality.IsDundr(primary) ? StaffQuality.DundrBolts(primary.m_projectiles, qualityLevel) : primary.m_projectiles;
                 if (primary.m_attackType == Attack.AttackType.Projectile && projectiles > 1)
@@ -66,12 +66,14 @@ namespace EpicLootProgressionFix
             finally { HandOverride.Active = priorHands; }
         }
 
-        private static string ReloadRow(ItemDrop.ItemData item)
+        // Dundr's eitr shows per reload, since its fire rate shortens the reload without changing what it drains.
+        private static string ReloadRow(Player player, ItemDrop.ItemData item)
         {
             var primary = item.m_shared.m_attack; var drains = new List<string>();
+            float time = item.GetWeaponLoadingTime();
             AddResource(drains, primary.m_reloadStaminaDrain * Game.m_staminaRate, "stamina/s", primary.m_reloadStaminaDrain != 0);
-            AddResource(drains, primary.m_reloadEitrDrain * Game.m_eitrRate, "eitr/s", primary.m_reloadEitrDrain != 0);
-            return "Reload: " + Number(item.GetWeaponLoadingTime()) + " s" + (drains.Count == 0 ? "" : "; " + string.Join("; ", drains));
+            AddResource(drains, StaffReload.DrainPerSecond(player, item) * time * Game.m_eitrRate, "eitr", primary.m_reloadEitrDrain != 0);
+            return "Reload: " + Number(time) + " s" + (drains.Count == 0 ? "" : "; " + string.Join("; ", drains));
         }
 
         // A single summon per cast goes without saying, and the cap shared by everyone's summons shows only with Shift, except

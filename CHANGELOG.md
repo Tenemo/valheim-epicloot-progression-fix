@@ -6,6 +6,9 @@
 - Staff tooltips show what each upgrade grows, both on the staff and in the Galdr table's upgrade preview: Staff of Protection's and Northern Vengeance's reach, Staff of Embers' and Lightning Strike's blast radius, Lightning Strike's chain targets, Staff of Fracturing's splinters, the Trollstav's landing blast and Echo Spike's damage. Echo Spike's 400 lightning, which strikes only the target its spike hits, is listed with its final burst. Staff of the Wild's root limit shows without holding Shift.
 - An upgraded item with a maximum durability enchantment comes out at full durability, as every other upgraded item does, instead of looking worn.
 - An Indestructible rune extracted from Mythic or Ancient gear looks like your other Legendary Indestructible runes and stacks with them. Before, it kept the higher tier's picture and name and wouldn't stack, and Legendary runes you got afterwards turned the same way until you restarted the game.
+- Attack eitr cost works on Dundr: on the staff, your armor or your set it lowers the eitr each reload drains and the eitr you need to start one, and Dundr can roll it again. Dundr's tooltip shows the eitr each reload takes instead of eitr per second.
+- Fire rate also makes Dundr reload faster, for the same eitr per reload: +50% shortens a 0.95 s reload to 0.63 s. Attack speed still speeds up only the shot.
+- Enchantments that would do nothing no longer roll, etch or socket on these items: Attack speed on the Serving Tray, Chain lightning on the Staff of Protection, Trollstav and Northern Vengeance, Executioner on the Scythe, Snow Shovel, Staff of Protection and Trollstav, and the Cyan shardstone on the Scythe, Snow Shovel and Sparkler.
 
 # 1.26.0
 
