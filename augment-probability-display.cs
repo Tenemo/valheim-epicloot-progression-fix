@@ -132,11 +132,15 @@ namespace EpicLootProgressionFix
             if (magic == null || selected < 0 || selected >= magic.Effects.Count || table == null) return "";
             var pool = Pool(item, selected);
             string color = global::EpicLoot.EpicLoot.GetRarityColor(magic.Rarity);
+            // Each effect carries its rarity stars, as in EpicLoot's own list. The fresh roll line sits under its original, which shows them.
+            string Range(MagicItemEffectDefinition definition) =>
+                MagicEffectRarity.Decorate(definition, MagicItem.GetEffectTextRange(definition, definition.GetValuesForRarity(magic.Rarity)), allowAnimation: true);
             if (!Enabled.Value)
-                return "<color=" + color + ">" + string.Join("\n", pool.Select(definition => "‣ " +
-                    MagicItem.GetEffectTextRange(definition, definition.GetValuesForRarity(magic.Rarity)))) + "</color>";
+                return "<color=" + color + ">" + string.Join("\n", pool.Select(definition => "‣ " + Range(definition))) + "</color>";
             int count = ChoiceCount(table);
             var original = magic.Effects[selected];
+            string current = MagicEffectRarity.Decorate(original.EffectType,
+                MagicItem.GetEffectText(original, magic.Rarity, showRange: false, legendaryID: magic.LegendaryID), allowAnimation: true);
             var text = new StringBuilder();
             string keep = EnchantCostsHelper.EffectIsDeprecated(original.EffectType) ? " (original shown, unavailable)" : " (keep original)";
             try
@@ -160,16 +164,16 @@ namespace EpicLootProgressionFix
                 Heading = "Chance to appear in choices";
                 text.AppendLine("Up to " + count + " new choices.");
                 text.AppendLine("<color=" + color + ">");
-                text.AppendLine("‣ " + MagicItem.GetEffectText(original, magic.Rarity, showRange: false, legendaryID: magic.LegendaryID) + keep);
+                text.AppendLine("‣ " + current + keep);
                 // Keep the fresh-roll explanation directly under its guaranteed original, while preserving the native
                 // order for the other effects. The sampler still uses the original pool order above.
                 foreach (int index in Enumerable.Range(0, pool.Count).OrderBy(index => pool[index].Type != original.EffectType))
                 {
                     var definition = pool[index];
                     string chance = AugmentProbabilities.Format(calculation[index]);
-                    string description = MagicItem.GetEffectTextRange(definition, definition.GetValuesForRarity(magic.Rarity));
-                    if (definition.Type == original.EffectType) text.AppendLine("  Fresh roll: " + chance + " " + description);
-                    else text.AppendLine("‣ " + chance + " " + description);
+                    if (definition.Type == original.EffectType)
+                        text.AppendLine("  Fresh roll: " + chance + " " + MagicItem.GetEffectTextRange(definition, definition.GetValuesForRarity(magic.Rarity)));
+                    else text.AppendLine("‣ " + chance + " " + Range(definition));
                 }
             }
             catch (Exception error)
@@ -185,9 +189,9 @@ namespace EpicLootProgressionFix
                 }
                 text.AppendLine(error is NotSupportedException ? "Chances unavailable in this game setup." : "Chances unavailable for this selection.");
                 text.AppendLine("<color=" + color + ">");
-                text.AppendLine("‣ " + MagicItem.GetEffectText(original, magic.Rarity, showRange: false, legendaryID: magic.LegendaryID) + " (current effect)");
+                text.AppendLine("‣ " + current + " (current effect)");
                 foreach (var definition in pool)
-                    text.AppendLine("‣ " + MagicItem.GetEffectTextRange(definition, definition.GetValuesForRarity(magic.Rarity)));
+                    text.AppendLine("‣ " + Range(definition));
             }
             text.Append("</color>");
             return text.ToString();
