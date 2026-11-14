@@ -10,6 +10,7 @@
 - Echo Spike deals a sixth more damage per upgrade: its returning spike's 100 and final burst's 120 at quality 1 become 150 and 180 at 4.
 - Set items show their set's own rune in the bottom-right corner of the slot instead of the same cross on every set, so you can tell sets apart in your bag, chests and at the enchanting table. The set's name is in the item's tooltip.
 - Auto pickup counts a thrown recalling weapon's weight while it's away, so picking things up meanwhile can no longer leave you overweight when it returns.
+- An enchant's rarity stars show how rarely it actually appears on the gear it can roll on, unique legendaries included. Elemental damage reduction and Apportation now have 3 stars, and Indestructible, Executioner, Physical damage reduction, Warmth and Waterproof 1. Lifesteal, Heal on kill, Spellblade, Eitr Weaving, All weapon damage and Chain lightning gain 1 star, and Attack speed, Quick draw and Bow draw stamina cost lose theirs.
 
 # 1.25.0
 
