@@ -6,8 +6,9 @@ using UnityEngine;
 
 namespace EpicLootProgressionFix
 {
-    // Bag and chest slots show the stars of their item's rarest enchant, small and violet, in the slot's bottom-left corner;
-    // the item's quality keeps the top-right corner. Runes keep that corner for their strength.
+    // Bag and chest slots show the stars of their item's rarest enchant, small and violet, in the slot's bottom-left corner
+    // just above where a damaged item's durability bar sits; the item's quality keeps the top-right corner. Runes keep that
+    // corner for their strength.
     [HarmonyPatch(typeof(API), nameof(API.ApplyMagicItemBackground))]
     internal static class EnchantSlotStars
     {
@@ -26,8 +27,8 @@ namespace EpicLootProgressionFix
 
     internal sealed class EnchantSlotStarLabel : MonoBehaviour
     {
-        // Text size and the gap from the slot's left and bottom edges.
-        private const float Size = 10f, Left = 1f, Bottom = 0f;
+        // Text size, the gap from the slot's left edge and the gap above the durability bar's top.
+        private const float Size = 10f, Left = 1f, AboveBar = 1f;
         private static readonly Color Violet = new Color32(0xC7, 0x9B, 0xFF, 0xFF);
         private TMP_Text label;
         private int wanted, frame = -1, shown;
@@ -58,8 +59,8 @@ namespace EpicLootProgressionFix
 
         private TMP_Text Create()
         {
-            var template = GetComponent<InventoryElement>().m_amount;
-            var text = Instantiate(template, transform);
+            var element = GetComponent<InventoryElement>();
+            var text = Instantiate(element.m_amount, transform);
             text.name = Plugin.Id + ".enchant-stars";
             text.raycastTarget = false;
             text.enabled = true;
@@ -74,9 +75,25 @@ namespace EpicLootProgressionFix
             var rect = text.rectTransform;
             rect.localScale = Vector3.one;
             rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.zero;
-            rect.anchoredPosition = new Vector2(Left, Bottom);
+            rect.anchoredPosition = new Vector2(Left, BarTop(element) + AboveBar);
             rect.sizeDelta = new Vector2(40f, Size + 4f);
             return text;
+        }
+
+        // The durability bar's top above the slot's bottom edge, in the slot's units; every slot keeps the stars there, so
+        // they stay put when an item takes damage.
+        private static float BarTop(InventoryElement element)
+        {
+            var slot = (RectTransform)element.transform;
+            if (!element.m_durability) return 0f;
+            float top = slot.rect.yMin;
+            var corners = new Vector3[4];
+            foreach (var part in element.m_durability.GetComponentsInChildren<RectTransform>(true))
+            {
+                part.GetWorldCorners(corners);
+                top = Mathf.Max(top, slot.InverseTransformPoint(corners[1]).y);
+            }
+            return top - slot.rect.yMin;
         }
     }
 }
