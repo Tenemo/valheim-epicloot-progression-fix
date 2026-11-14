@@ -121,7 +121,11 @@ namespace EpicLootProgressionFix
             }
             foreach (string name in new[] { "staff_shield_aoe", "staff_FrostOrbs_aoe", "staff_OrbofAhri_aoe", "staff_redtroll_aoe" }) Require<Aoe>(name);
             if (!Chaining(__instance.GetPrefab("staff_thunderblood_aoe"))) throw new InvalidOperationException("Lightning Strike's chaining burst is missing.");
-            foreach (string name in new[] { "staff_greenroots_spawn", "staff_redtroll_spawn" }) Require<SpawnAbility>(name);
+            // The two summonings aren't networked: Staff of the Wild's projectile spawns its roots, and the Trollstav's attack is its spawn.
+            var roots = __instance.GetPrefab("staff_greenroots_projectile")?.GetComponent<Projectile>()?.m_spawnOnHit;
+            if (!roots || !IsRoots(roots.GetComponent<SpawnAbility>())) throw new InvalidOperationException("Staff of the Wild's roots are missing.");
+            var troll = __instance.GetPrefab("StaffRedTroll")?.GetComponent<ItemDrop>()?.m_itemData.m_shared.m_attack.m_attackProjectile;
+            if (!troll || !troll.GetComponent<SpawnAbility>() || Utils.GetPrefabName(troll) != "staff_redtroll_spawn") throw new InvalidOperationException("The Trollstav's summoning is missing.");
             foreach (string name in new[] { "staff_fireball_projectile", "staff_clusterbombstaff_projectile", "staff_OrbofAhri_projectile", "staff_OrbofAhri_projectile_return", DundrBolt })
                 Require<Projectile>(name);
         }
