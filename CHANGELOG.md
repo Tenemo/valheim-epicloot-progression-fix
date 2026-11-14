@@ -1,3 +1,7 @@
+# 1.27.0
+
+- Staff of Frost aims tighter and hits harder with each upgrade: its shards spread 5 degrees at quality 1, 2.9 at 4 and 1.3 at 12, and deal a sixth more damage per upgrade on top of the game's own, so 30 frost per shard at quality 1 becomes 54 at 4 and 147 at 12.
+
 # 1.26.0
 
 - Staff of Protection and Northern Vengeance reach allies within 5 m per staff quality level: 5 m at quality 1, 20 m at 4. Staff of Protection used to reach 20 m at every quality.

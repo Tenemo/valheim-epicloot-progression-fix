@@ -22,13 +22,5 @@ namespace EpicLootProgressionFix
 
         [HarmonyPatch(typeof(MultiShot), nameof(MultiShot.Attack_FireProjectileBurst_Prefix)), HarmonyPrefix, HarmonyPriority(Priority.First)]
         private static bool Burst(Attack __0) => __0 != null && __0 == rolled;
-
-        // Frost's bolts already spread widely, so Double Cast keeps the staff's own spread instead of widening it by a fifth.
-        [HarmonyPatch(typeof(MultiShot), nameof(MultiShot.Attack_FireProjectileBurst_Prefix)), HarmonyPostfix]
-        private static void FrostSpread(Attack __0)
-        {
-            var weapon = __0 == null ? null : GameFields.AttackWeapon(__0);
-            if (weapon?.m_dropPrefab?.name == "StaffIceShards") __0.m_projectileAccuracy = weapon.m_shared.m_attack.m_projectileAccuracy;
-        }
     }
 }
