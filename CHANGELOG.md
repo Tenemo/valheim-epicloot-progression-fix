@@ -17,6 +17,7 @@
 - A Nemesis miniboss's name ends with the name of the player it killed instead of "of Human".
 - Your summons' health bars, such as Spirit Caller animals and Dead Raiser skeletons, stay on screen at any distance and behind walls until the summon is gone. Bats called by a shardstone still have none.
 - An item that held an Indestructible rune while passing through a chest wears again when you take the rune out, and takes the rune back, instead of refusing it with "it never wears out".
+- With the inventory open, point at an item in your bag or an open chest and press a quick slot key (Z X V B N M by default, or whatever you set) to put it in that quick slot, as 1-8 do for the hotbar.
 
 # 1.25.0
 
