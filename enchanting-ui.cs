@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using EpicLoot;
 using EpicLoot.Crafting;
 using EpicLoot.CraftingV2;
@@ -57,7 +58,9 @@ namespace EpicLootProgressionFix
 
         internal void RefreshCount()
         {
-            nextRefresh = Time.unscaledTime + 0.5f;
+            // Every half second on a grid of its own, so a filled list's rows don't all count nearby chests in one frame.
+            float phase = (GetInstanceID() & 15) / 32f;
+            nextRefresh = (Mathf.Floor((Time.unscaledTime - phase) / 0.5f) + 1f) * 0.5f + phase;
             if (element == null || Player.m_localPlayer == null) return;
             var entry = element.GetListElement();
             var item = entry?.GetItem();
@@ -128,6 +131,11 @@ namespace EpicLootProgressionFix
     {
         private static bool Prefix(ItemDrop.ItemData item, UITooltip tooltip)
         {
+            if (EnchantingTooltipDetails.Deferring)
+            {
+                tooltip.m_topic = tooltip.m_text = "";
+                return false;
+            }
             if (EpicLoot.EpicLoot.IsAllowedMagicItemType(item)) return true;
             tooltip.Set(item.GetDisplayName(), item.GetTooltip());
             return false;
@@ -187,53 +195,153 @@ namespace EpicLootProgressionFix
         }
     }
 
-    // EpicLoot reads Shift only while it builds a tooltip's text. The inventory rebuilds the hovered slot's tooltip every
-    // frame, but the enchanting table builds each row's tooltips once, when its list is filled, so pressing Shift over a
-    // row changed nothing. Refresh the hovered row through the same setters, including health-dependent costs.
+    // EpicLoot builds every row's item tooltip, twice, while it fills a list, which made opening the table and switching
+    // its tabs stall with a full bag or nearby chests. The rows you pick items from build their tooltip once, when it is
+    // about to show, and meanwhile a millisecond's worth of rows a frame from the top, so a hovered row is normally ready.
+    // EpicLoot also reads Shift only while it builds a tooltip's text, so pressing Shift over a row changed nothing; the
+    // hovered row rebuilds when Shift changes and every 0.2 s, for health-dependent costs.
     [HarmonyPatch(typeof(MultiSelectItemListElement), nameof(MultiSelectItemListElement.SetItem))]
     public sealed class EnchantingTooltipDetails : MonoBehaviour
     {
+        private const double FrameBudgetMilliseconds = 1;
+
         private static readonly AccessTools.FieldRef<UITooltip> ShownTooltip =
             AccessTools.StaticFieldRefAccess<UITooltip>(AccessTools.Field(typeof(UITooltip), "m_current"));
         private static readonly Action<UITooltip> ShowNewText =
             AccessTools.MethodDelegate<Action<UITooltip>>(AccessTools.Method(typeof(UITooltip), "UpdateTextElements"));
         private static readonly Action<ItemDrop.ItemData, UITooltip> SetItemTooltip = AccessTools.MethodDelegate<Action<ItemDrop.ItemData, UITooltip>>(
             AccessTools.Method(typeof(EnchantingUIController), "SetItemTooltip", new[] { typeof(ItemDrop.ItemData), typeof(UITooltip) }));
+        private static readonly Func<MultiSelectItemListElement, int> StorageCount = AccessTools.MethodDelegate<Func<MultiSelectItemListElement, int>>(
+            AccessTools.Method(typeof(MultiSelectItemListElement), "GetStorageCount"));
+        private static readonly Queue<EnchantingTooltipDetails> Pending = new Queue<EnchantingTooltipDetails>();
+        private static readonly System.Diagnostics.Stopwatch BudgetClock = new System.Diagnostics.Stopwatch();
+
+        // True while SetItem fills a row whose tooltip waits; SetMagicItem and SetItemTooltip then leave it empty.
+        internal static bool Deferring { get; private set; }
 
         private MultiSelectItemListElement element;
+        private bool waiting;
+        private bool queued;
         private bool builtWithDetails;
         private float refreshAt;
 
+        private static void Prefix(MultiSelectItemListElement __instance, IListElement item) => Deferring = CanWait(__instance, item);
+
         private static void Postfix(MultiSelectItemListElement __instance)
         {
+            bool deferred = Deferring;
+            Deferring = false;
             var tracker = __instance.GetComponent<EnchantingTooltipDetails>();
             if (tracker == null) tracker = __instance.gameObject.AddComponent<EnchantingTooltipDetails>();
             tracker.element = __instance;
             tracker.builtWithDetails = MagicItem.ShowEffectDetails;
+            tracker.refreshAt = Time.unscaledTime + .2f;
+            tracker.waiting = deferred;
+            if (deferred && !tracker.queued)
+            {
+                tracker.queued = true;
+                Pending.Enqueue(tracker);
+            }
+        }
+
+        private static void Finalizer() => Deferring = false;
+
+        // Cost, product and Convert Materials rows are few and keep EpicLoot's own filling, as do Auga's tooltips. A row
+        // whose tooltip is showing or under the pointer fills at once, as EpicLoot's own setter shows the new text there.
+        private static bool CanWait(MultiSelectItemListElement element, IListElement item)
+        {
+            if (element.ReadOnly || EpicLoot.EpicLoot.HasAuga || item?.GetItem() == null) return false;
+            var shown = ShownTooltip();
+            if (shown != null && (shown == element.Tooltip || shown == element.ItemHoverTooltip)) return false;
+            if (ZInput.instance != null && element.transform is RectTransform rect &&
+                rect.rect.Contains(rect.InverseTransformPoint(ZInput.pointerPosition))) return false;
+            return element.GetComponentInParent<ConvertUI>() == null;
+        }
+
+        // Same text and order as SetItem with the pack's tooltips: SetMagicItem writes Tooltip's fields directly, SetItem
+        // adds the stored count, and SetItemTooltip sets ItemHoverTooltip, which also refreshes it on screen. Without
+        // Auga both use the same tooltip text, so it is built once.
+        internal void Build()
+        {
+            waiting = false;
+            builtWithDetails = MagicItem.ShowEffectDetails;
+            refreshAt = Time.unscaledTime + .2f;
+            var item = element == null ? null : element.GetListElement()?.GetItem();
+            if (item == null) return;
+            if (EpicLoot.EpicLoot.HasAuga)
+            {
+                if (element.ItemHoverTooltip != null) SetItemTooltip(item, element.ItemHoverTooltip);
+            }
+            else
+            {
+                string text = item.GetTooltip();
+                if (element.Tooltip != null)
+                {
+                    element.Tooltip.m_topic = Localization.instance.Localize(item.GetDecoratedName());
+                    element.Tooltip.m_text = Localization.instance.Localize(text);
+                    int stored = StorageCount(element);
+                    if (stored > 0) element.Tooltip.m_text += "\n<color=#9BDB9B>" +
+                        Localization.instance.Localize("$mod_epicloot_storagecount", stored.ToString()) + "</color>";
+                    if (ShownTooltip() == element.Tooltip) ShowNewText(element.Tooltip);
+                }
+                if (element.ItemHoverTooltip != null) element.ItemHoverTooltip.Set(item.GetDisplayName(), text);
+            }
+            // Cost rows append a stock summary that the rebuilt text lacks.
+            var costs = GetComponent<EnchantingCostCounts>();
+            if (costs != null) costs.RefreshCount();
         }
 
         private void Update()
         {
             var shown = ShownTooltip();
             if (shown == null || element == null || (shown != element.Tooltip && shown != element.ItemHoverTooltip)) return;
-            bool details = MagicItem.ShowEffectDetails;
-            if (details == builtWithDetails && Time.unscaledTime < refreshAt) return;
-            builtWithDetails = details;
-            refreshAt = Time.unscaledTime + .2f;
-            var item = element.GetListElement()?.GetItem();
-            if (item == null) return;
-            // Same order and text as SetItem: SetMagicItem writes Tooltip's fields directly, without Auga, and
-            // SetItemTooltip sets ItemHoverTooltip, which also refreshes it on screen.
-            if (element.Tooltip != null && !EpicLoot.EpicLoot.HasAuga)
+            if (!waiting && MagicItem.ShowEffectDetails == builtWithDetails && Time.unscaledTime < refreshAt) return;
+            Build();
+        }
+
+        // Before a waiting row's tooltip decides whether it has anything to show, by mouse, touch or controller focus.
+        internal static void BuildOnHover(UITooltip tooltip)
+        {
+            var tracker = tooltip.GetComponentInParent<EnchantingTooltipDetails>();
+            if (tracker == null || tracker.element == null ||
+                (tooltip != tracker.element.Tooltip && tooltip != tracker.element.ItemHoverTooltip)) return;
+            if (tracker.waiting || tracker.builtWithDetails != MagicItem.ShowEffectDetails) tracker.Build();
+        }
+
+        // Rows build in list order while the table is open, at least one a frame. Rows on a hidden tab or filtered out
+        // wait for their hover; switching tabs fills that tab's list again.
+        internal static void BuildWaiting(EnchantingTableUI table)
+        {
+            if (Pending.Count == 0 || table.Root == null || !table.Root.activeSelf) return;
+            BudgetClock.Restart();
+            while (Pending.Count > 0)
             {
-                element.Tooltip.m_topic = Localization.instance.Localize(item.GetDecoratedName());
-                element.Tooltip.m_text = Localization.instance.Localize(item.GetTooltip());
-                if (shown == element.Tooltip) ShowNewText(shown);
+                var tracker = Pending.Dequeue();
+                if (tracker == null) continue;
+                tracker.queued = false;
+                if (!tracker.waiting || !tracker.gameObject.activeInHierarchy) continue;
+                tracker.Build();
+                if (BudgetClock.Elapsed.TotalMilliseconds >= FrameBudgetMilliseconds) break;
             }
-            if (element.ItemHoverTooltip != null) SetItemTooltip(item, element.ItemHoverTooltip);
-            // Cost rows append a stock summary that the rebuilt text lacks.
-            var costs = GetComponent<EnchantingCostCounts>();
-            if (costs != null) costs.RefreshCount();
+        }
+    }
+
+    [HarmonyPatch]
+    internal static class EnchantingTooltipBuilding
+    {
+        [HarmonyPatch(typeof(UITooltip), nameof(UITooltip.OnHoverStart)), HarmonyPrefix]
+        private static void Hovered(UITooltip __instance) => EnchantingTooltipDetails.BuildOnHover(__instance);
+
+        [HarmonyPatch(typeof(EnchantingTableUI), nameof(EnchantingTableUI.Update)), HarmonyPostfix]
+        private static void TableUpdated(EnchantingTableUI __instance) => EnchantingTooltipDetails.BuildWaiting(__instance);
+
+        // A waiting row leaves Tooltip empty here; the row builds it later, with the same text.
+        [HarmonyPatch(typeof(EnchantingUIController), "SetMagicItem"), HarmonyPrefix]
+        private static void Filling(ref UITooltip tooltip)
+        {
+            if (!EnchantingTooltipDetails.Deferring || tooltip == null) return;
+            tooltip.m_topic = tooltip.m_text = "";
+            tooltip = null;
         }
     }
 

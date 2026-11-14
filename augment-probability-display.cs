@@ -89,24 +89,43 @@ namespace EpicLootProgressionFix
             pool.Select(definition => definition.Type.Length + ":" + definition.Type + ":" + BitConverter.ToInt32(BitConverter.GetBytes(definition.SelectionWeight), 0) + ":" +
                 MagicItemEffectDefinitions.IsValuelessEffect(definition.Type)));
 
-        [HarmonyPatch(typeof(EnchantingUIController), "GetAugmentableItems")]
+        // Each listed item's enchant pools start their chance calculations ahead of a choice. Building a pool takes about a
+        // millisecond, so a full bag's pools are built a millisecond's worth a frame while the table is open instead of
+        // all at once while the Augment list fills; the chosen enchant asks for its own chances first either way.
+        [HarmonyPatch]
         private static class Prewarm
         {
-            private static void Postfix(List<InventoryItemListElement> __result)
+            private static readonly Queue<(ItemDrop.ItemData Item, int Selected)> Pending = new Queue<(ItemDrop.ItemData, int)>();
+            private static readonly System.Diagnostics.Stopwatch BudgetClock = new System.Diagnostics.Stopwatch();
+
+            [HarmonyPatch(typeof(EnchantingUIController), "GetAugmentableItems"), HarmonyPostfix]
+            private static void Listed(List<InventoryItemListElement> __result)
             {
-                var table = EnchantingTableUI.instance?.SourceTable;
-                if (!Enabled.Value || !table || !SelectionRulesSupported()) return;
-                int count = ChoiceCount(table);
+                Pending.Clear();
                 foreach (var row in __result)
                 {
                     var item = row.GetItem(); var effects = item.GetMagicItem().Effects;
-                    for (int selected = 0; selected < effects.Count; selected++)
-                    {
-                        if (!MagicItemEffectDefinitions.TryGet(effects[selected].EffectType, out var effect) || !effect.CanBeAugmented) continue;
-                        var pool = Pool(item, selected);
-                        AugmentProbabilityCache.Get(InputKey(pool, count), pool.Select(value => value.SelectionWeight).ToArray(),
-                            pool.Select(value => MagicItemEffectDefinitions.IsValuelessEffect(value.Type)).ToArray(), count, false);
-                    }
+                    for (int selected = 0; selected < effects.Count; selected++) Pending.Enqueue((item, selected));
+                }
+            }
+
+            [HarmonyPatch(typeof(EnchantingTableUI), nameof(EnchantingTableUI.Update)), HarmonyPostfix]
+            private static void Step(EnchantingTableUI __instance)
+            {
+                if (Pending.Count == 0 || __instance.Root == null || !__instance.Root.activeSelf) return;
+                var table = __instance.SourceTable;
+                if (!Enabled.Value || !table || !SelectionRulesSupported()) { Pending.Clear(); return; }
+                int count = ChoiceCount(table);
+                BudgetClock.Restart();
+                while (Pending.Count > 0 && BudgetClock.Elapsed.TotalMilliseconds < 1)
+                {
+                    var (item, selected) = Pending.Dequeue();
+                    var effects = item.GetMagicItem()?.Effects;
+                    if (effects == null || selected >= effects.Count ||
+                        !MagicItemEffectDefinitions.TryGet(effects[selected].EffectType, out var effect) || !effect.CanBeAugmented) continue;
+                    var pool = Pool(item, selected);
+                    AugmentProbabilityCache.Get(InputKey(pool, count), pool.Select(value => value.SelectionWeight).ToArray(),
+                        pool.Select(value => MagicItemEffectDefinitions.IsValuelessEffect(value.Type)).ToArray(), count, false);
                 }
             }
         }
