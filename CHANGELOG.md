@@ -4,6 +4,7 @@
 - Staff of Protection's ice on your health bar is easier to see through: the frosted tint is gone and its cracks are thin and sharp, so your health stays clear beneath it.
 - Staff tooltips show what each upgrade grows, both on the staff and in the Galdr table's upgrade preview: Staff of Protection's and Northern Vengeance's reach, Staff of Embers' and Lightning Strike's blast radius, Lightning Strike's chain targets, Staff of Fracturing's splinters, the Trollstav's landing blast and Echo Spike's damage. Echo Spike's 400 lightning, which strikes only the target its spike hits, is listed with its final burst. Staff of the Wild's root limit shows without holding Shift.
 - An upgraded item with a maximum durability enchantment comes out at full durability, as every other upgraded item does, instead of looking worn.
+- An Indestructible rune extracted from Mythic or Ancient gear looks like your other Legendary Indestructible runes and stacks with them. Before, it kept the higher tier's picture and name and wouldn't stack, and Legendary runes you got afterwards turned the same way until you restarted the game.
 
 # 1.26.0
 

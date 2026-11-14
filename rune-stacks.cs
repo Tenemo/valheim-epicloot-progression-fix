@@ -8,6 +8,7 @@ using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using EpicLoot;
+using EpicLoot.MagicItemEffects;
 using EpicLoot.ShardStones;
 using HarmonyLib;
 using Jotunn.Managers;
@@ -159,6 +160,9 @@ namespace EpicLootProgressionFix
             var normalized = RuneExtractionPower.Deserialize(RuneExtractionPower.Serialize(magic));
             normalized.Rarity = allowed[0];
             normalized.Effects[0].EffectValue = 1f;
+            // An Indestructible rune holds EpicLoot's copy of the old tier's shared data. Give that back first, or EpicLoot
+            // keeps the old tier as the original and every later rune of the new tier turns into the old one.
+            Indestructible.Revert(item);
             item.m_dropPrefab = prefab;
             item.m_shared = prefab.GetComponent<ItemDrop>().m_itemData.m_shared;
             item.m_shared.m_maxStackSize = Limit;
