@@ -13,26 +13,32 @@ namespace EpicLootProgressionFix
     public sealed class EnchantingCostCounts : MonoBehaviour
     {
         private MultiSelectItemListElement element;
+        private bool costRow;
         private float nextRefresh;
         private string lastSummary = "";
 
         private static void Postfix(MultiSelectItemListElement __instance)
         {
-            // Cost rows check affordability; inventory rows and output previews do not.
-            if (!__instance.ReadOnly || !__instance.CheckPlayerInventory ||
-                __instance.ItemTotalQuantity == null || __instance.GetListElement()?.GetItem() == null) return;
-
+            if (__instance.GetListElement()?.GetItem() == null) return;
             var display = __instance.GetComponent<EnchantingCostCounts>();
             if (display == null)
             {
+                // Cost rows check affordability and get the count on the tile. Convert Materials' recipe and product
+                // rows show what the item is, not how many you own, so their tooltips get that count instead.
+                bool cost = __instance.ReadOnly && __instance.CheckPlayerInventory && __instance.ItemTotalQuantity != null;
+                if (!cost && __instance.GetComponentInParent<ConvertUI>() == null) return;
                 display = __instance.gameObject.AddComponent<EnchantingCostCounts>();
                 display.element = __instance;
-                // Show the count at 1.5 times the prefab's base size, shrinking back toward it only when a long count
-                // would not fit the tile on one line.
-                var text = __instance.ItemTotalQuantity;
-                text.fontSizeMax = Mathf.RoundToInt(text.fontSize * 1.5f);
-                text.fontSizeMin = Mathf.Min(8f, text.fontSize);
-                text.enableAutoSizing = true;
+                display.costRow = cost;
+                if (cost)
+                {
+                    // Show the count at 1.5 times the prefab's base size, shrinking back toward it only when a long
+                    // count would not fit the tile on one line.
+                    var text = __instance.ItemTotalQuantity;
+                    text.fontSizeMax = Mathf.RoundToInt(text.fontSize * 1.5f);
+                    text.fontSizeMin = Mathf.Min(8f, text.fontSize);
+                    text.enableAutoSizing = true;
+                }
             }
             display.RefreshCount();
         }
@@ -47,15 +53,22 @@ namespace EpicLootProgressionFix
         internal void RefreshCount()
         {
             nextRefresh = Time.unscaledTime + 0.5f;
-            if (element == null || !element.ReadOnly || !element.CheckPlayerInventory || Player.m_localPlayer == null) return;
+            if (element == null || Player.m_localPlayer == null) return;
             var entry = element.GetListElement();
             var item = entry?.GetItem();
-            if (item == null || element.ItemTotalQuantity == null) return;
+            if (item == null) return;
 
             // Use the same provider count as HasItem, including CraftyBoxes' range and pull filters.
             int available = InventoryManagement.Instance.CountItem(item);
-            int required = entry.GetMax();
             var inventory = Player.m_localPlayer.GetInventory();
+            if (!costRow)
+            {
+                int owned = inventory.CountItems(item.m_shared.m_name);
+                ShowSummary($"\n\nCarried / nearby storage: {owned} / {available - owned}");
+                return;
+            }
+
+            int required = entry.GetMax();
             int carried = SalvageJunkProtection.IsJunk(element.GetComponentInParent<ConvertUI>())
                 ? SalvageJunkProtection.Count(inventory, item.m_shared.m_name)
                 : inventory.CountItems(item.m_shared.m_name);
@@ -66,6 +79,11 @@ namespace EpicLootProgressionFix
             string summary = available >= 10000 || required >= 10000 ? $"\n\nAvailable / required: {available} / {required}" : "";
             if (available > carried) summary += (summary.Length == 0 ? "\n\n" : "\n") +
                 $"Carried / nearby storage: {carried} / {available - carried}";
+            ShowSummary(summary);
+        }
+
+        private void ShowSummary(string summary)
+        {
             UpdateTooltip(element.Tooltip, summary);
             if (element.ItemHoverTooltip != element.Tooltip) UpdateTooltip(element.ItemHoverTooltip, summary);
             lastSummary = summary;
