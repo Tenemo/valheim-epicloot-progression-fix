@@ -26,7 +26,7 @@ namespace EpicLootProgressionFix
             {
                 var skill = skillList[index];
                 var element = elements[index].transform;
-                int effectiveLevel = Mathf.RoundToInt(EffectiveFactor(skills, skill.m_info.m_skill) * 100f);
+                int effectiveLevel = Mathf.RoundToInt(skills.GetSkillFactor(skill.m_info.m_skill) * 100f);
                 int bonus = effectiveLevel - Mathf.FloorToInt(skill.m_level);
                 var bonusText = Utils.FindChild(element, "bonustext").GetComponent<TMP_Text>();
                 bonusText.gameObject.SetActive(bonus != 0);
@@ -36,10 +36,5 @@ namespace EpicLootProgressionFix
 
             return false;
         }
-
-        // Weapon and tool skills show the level their damage roll uses, which keeps the game's bonuses above 100;
-        // other skills show the game's factor, which their effects use.
-        private static float EffectiveFactor(Skills skills, Skills.SkillType skill) =>
-            SkillDamageRange.DamageSkills.Contains(skill) ? SkillDamageRange.DamageFactor(skills, skill) : skills.GetSkillFactor(skill);
     }
 }

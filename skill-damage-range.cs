@@ -10,11 +10,8 @@ using UnityEngine;
 namespace EpicLootProgressionFix
 {
     // A player's skill sets the roll every attack's damage is multiplied by: EpicLoot rolls between 15% below and 15%
-    // above a center that rises from 40% at skill 0 to 100% at skill 100. The game drops the level above 100 when it
-    // turns the level into the skill factor, so set and trinket bonuses such as the root armor's +15 Bows did nothing at
-    // 100; EpicLoot continues the line only for its own skill bonuses. Continue it with the whole level instead, trained
-    // plus the game's and EpicLoot's bonuses: each point above 100 adds 0.6% to the center. Only this roll changes;
-    // stamina and eitr costs and every other skill effect keep the game's factor.
+    // above a center that rises from 40% at skill 0 to 100% at skill 100 and continues with the whole skill factor
+    // (SkillFactor), so each level above 100 adds 0.6% to the center.
     [HarmonyPatch(typeof(Skills_GetRandomSkillRange_Patch), nameof(Skills_GetRandomSkillRange_Patch.Prefix))]
     internal static class SkillDamageRange
     {
@@ -40,13 +37,10 @@ namespace EpicLootProgressionFix
             return code;
         }
 
-        // The game's factor, which already carries EpicLoot's bonus, with the level above 100 added back.
         internal static float DamageFactor(Skills skills, Skills.SkillType skill)
         {
             float factor = skills.GetSkillFactor(skill);
-            if (AreaSkillRoll.Repeated) return Mathf.Min(factor, 1f);
-            float level = skills.GetSkillLevel(skill);
-            return level > 100f ? factor + (level - 100f) / 100f : factor;
+            return AreaSkillRoll.Repeated ? Mathf.Min(factor, 1f) : factor;
         }
     }
 
