@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using EpicLoot;
 using EpicLoot.MagicItemEffects;
 using HarmonyLib;
@@ -27,6 +28,30 @@ namespace EpicLootProgressionFix
         // The eitr a reload drains each second, before the game's eitr rate.
         internal static float DrainPerSecond(Player player, ItemDrop.ItemData weapon) =>
             weapon.m_shared.m_attack.m_reloadEitrDrain * EitrFactor(player, weapon) * FireRateFactor(player, weapon);
+
+        // The game keeps one loaded weapon per player and forgets it whenever a weapon leaves the hands, so switching slots,
+        // hiding weapons or eating threw Dundr's shot away and taking it out again started a new reload. A loaded staff now
+        // stays loaded while it is away, until it fires. Crossbows keep the game's behavior.
+        private static readonly AccessTools.FieldRef<Player, ItemDrop.ItemData> LoadedWeapon = AccessTools.FieldRefAccess<Player, ItemDrop.ItemData>("m_weaponLoaded");
+        private static readonly Action<Player, ItemDrop.ItemData> SetWeaponLoaded =
+            AccessTools.MethodDelegate<Action<Player, ItemDrop.ItemData>>(AccessTools.Method(typeof(Player), "SetWeaponLoaded"));
+        private static readonly ConditionalWeakTable<ItemDrop.ItemData, object> Stowed = new ConditionalWeakTable<ItemDrop.ItemData, object>();
+
+        [HarmonyPatch(typeof(Humanoid), nameof(Humanoid.UnequipItem)), HarmonyPrefix]
+        private static void Stow(Humanoid __instance, ItemDrop.ItemData item)
+        {
+            if (item == null || !(__instance is Player player) || player != Player.m_localPlayer || LoadedWeapon(player) != item || !Reloads(item)) return;
+            Stowed.Remove(item);
+            Stowed.Add(item, null);
+        }
+
+        [HarmonyPatch(typeof(Player), "UpdateWeaponLoading"), HarmonyPrefix]
+        private static void TakeOut(Player __instance, ItemDrop.ItemData weapon)
+        {
+            if (weapon == null || LoadedWeapon(__instance) == weapon || !Stowed.TryGetValue(weapon, out _)) return;
+            Stowed.Remove(weapon);
+            SetWeaponLoaded(__instance, weapon);
+        }
 
         [HarmonyPatch(typeof(ItemDrop.ItemData), nameof(ItemDrop.ItemData.GetWeaponLoadingTime)), HarmonyPostfix]
         private static void LoadingTime(ItemDrop.ItemData __instance, ref float __result) => __result /= FireRateFactor(Player.m_localPlayer, __instance);
