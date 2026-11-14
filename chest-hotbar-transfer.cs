@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace EpicLootProgressionFix
 {
-    // A hotbar number key over an item in an open chest takes the whole stack into that hotbar slot through
+    // A hotbar number key or quick slot hotkey over an item in an open chest takes the whole stack into that slot through
     // MultiUserChest, as dragging it there does. An item already in the slot first moves to the first free bag cell.
     // Right-clicking equipment in an open chest withdraws it into the first free bag cell the same way, then equips it
     // once the chest owner confirms the delivery, so anything it replaces stays in the player's inventory. A number key
@@ -60,22 +60,22 @@ namespace EpicLootProgressionFix
             cell = default; return false;
         }
 
-        internal static void Start(InventoryGui gui, ItemDrop.ItemData item, int slot)
+        internal static void Start(InventoryGui gui, ItemDrop.ItemData item, Vector2i target)
         {
             var player = Player.m_localPlayer; var container = OpenContainer(gui);
             if (removeFromChest == null || !container || container.GetComponent<TombStone>() ||
                 !gui.IsContainerOpen() || !GameFields.ContainerGrid(gui).gameObject.activeInHierarchy || GameFields.ContainerGrid(gui).GetInventory() != container.GetInventory()) return;
             var view = GameFields.ContainerView(container);
             if (!view || !view.IsValid() || !view.HasOwner() || !container.GetInventory().ContainsItem(item)) return;
-            var inventory = player.GetInventory(); var hotbar = new Vector2i(slot, 0);
-            var occupant = inventory.GetItemAt(slot, 0);
-            if (occupant == null && !Free(inventory, hotbar) || RecallRecovery.Reserves(inventory, hotbar)) return;
+            var inventory = player.GetInventory();
+            var occupant = inventory.GetItemAt(target.x, target.y);
+            if (occupant == null && !Free(inventory, target) || RecallRecovery.Reserves(inventory, target)) return;
             if (occupant != null)
             {
                 if (!BagCell(inventory, out var cell)) { player.Message(MessageHud.MessageType.Center, "$msg_noroom"); return; }
                 occupant.m_gridPos = cell; Changed(inventory, false, false);
             }
-            removeFromChest.Invoke(null, new object[] { container, item, inventory, hotbar, player.GetZDOID(), item.m_stack, null });
+            removeFromChest.Invoke(null, new object[] { container, item, inventory, target, player.GetZDOID(), item.m_stack, null });
         }
 
         private static bool EquipFromChest(InventoryGui __instance, InventoryGrid grid, ItemDrop.ItemData item, bool __runOriginal)

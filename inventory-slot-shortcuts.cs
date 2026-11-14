@@ -24,10 +24,7 @@ namespace EpicLootProgressionFix
                 InventoryPromptHost.IsOpen || player.IsDead() || player.InCutscene() || player.IsTeleporting() ||
                 (Chat.instance != null && Chat.instance.HasFocus()) || Console.IsVisible() || Menu.IsVisible() ||
                 TextInput.IsVisible() || StoreGui.IsVisible() || Minimap.IsOpen() ||
-                (TextViewer.instance != null && TextViewer.instance.IsVisible()) || GameCamera.InFreeFly() ||
-                Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt) ||
-                Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl) ||
-                Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) return false;
+                (TextViewer.instance != null && TextViewer.instance.IsVisible()) || GameCamera.InFreeFly()) return false;
             var selected = EventSystem.current?.currentSelectedGameObject;
             return selected == null ||
                 !((selected.GetComponentInParent<InputField>()?.isFocused ?? false) ||
@@ -43,9 +40,22 @@ namespace EpicLootProgressionFix
             return -1;
         }
 
+        // The hotbar slot whose key went down this frame, among the first eight, or -1.
+        private static int PressedHotbar(Inventory inventory)
+        {
+            for (int slot = 0; slot < Math.Min(8, inventory.GetWidth()); slot++)
+                if (ZInput.GetButtonDown("Hotbar" + (slot + 1)) || ZInput.GetButtonDown("Hotbar" + (slot + 1) + "Alt")) return slot;
+            return -1;
+        }
+
+        // A hotbar key or an EquipmentAndQuickSlots quick slot hotkey over an item moves it to that slot. Hotbar and socket
+        // keys work without Alt, Ctrl or Shift; a quick slot hotkey works with exactly the ones it names.
         private static void Postfix(InventoryGui __instance, GameObject ___m_dragGo)
         {
             if (!InputAllowed(__instance, ___m_dragGo)) return;
+            bool modified = Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt) ||
+                Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl) ||
+                Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
             Vector3 position = Input.mousePosition;
             var cursor = new Vector2i(Mathf.RoundToInt(position.x), Mathf.RoundToInt(position.y));
             var input = __instance.m_playerGrid.GetItem(cursor);
@@ -54,7 +64,7 @@ namespace EpicLootProgressionFix
 
             // With sockets open, the number keys over the socket row or a stone or rune in the bag or an open chest belong to
             // the sockets, even when that stone, rune or socket cannot be used; any other item still goes to the hotbar.
-            if (OpenSockets.Row != null || OpenSockets.Item != null)
+            if (!modified && (OpenSockets.Row != null || OpenSockets.Item != null))
             {
                 var grid = OpenSockets.Grid;
                 var socketed = grid != null && grid.gameObject.activeInHierarchy && grid.GetInventory() == OpenSockets.Row ? grid.GetItem(cursor) : null;
@@ -72,29 +82,25 @@ namespace EpicLootProgressionFix
                 }
             }
 
+            if (input == null && chestItem == null) return;
             var inventory = Player.m_localPlayer.GetInventory();
+            int hotbar = modified ? -1 : PressedHotbar(inventory);
+            Func<ItemDrop.ItemData, bool> takes = null;
+            var destination = new Vector2i(hotbar, 0);
+            if (hotbar < 0 && !EquipmentAndQuickSlots.TryPressedQuickSlot(out destination, out takes)) return;
             if (input == null)
             {
-                if (chestItem == null) return;
-                for (int slot = 0; slot < Math.Min(8, inventory.GetWidth()); slot++)
-                    if (ZInput.GetButtonDown("Hotbar" + (slot + 1)) || ZInput.GetButtonDown("Hotbar" + (slot + 1) + "Alt"))
-                    { ChestHotbarTransfer.Start(__instance, chestItem, slot); return; }
+                if (takes == null || takes(chestItem)) ChestHotbarTransfer.Start(__instance, chestItem, destination);
                 return;
             }
             if (input.m_gridPos.y < 0 || input.m_gridPos.y >= (EquipmentAndQuickSlots.VisibleRows?.Invoke() ?? inventory.GetHeight())) return;
-            for (int slot = 0; slot < Math.Min(8, inventory.GetWidth()); slot++)
-                if (ZInput.GetButtonDown("Hotbar" + (slot + 1)) || ZInput.GetButtonDown("Hotbar" + (slot + 1) + "Alt"))
-                {
-                    var destination = new Vector2i(slot, 0);
-                    // An empty cell kept for a thrown recalling weapon stays free for its return.
-                    if (input.m_gridPos == destination || RecallRecovery.Reserves(inventory, destination)) return;
-                    var occupant = inventory.GetItemAt(slot, 0);
-                    if (occupant != null) occupant.m_gridPos = input.m_gridPos;
-                    input.m_gridPos = destination;
-                    // Keep whole stacks, item identities and equipment state; publish the complete exchange once.
-                    Changed(inventory, false, false);
-                    return;
-                }
+            // An empty cell kept for a thrown recalling weapon stays free for its return.
+            if (input.m_gridPos == destination || RecallRecovery.Reserves(inventory, destination) || (takes != null && !takes(input))) return;
+            var occupant = inventory.GetItemAt(destination.x, destination.y);
+            if (occupant != null) occupant.m_gridPos = input.m_gridPos;
+            input.m_gridPos = destination;
+            // Keep whole stacks, item identities and equipment state; publish the complete exchange once.
+            Changed(inventory, false, false);
         }
     }
 }
