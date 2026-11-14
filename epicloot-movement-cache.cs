@@ -17,11 +17,17 @@ namespace EpicLootProgressionFix
         {
             // Tooltip and deferred-hit hand overrides evaluate their own equipment, outside the live equipment cache.
             if (!__0 || HandOverride.Active != null) return true;
-            var equipment = Players.GetValue(__0, ReadEquipment);
-            __result = equipment.RemovedPenalty + __0.GetTotalActiveMagicEffectValue(MagicEffectType.ModifyMovementSpeed, .01f);
-            if (ModifyWithLowHealth.PlayerHasLowHealth(__0))
-                __result += __0.GetTotalActiveMagicEffectValue(ModifyWithLowHealth.EffectNameWithLowHealth(MagicEffectType.ModifyMovementSpeed), .01f);
+            __result = Players.GetValue(__0, ReadEquipment).RemovedPenalty + SpeedBonus(__0);
             return false;
+        }
+
+        // Movement speed and its Health Critical form, without Unhindered's removed penalty.
+        internal static float SpeedBonus(Player player)
+        {
+            float bonus = player.GetTotalActiveMagicEffectValue(MagicEffectType.ModifyMovementSpeed, .01f);
+            if (ModifyWithLowHealth.PlayerHasLowHealth(player))
+                bonus += player.GetTotalActiveMagicEffectValue(ModifyWithLowHealth.EffectNameWithLowHealth(MagicEffectType.ModifyMovementSpeed), .01f);
+            return bonus;
         }
 
         private static Equipment ReadEquipment(Player player)

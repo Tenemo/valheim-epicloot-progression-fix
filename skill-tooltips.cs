@@ -241,7 +241,7 @@ namespace EpicLootProgressionFix
 
         private static void Effects(List<string> rows, Player player, Skills.SkillType skill, float factor)
         {
-            var effects = player.GetSEMan(); float movement = player.GetEquipmentMovementModifier();
+            var effects = player.GetSEMan(); float movement = MovementStamina.Modifier(player);
             // Wind-dependent effects read the direction of travel; the tooltip takes the way the player faces.
             var facing = player.transform.forward;
             void Add(string label, float value, string unit = "") => rows.Add(Value(label, Number(value) + unit));

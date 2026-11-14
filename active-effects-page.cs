@@ -624,7 +624,7 @@ namespace EpicLootProgressionFix
             rows.Add(Row("Carried weight", Number(player.GetInventory().GetTotalWeight(), "0.#") + " / " + Number(MaxCarryWeight(player), "0.#")));
 
             var skills = player.GetSkills();
-            float movement = player.GetEquipmentMovementModifier();
+            float movement = MovementStamina.Modifier(player);
             float running = player.m_runStaminaDrain * Mathf.Lerp(1f, 0.5f, skills.GetSkillFactor(Skills.SkillType.Run));
             running -= running * movement;
             running += running * player.GetEquipmentRunStaminaModifier();

@@ -21,7 +21,7 @@ namespace EpicLootProgressionFix
         private static bool CanJump(Character character, float baseCost)
         {
             if (!(character is Player player)) return character.HaveStamina(baseCost);
-            float cost = baseCost - baseCost * player.GetEquipmentMovementModifier() +
+            float cost = baseCost - baseCost * MovementStamina.Modifier(player) +
                 baseCost * player.GetEquipmentJumpStaminaModifier();
             player.GetSEMan().ModifyJumpStaminaUsage(cost, ref cost);
             cost *= Game.m_moveStaminaRate * Game.m_staminaRate;
