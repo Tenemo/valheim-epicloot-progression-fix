@@ -18,6 +18,10 @@ Rune icons show their effect and value, and matching runes stack.
 
 ![A wardrobe of runes, each icon labelled with its effect's short code and value, with the tooltip of a stack of five Unhindered runes](https://raw.githubusercontent.com/Tenemo/valheim-epicloot-progression-fix/main/screenshots/rune-chest-labels-and-stacks.webp)
 
+Each set marks its pieces with its own rune, so you can tell the sets apart at a glance.
+
+![A wardrobe of set items, each marked in its corner with its set's rune, with the tooltip of Valgrind listing the Einherjar set's pieces and bonuses](https://raw.githubusercontent.com/Tenemo/valheim-epicloot-progression-fix/main/screenshots/set-item-runes-and-tooltip.webp)
+
 Active effects gathers your health, defenses, movement, attacks and every enchantment you wear in one page of the raven book.
 
 ![The Active effects page showing status effects, health and resources, defense, movement and attack totals](https://raw.githubusercontent.com/Tenemo/valheim-epicloot-progression-fix/main/screenshots/active-effects-page.webp)
