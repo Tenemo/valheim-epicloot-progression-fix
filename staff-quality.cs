@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -81,6 +82,8 @@ namespace EpicLootProgressionFix
             if (item != null && IsRoots(__instance)) __instance.m_maxSpawned = RootLimit(__instance.m_maxSpawned, item.m_quality);
         }
 
+        // Only the staff that fires a projectile scales it: EpicLoot's Artillery set makes crossbows fire Staff of Embers'
+        // fireball, which keeps the radius Artillery gives it.
         [HarmonyPatch(typeof(Projectile), nameof(Projectile.Setup)), HarmonyPostfix]
         private static void ScaleProjectile(Projectile __instance, ItemDrop.ItemData item)
         {
@@ -88,13 +91,39 @@ namespace EpicLootProgressionFix
             switch (Utils.GetPrefabName(__instance.gameObject))
             {
                 // Staff of Embers' impact area grows 1 m per upgrade.
-                case "staff_fireball_projectile": __instance.m_aoe += Upgrades(item.m_quality); break;
+                case "staff_fireball_projectile":
+                    if (Fires(item, "staff_fireball_projectile")) __instance.m_aoe += Upgrades(item.m_quality);
+                    break;
                 // Staff of Fracturing bursts into 2 more splinters per upgrade.
-                case "staff_clusterbombstaff_projectile": __instance.m_spawnCount += 2 * Upgrades(item.m_quality); break;
+                case "staff_clusterbombstaff_projectile":
+                    if (Fires(item, "staff_clusterbombstaff_projectile")) __instance.m_spawnCount += 2 * Upgrades(item.m_quality);
+                    break;
                 // Echo Spike's spike, out and back.
                 case "staff_OrbofAhri_projectile":
-                case "staff_OrbofAhri_projectile_return": __instance.m_damage.Modify(EchoSpikeDamage(item.m_quality)); break;
+                case "staff_OrbofAhri_projectile_return":
+                    if (Fires(item, "staff_OrbofAhri_projectile")) __instance.m_damage.Modify(EchoSpikeDamage(item.m_quality));
+                    break;
             }
+        }
+
+        private static bool Fires(ItemDrop.ItemData item, string projectile) =>
+            item.m_shared.m_attack?.m_attackProjectile?.name == projectile || item.m_shared.m_secondaryAttack?.m_attackProjectile?.name == projectile;
+
+        // Every effect above is found by its prefab's name, so a renamed or missing one stops the game loading instead of
+        // leaving its staff unscaled.
+        [HarmonyPatch(typeof(ZNetScene), "Awake"), HarmonyPostfix, HarmonyPriority(Priority.Last)]
+        private static void RequireEffects(ZNetScene __instance)
+        {
+            void Require<T>(string name) where T : Component
+            {
+                var prefab = __instance.GetPrefab(name);
+                if (!prefab || !prefab.GetComponentInChildren<T>(true)) throw new InvalidOperationException("Staff effect " + name + " with its " + typeof(T).Name + " is missing.");
+            }
+            foreach (string name in new[] { "staff_shield_aoe", "staff_FrostOrbs_aoe", "staff_OrbofAhri_aoe", "staff_redtroll_aoe" }) Require<Aoe>(name);
+            if (!Chaining(__instance.GetPrefab("staff_thunderblood_aoe"))) throw new InvalidOperationException("Lightning Strike's chaining burst is missing.");
+            foreach (string name in new[] { "staff_greenroots_spawn", "staff_redtroll_spawn" }) Require<SpawnAbility>(name);
+            foreach (string name in new[] { "staff_fireball_projectile", "staff_clusterbombstaff_projectile", "staff_OrbofAhri_projectile", "staff_OrbofAhri_projectile_return", DundrBolt })
+                Require<Projectile>(name);
         }
 
         // EpicLoot's multishot sets the bolt count again as each burst fires, so the count is scaled last, once per value it sets.
