@@ -65,12 +65,13 @@ namespace EpicLootProgressionFix
         // The rune's height and its gap from the right and bottom edges, as shares of an inventory slot, and of the smaller
         // item icon in the enchanting table's lists, where it takes a larger share to stay readable.
         private const float SlotRuneHeight = 28f / 76f, SlotGap = 3f / 76f, IconRuneHeight = .55f, IconGap = 0f;
-        private static readonly Dictionary<string, Sprite> Sprites = new Dictionary<string, Sprite>();
+        private static readonly Dictionary<(string Set, string Colour), Sprite> Sprites = new Dictionary<(string Set, string Colour), Sprite>();
 
         // The colour is drawn into the rune, so the grey edge isn't tinted; a changed set item colour draws the runes again.
         private static Sprite For(ItemDrop.ItemData item)
         {
-            string set = item?.GetMagicItem()?.SetID ?? "", colour = EpicLoot.EpicLoot.GetSetItemColor(), key = set + colour;
+            string set = item?.GetMagicItem()?.SetID ?? "", colour = EpicLoot.EpicLoot.GetSetItemColor();
+            var key = (set, colour);
             if (Sprites.TryGetValue(key, out var sprite)) return sprite;
             var tint = ColorUtility.TryParseHtmlString(colour, out var parsed) ? parsed : Color.white;
             return Sprites[key] = Draw("SetRune" + set, Strokes.TryGetValue(set, out var strokes) ? strokes : Wunjo, tint);

@@ -212,7 +212,8 @@ namespace EpicLootProgressionFix
         [HarmonyPatch(typeof(ZNet), "Shutdown")]
         private static class EndSession
         {
-            private static void Postfix() => Checked.Clear();
+            // Another server may bring other spawn lists.
+            private static void Postfix() { Checked.Clear(); homes = null; }
         }
     }
 }
