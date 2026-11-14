@@ -32,7 +32,8 @@ namespace EpicLootProgressionFix
             var text = Localization.instance.Localize(name.text);
             float width = name.rectTransform.rect.width - name.margin.x - name.margin.z;
             float start = width - name.GetPreferredValues(stars).x;
-            if (width <= 0f || name.GetPreferredValues(text).x + Gap > start) { name.text = text + " " + stars; return; }
+            // A non-breaking space, so a name that wraps takes its stars along with its last word.
+            if (width <= 0f || name.GetPreferredValues(text).x + Gap > start) { name.text = text + " " + stars; return; }
             // Rounded down, so the stars never reach past the edge and wrap.
             float percent = Mathf.Floor(start / width * 1000f) / 10f;
             name.text = text + "<pos=" + percent.ToString("0.#", CultureInfo.InvariantCulture) + "%>" + stars;

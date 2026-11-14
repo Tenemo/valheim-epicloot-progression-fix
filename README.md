@@ -14,7 +14,7 @@ Augment shows each effect's chance to appear among your new choices.
 
 ![The Augment tab with an Ancient Fenris Coat, listing each effect's chance to appear among up to 5 new choices](https://raw.githubusercontent.com/Tenemo/valheim-epicloot-progression-fix/main/screenshots/augment-chances.webp)
 
-Rune icons show their effect and value, and matching runes stack.
+Rune icons and names show their effect and value, and matching runes stack.
 
 ![A wardrobe of runes, each icon labelled with its effect's short code and value, with the tooltip of a stack of five Unhindered runes](https://raw.githubusercontent.com/Tenemo/valheim-epicloot-progression-fix/main/screenshots/rune-chest-labels-and-stacks.webp)
 
@@ -54,7 +54,7 @@ The aim is to stay as close to **vanilla Valheim + EpicLoot** as possible: keep 
 
 ## Other improvements
 
-- **Protection and summons.** Staff of Protection reaches allies within 5 m per staff quality level, absorbs falls and ongoing damage, displays remaining HP, refreshes on recast and trains its caster when broken. Summons appear on every completed cast, show their names, gain working health and movement bonuses, wait two of their own body lengths from you, take on only enemies near you, ignore peaceful wildlife, follow through dungeon doors and can be dismissed with their staff. Skeletons and Spirit Caller animals heal to full in about 6 minutes out of combat, with no feeding. Spirit Caller animals of every kind share one follower limit, and their caster can ride a wolf, moose or bear without a saddle. Starred spirit animals stay ghostly all over.
+- **Protection and summons.** Staff of Protection reaches allies within 5 m per staff quality level, absorbs falls and ongoing damage, shows its remaining HP on the health bar and its status icon, refreshes on recast and trains its caster when broken. Summons appear on every completed cast, show their names, gain working health and movement bonuses, wait two of their own body lengths from you, take on only enemies near you, ignore peaceful wildlife, follow through dungeon doors and can be dismissed with their staff. Skeletons and Spirit Caller animals heal to full in about 6 minutes out of combat, with no feeding. Spirit Caller animals of every kind share one follower limit, and their caster can ride a wolf, moose or bear without a saddle. Starred spirit animals stay ghostly all over.
 - **Staff upgrades.** Every upgrade strengthens a staff's spell: Northern Vengeance reaches further, Staff of Embers and the Trollstav's landing blast cover a wider area, Staff of Fracturing and Dundr fire more splinters and bolts, Lightning Strike reaches further and chains to more enemies, Echo Spike hits harder, and Staff of the Wild keeps more roots.
 - **Taming and riding.** Animals find food more reliably, heal faster when fed and breed over distances suited to their size. Tames spare player buildings and crops. Mount movement, steering, stamina, harpooning and Stay orders receive fixes.
 - **Ships and carts.** Steering responds promptly, sailing shardstones improve rowing, and passengers can use storage underway. Ship holds are larger; carts gain crafting-based durability, recover from buried wheels and keep their shafts up when pulled at a fast sprint. Ships, carts and siege machines can be taken apart with Ctrl + middle click at a workbench, returning their materials and cargo.
