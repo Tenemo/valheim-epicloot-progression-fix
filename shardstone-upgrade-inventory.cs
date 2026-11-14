@@ -13,6 +13,8 @@ namespace EpicLootProgressionFix
     [HarmonyPatch]
     internal static class ShardstoneUpgradeInventory
     {
+        // Set while Convert Materials' tooltips count what nearby storage holds.
+        internal static bool CountingStorage;
         private static ObjectDB namesFrom;
         private static HashSet<string> shardstones;
 
@@ -40,7 +42,7 @@ namespace EpicLootProgressionFix
         [HarmonyPatch(typeof(InventoryManagement), nameof(InventoryManagement.CountItem), typeof(string)), HarmonyPostfix]
         private static void CountCarried(string __0, ref int __result)
         {
-            if (Upgrading() && Shardstone(__0)) __result = Player.m_localPlayer.GetInventory().CountItems(__0);
+            if (!CountingStorage && Upgrading() && Shardstone(__0)) __result = Player.m_localPlayer.GetInventory().CountItems(__0);
         }
 
         [HarmonyPatch(typeof(InventoryManagement), nameof(InventoryManagement.RemoveItem), typeof(string), typeof(int)), HarmonyPrefix]

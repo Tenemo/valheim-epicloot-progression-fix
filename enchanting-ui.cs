@@ -63,20 +63,25 @@ namespace EpicLootProgressionFix
             var item = entry?.GetItem();
             if (item == null) return;
 
-            // Use the same provider count as HasItem, including CraftyBoxes' range and pull filters.
-            int available = InventoryManagement.Instance.CountItem(item);
+            // Salvage junk counts no favorites, carried or stored, the same as its provider count below.
             var inventory = Player.m_localPlayer.GetInventory();
-            if (!costRow)
-            {
-                int owned = inventory.CountItems(item.m_shared.m_name);
-                ShowSummary($"\n\nCarried / nearby storage: {owned} / {available - owned}");
-                return;
-            }
-
-            int required = entry.GetMax();
             int carried = SalvageJunkProtection.IsJunk(element.GetComponentInParent<ConvertUI>())
                 ? SalvageJunkProtection.Count(inventory, item.m_shared.m_name)
                 : inventory.CountItems(item.m_shared.m_name);
+            if (!costRow)
+            {
+                // What nearby storage holds, also of the shardstones that Upgrade shardstones takes only from the bag.
+                int stored;
+                ShardstoneUpgradeInventory.CountingStorage = true;
+                try { stored = InventoryManagement.Instance.CountItem(item) - carried; }
+                finally { ShardstoneUpgradeInventory.CountingStorage = false; }
+                ShowSummary($"\n\nCarried / nearby storage: {carried} / {stored}");
+                return;
+            }
+
+            // Use the same provider count as HasItem, including CraftyBoxes' range and pull filters.
+            int available = InventoryManagement.Instance.CountItem(item);
+            int required = entry.GetMax();
             string quantity = $"{ShortCount(available)} / {ShortCount(required)}";
             element.ItemTotalQuantity.text = available < required ? $"<color=red>{quantity}</color>" : quantity;
 
