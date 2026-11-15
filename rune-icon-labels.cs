@@ -36,7 +36,7 @@ namespace EpicLootProgressionFix
             { "ModifyDurability", "DU" }, { "ModifyDamageLowHealth", "ADL" }, { "Duelist", "DUL" },
             { "ModifyWispRange", "WR" }, { "IncreaseEitr", "EI" }, { "Executioner", "EX" },
             { "AddElementalResistancePercentage", "EDR" }, { "ModifyEitrRegenLowHealth", "ERL" },
-            { "ModifyFireRate", "BFR" }, { "ModifyMagicFireRate", "MFR" }, { "AddFireResistancePercentage", "FDR" },
+            { "ModifyFireRate", "BFR" }, { "ModifyMagicFireRate", "CS" }, { "AddFireResistancePercentage", "FDR" },
             { "AddFrostResistancePercentage", "FODR" }, { "IncreaseHealth", "HP" }, { "HeadHunter", "HH" },
             { "IncreaseHeatResistance", "HTR" }, { "AddHealthRegen", "FHR" }, { "ModifyHealthRegenLowHealth", "HRL" },
             { "AddFireDamage", "FD" }, { "AddFrostDamage", "FOD" }, { "LifeSteal", "LS" },

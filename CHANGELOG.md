@@ -22,6 +22,7 @@
 - Rime of Élivágar's Frostwalker no longer stops your eitr regenerating while you wade or swim. Only walking on its ice, which drains your eitr, holds regeneration back.
 - Mímir's Well's Eitr Barrier no longer delays your eitr regeneration each time it absorbs a hit.
 - In Set Etch, each set rune shows the one rune an etch uses out of the runes of that set you have, such as 1 / 4, instead of a quantity box, and the rune's cost tile counts only runes of that set instead of every etched rune of its rarity.
+- Staff fire rate runes show CS, for cast speed, instead of MFR, so they no longer look like the bow and crossbow Fire rate runes.
 
 # 1.26.0
 
