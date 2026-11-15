@@ -34,7 +34,7 @@ namespace EpicLootProgressionFix
         internal static ConfigEntry<float> ShieldBlockArmorMultiplier, ShieldBlockForceMultiplier, RoundShieldParryIncrease, BucklerParryIncrease, CreatureBlockGrowth, StaggerHealthShare, BaseParryWindow;
         internal static ConfigEntry<bool> SmeltingRequiresBosses;
         internal static ConfigEntry<float> ShipZoomDistance, LandZoomMultiplier, DamageTextDistance, OwnDamageTextDistance, OffsetAttackVolume;
-        internal static ConfigEntry<KeyCode> SpawnProtectionToggleKey;
+        internal static ConfigEntry<KeyCode> SpawnProtectionToggleKey, HexenFormKey, HexenFormGamepadButton;
         internal static ConfigEntry<Color> SpawnProtectionGroundColor, SpawnProtectionStripeColor, SpawnProtectionStripeShadowColor;
         internal static ConfigEntry<float> HarvestRadius;
         internal static ConfigEntry<float> FloatingIceImpactMultiplier;
@@ -212,6 +212,10 @@ namespace EpicLootProgressionFix
                 new ConfigDescription("Volume of EpicLoot's OffSet Attack hit sound, under the game's sound effects slider.", new AcceptableValueRange<float>(0f, 1f)));
             SpawnProtectionToggleKey = Config.Bind("Spawn protection view", "Toggle key", KeyCode.G,
                 "Pressed with Ctrl while holding the hammer, toggles the spawn protection view.");
+            HexenFormKey = Config.Bind("Abilities", "Jotun Witch form hotkey", KeyCode.T,
+                "Turns you into a Jotun Witch and back while Gullveig's set bonus is active and you hold its staff. Meanwhile the key does only this, so T doesn't open the emote wheel. None turns the keyboard key off.");
+            HexenFormGamepadButton = Config.Bind("Abilities", "Jotun Witch form gamepad button", KeyCode.JoystickButton9,
+                "Gamepad button (JoystickButton0-19) that turns the Jotun Witch form on and off, pressed with Epic Loot's ability modifier. None turns it off.");
             SpawnProtectionGroundColor = Config.Bind("Spawn protection view", "Ground color", (Color)new Color32(191, 51, 5, 82),
                 "Color and transparency of protected ground.");
             SpawnProtectionStripeColor = Config.Bind("Spawn protection view", "Stripe color", new Color(1f, 0.22f, 0.02f, 0.62f),
