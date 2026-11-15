@@ -5,6 +5,7 @@
 - A bounty target near a Burial Chamber or another dungeon is there when you reach its map circle. It used to appear up to half a minute later, in front of you.
 - Staff of Fracturing bursts into 12 splinters at every quality again; upgrades no longer add more.
 - Staff of Embers' fireball explodes 0.5 m wider per upgrade instead of 1 m: 3 m at quality 1, 4.5 m at 4.
+- Without Star Level System, new creatures appear where the game places them and can be hurt from the start. Before, spawn placement could hold a creature in place, unhurtable, waiting for Star Level System.
 
 # 1.27.0
 

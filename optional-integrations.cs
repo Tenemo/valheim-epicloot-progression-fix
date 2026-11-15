@@ -48,9 +48,10 @@ namespace EpicLootProgressionFix
             Add("rune-stacks", "Rune stack limits and matching", true, new[] { PluginIds.ItemStacks, PluginIds.QuickStack }, "RuneStacks");
             Add("server-characters", "Character enrollment, verified saves and private journals", true, new[] { PluginIds.ServerCharacters },
                 "CharacterCheckpoints", "FirstJoinEnrollment", "ServerCharacterTemplate", "CoinIncomeChannel", "ItemActivityChannel", "ItemActivity", "TreasureDiscoveries");
+            // Spawn placement holds a new creature, unhurt, until FreshCreatureSpawns releases it, so the two turn on and off together.
             Add("star-level-system", "Creature scaling, boss rewards, Nemesis and dungeon resets", true, new[] { PluginIds.StarLevelSystem },
                 "StarLevelSystem", "StarLevelModifierIcons", "StarLevelWorldBalance", "StarLevelAuthority", "BossStars", "BountyTargetStrength",
-                "CreatureAreaDamage", "CreatureSizeCompatibility", "DungeonInteriors", "DungeonOccupancy", "EpicLootStarRewards", "FreshCreatureSpawns", "LateBiomePressure",
+                "CreatureAreaDamage", "CreatureSizeCompatibility", "CreatureSpawnPlacement", "DungeonInteriors", "DungeonOccupancy", "EpicLootStarRewards", "FreshCreatureSpawns", "LateBiomePressure",
                 "MiningScaledDropPosition", "ModSettingsCaption", "NemesisFactions", "NemesisHuntingPacks", "NemesisMinibosses", "NemesisScore", "NemesisOverheadHealthBars", "PheromoneLevels", "PoisonConversion",
                 "SealColors", "MooseAntlers", "SoulEaterCap", "StarLootScaling", "SummonHealth", "ItemActivity+SpreadLoot");
             Add("drop-tables", "Star drop-roll compatibility", true, new[] { PluginIds.DropThat }, "StarDropRolls");
