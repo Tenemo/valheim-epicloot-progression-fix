@@ -67,8 +67,11 @@ namespace EpicLootProgressionFix
             if (item == null) return;
 
             // Salvage junk counts no favorites, carried or stored, the same as its provider count below.
+            // A set rune counts only the runes of its set, not every etched rune of its rarity.
             var inventory = Player.m_localPlayer.GetInventory();
-            int carried = SalvageJunkProtection.IsJunk(element.GetComponentInParent<ConvertUI>())
+            bool setRune = costRow && item.IsSetRune();
+            int carried = setRune ? SetRuneCounts.Count(item, inventory.GetAllItems())
+                : SalvageJunkProtection.IsJunk(element.GetComponentInParent<ConvertUI>())
                 ? SalvageJunkProtection.Count(inventory, item.m_shared.m_name)
                 : inventory.CountItems(item.m_shared.m_name);
             if (!costRow)
@@ -83,7 +86,7 @@ namespace EpicLootProgressionFix
             }
 
             // Use the same provider count as HasItem, including CraftyBoxes' range and pull filters.
-            int available = InventoryManagement.Instance.CountItem(item);
+            int available = setRune ? SetRuneCounts.Available(item) : InventoryManagement.Instance.CountItem(item);
             int required = entry.GetMax();
             string quantity = $"{ShortCount(available)} / {ShortCount(required)}";
             element.ItemTotalQuantity.text = available < required ? $"<color=red>{quantity}</color>" : quantity;
