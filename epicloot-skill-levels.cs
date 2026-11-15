@@ -76,10 +76,11 @@ namespace EpicLootProgressionFix
         {
             var skills = __0.GetSkills();
             if (skills == null) return false;
+            var local = LocalOwner(skills);
             foreach (var definition in skills.m_skills)
             {
                 if (!CarrySettings.TryGetValue(definition.m_skill, out var setting) || !setting.Enabled.Value) continue;
-                __1 += setting.Coefficient.Value * Mathf.Pow(InCarryWeight(skills, definition.m_skill), setting.Power.Value);
+                __1 += setting.Coefficient.Value * Mathf.Pow(InCarryWeight(skills, definition.m_skill, local), setting.Power.Value);
                 if (float.IsInfinity(__1))
                 {
                     __1 = float.MaxValue;
@@ -93,7 +94,7 @@ namespace EpicLootProgressionFix
         {
             weight = 0f;
             if (!CarrySettings.TryGetValue(skill, out var setting) || !setting.Enabled.Value) return false;
-            weight = setting.Coefficient.Value * Mathf.Pow(InCarryWeight(skills, skill), setting.Power.Value);
+            weight = setting.Coefficient.Value * Mathf.Pow(InCarryWeight(skills, skill, LocalOwner(skills)), setting.Power.Value);
             return true;
         }
 
@@ -106,16 +107,23 @@ namespace EpicLootProgressionFix
             finally { HandOverride.Active = hands; }
         }
 
-        private static float InCarryWeight(Skills skills, Skills.SkillType skill)
+        // The player whose game this is, if these are their skills; worn bonuses count only there. It is the same for every
+        // skill, so a sum over skills asks once.
+        private static Player LocalOwner(Skills skills)
         {
             var player = PlayerOf(skills);
-            if (!player || player != Player.m_localPlayer) return skills.GetSkillLevel(skill);
+            return player && player == Player.m_localPlayer ? player : null;
+        }
+
+        private static float InCarryWeight(Skills skills, Skills.SkillType skill, Player local)
+        {
+            if ((object)local == null) return skills.GetSkillLevel(skill);
             if (Time.time >= carryBonusesUntil)
             {
                 CarryBonuses.Clear();
                 carryBonusesUntil = Time.time + 1f;
             }
-            if (!CarryBonuses.TryGetValue(skill, out int bonus)) CarryBonuses[skill] = bonus = WornBonus(player, skill);
+            if (!CarryBonuses.TryGetValue(skill, out int bonus)) CarryBonuses[skill] = bonus = WornBonus(local, skill);
             return skills.GetSkillLevel(skill) + bonus;
         }
 
