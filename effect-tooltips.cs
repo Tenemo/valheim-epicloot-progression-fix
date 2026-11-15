@@ -224,7 +224,7 @@ namespace EpicLootProgressionFix
         private static readonly HashSet<string> StaminaRegenEffects = new HashSet<string> {
             MagicEffectType.ModifyStaminaRegen, MagicEffectType.ModifyStaminaRegenLowHealth };
         private static readonly HashSet<string> FixedRestorationEffects = new HashSet<string> {
-            MagicEffectType.LifeGainOnHit, MagicEffectType.LifeAfterKill, MagicEffectType.HealthGainPerXDamageDone, MagicEffectType.HealthOnEitrUse,
+            MagicEffectType.LifeGainOnHit, MagicEffectType.LifeAfterKill, MagicEffectType.HealthOnEitrUse,
             MagicEffectType.Conduit, MagicEffectType.LifeGainOnBlock, MagicEffectType.StaminaGainOnBlock,
             MagicEffectType.EitrGainOnBlock, MagicEffectType.EitrWeave, MagicEffectType.Kindling };
         private const string RestorationRule = "Restoration scales with regeneration.";

@@ -7,13 +7,13 @@ using UnityEngine;
 namespace EpicLootProgressionFix
 {
     // Only fixed gem/enchantment awards use regeneration factors. Life steal, percentage restoration, resource
-    // conversions and cost refunds keep their own amounts; this never patches the general resource methods.
+    // conversions, cost refunds and the per-damage heal keep their own amounts; this never patches the general resource methods.
     [HarmonyPatch]
     internal static class FixedRestoration
     {
         private static IEnumerable<MethodBase> TargetMethods()
         {
-            foreach (string effect in new[] { "LifeGainOnHit", "HealthGainPerXDamageDone", "Conduit", "LifeAfterKill" })
+            foreach (string effect in new[] { "LifeGainOnHit", "Conduit", "LifeAfterKill" })
                 yield return AccessTools.Method(ResourcePools.Effect(effect), "OnDamageDealt");
             yield return AccessTools.Method(ResourcePools.Effect("GainOnBlockResource"), "GainOnBlock");
             yield return AccessTools.Method(AccessTools.Inner(ResourcePools.Effect("HealthOnEitrUse"), "UseEitr_Patch"), "Postfix");

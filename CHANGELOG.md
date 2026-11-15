@@ -17,6 +17,7 @@
 - A rune's tooltip lists the gear it fits, such as "Fits swords, knives, spears, some polearms and bows", with any rarity or property it needs. Hold Shift to see which items of a partly fitting kind it fits. Runes that can't be etched say so.
 - Every crop in a PlantEasily grid gets your cultivator's Green Thumb, even if you take out another tool while the grid is still being planted. Before, crops planted after the switch grew at the normal speed.
 - Axe and pickaxe tooltips show their chop and mining damage, the damage that fells trees and breaks rocks and ore, with the range your Woodcutting or Pickaxes skill gives, so you can see what an upgrade adds.
+- The shardstone heal per damage dealt, such as "Heal 8 per 200 damage dealt", always heals its full amount. Bulk Up no longer cancels it, and Rested and other regeneration bonuses no longer raise it.
 
 # 1.26.0
 
