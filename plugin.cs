@@ -397,6 +397,7 @@ namespace EpicLootProgressionFix
                 Run(typeof(CraftingAmountReset), patches => CraftingAmountReset.Initialize(patches, Logger));
                 Run(typeof(CraftingMaxAmount), patches => CraftingMaxAmount.Initialize(patches, Logger));
                 Run(typeof(CraftingTutorialOverlay), patches => CraftingTutorialOverlay.Initialize(patches, Logger));
+                Run(typeof(CraftingRecipeTooltips), patches => CraftingRecipeTooltips.Initialize(patches, Logger));
                 Run(typeof(CraftingFavoritesIndicator), patches => CraftingFavoritesIndicator.Initialize(patches, Logger));
                 Run(typeof(CraftedAnvil), patches => CraftedAnvil.Initialize(patches));
                 Run(typeof(CraftingUncraftedFilter), patches => CraftingUncraftedFilter.Initialize(patches, Logger));

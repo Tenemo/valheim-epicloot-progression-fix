@@ -4,6 +4,7 @@
 - When Heimdall's Legacy's Undying saves you from a killing blow, Bulwark's shield also makes you immune to combat damage for 3 s, so a burn tick or the next hit can't kill you right after.
 - With antialiasing off, distant torch and fire flames no longer flicker or vanish for a moment as you look around.
 - On the Active effects page, statuses, foods and Forsaken powers you can point at for a description have their names underlined.
+- An item's tooltip in a crafting table's Upgrade tab stays still beside the pointer and scrolls with the mouse wheel, as in your inventory. A tooltip taller than the screen, such as an enchanted staff's with its set, used to jump up and down too fast to read.
 
 # 1.28.0
 

@@ -39,7 +39,7 @@ namespace EpicLootProgressionFix
                 "AttachedCartMaterials", "BuildMaterialPull", "StationCapacity", "BulkCooking", "BulkProcessing", "BulkFermenting", "StationInputPreviews", "ChestPullingDefaults", "ChestSupplyEligibility", "HelmSimulation+StorageSupply");
             Add("quick-stack-pulling", "Shared chest pulling modes and exclusions", true, new[] { PluginIds.AzuCraftyBoxes, PluginIds.QuickStack }, "ChestSupplySwitch", "QuickStackPullingMode");
             Add("crafting", "Batch crafting, recipe filters and controls", true, new[] { PluginIds.AaaCrafting },
-                "CraftingAmountReset", "CraftingBonus", "CraftingFavoritesIndicator", "CraftingUncraftedFilter", "CraftingTutorialOverlay");
+                "CraftingAmountReset", "CraftingBonus", "CraftingFavoritesIndicator", "CraftingUncraftedFilter", "CraftingTutorialOverlay", "CraftingRecipeTooltips");
             Add("crafting-supply", "Batch crafting maximum from nearby supply", true, new[] { PluginIds.AaaCrafting, PluginIds.AzuCraftyBoxes }, "CraftingMaxAmount");
             Add("multi-user-storage", "Shared-chest transfers, consumables and labels", true, new[] { PluginIds.MultiUserChest },
                 "PotionBuffRefresh", "StackLabels", "ChestRequestLifetime", "ChestRequestRoom", "ItemActivity+ChestResponses", "ItemActivity+ChestRequests", "HelmSimulation+StorageRequests");
