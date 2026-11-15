@@ -4,8 +4,9 @@ using UnityEngine;
 
 namespace EpicLootProgressionFix
 {
-    // Frost Cone hit everything in its cone and Kinetic Quake everything the game lets you provoke, which took in your tames
-    // and Dvergr. Both now hit only your enemies; other players stay subject to the game's own PvP rules.
+    // Frost Cone hit everything in its cone, and Kinetic Quake and Shield Throw everything the game lets you provoke,
+    // which took in your tames and Dvergr. All three now hit only your enemies; other players stay subject to the
+    // game's own PvP rules.
     internal static class SetEffectFriendlyFire
     {
         private static readonly AccessTools.FieldRef<FrostAOEDamageController, Player> FrostConeOwner =
@@ -15,7 +16,8 @@ namespace EpicLootProgressionFix
         {
             var self = typeof(SetEffectFriendlyFire);
             harmony.Patch(AccessTools.Method(typeof(FrostAOEDamageController), "OnTriggerEnter"), postfix: new HarmonyMethod(self, nameof(DropFriendFromFrostCone)));
-            harmony.Patch(AccessTools.Method(typeof(KineticQuake), "HitCharacter"), prefix: new HarmonyMethod(self, nameof(SkipFriendInQuake)));
+            harmony.Patch(AccessTools.Method(typeof(KineticQuake), "HitCharacter"), prefix: new HarmonyMethod(self, nameof(SkipFriend)));
+            harmony.Patch(AccessTools.Method(typeof(ShieldThrow), "HitCharacter"), prefix: new HarmonyMethod(self, nameof(SkipFriend)));
         }
 
         internal static bool IsSpared(Player player, Character target) =>
@@ -27,7 +29,7 @@ namespace EpicLootProgressionFix
             if (IsSpared(FrostConeOwner(__instance), target)) __instance.Colliders.Remove(target);
         }
 
-        private static bool SkipFriendInQuake(Player player, Collider collider, ref bool __result)
+        private static bool SkipFriend(Player player, Collider collider, ref bool __result)
         {
             var hit = Projectile.FindHitObject(collider);
             if (!hit || !IsSpared(player, hit.GetComponent<Character>())) return true;

@@ -18,6 +18,9 @@
 - Every crop in a PlantEasily grid gets your cultivator's Green Thumb, even if you take out another tool while the grid is still being planted. Before, crops planted after the switch grew at the normal speed.
 - Axe and pickaxe tooltips show their chop and mining damage, the damage that fells trees and breaks rocks and ore, with the range your Woodcutting or Pickaxes skill gives, so you can see what an upgrade adds.
 - The shardstone heal per damage dealt, such as "Heal 8 per 200 damage dealt", always heals its full amount. Bulk Up no longer cancels it, and Rested and other regeneration bonuses no longer raise it.
+- Svalinn's Arc's Shield Throw passes your tames and peaceful Dvergr instead of hitting them and turning the Dvergr hostile, as Frost Cone and Kinetic Quake already do. With PvP on it still hits other players.
+- Rime of Élivágar's Frostwalker no longer stops your eitr regenerating while you wade or swim. Only walking on its ice, which drains your eitr, holds regeneration back.
+- Mímir's Well's Eitr Barrier no longer delays your eitr regeneration each time it absorbs a hit.
 - In Set Etch, each set rune shows the one rune an etch uses out of the runes of that set you have, such as 1 / 4, instead of a quantity box, and the rune's cost tile counts only runes of that set instead of every etched rune of its rarity.
 
 # 1.26.0
