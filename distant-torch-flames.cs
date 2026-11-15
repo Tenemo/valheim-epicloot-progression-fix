@@ -65,7 +65,11 @@ namespace EpicLootProgressionFix
             if (camera != Utils.GetMainCamera()) return;
             // A subpixel billboard can vanish between raster samples even while its particles and light stay active.
             // Use the rendering camera's actual viewport, including offscreen captures and resolution changes.
-            float screenMinimum = 3f / Mathf.Max(1, camera.pixelHeight);
+            // Antialiasing gathers the point-sampled flame over jittered frames. Without it a 3-pixel billboard's
+            // few samples can all miss the flame ball, so the floor is a pixel larger.
+            var graphics = GraphicsSettingsManager.Instance;
+            bool antialiasing = graphics != null && graphics.ActiveSettings.m_antiAliasing;
+            float screenMinimum = (antialiasing ? 3f : 4f) / Mathf.Max(1, camera.pixelHeight);
             var position = camera.transform.position;
             int frame = Time.frameCount & 31;
             foreach (var controller in Active)

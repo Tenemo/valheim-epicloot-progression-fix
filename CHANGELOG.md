@@ -2,6 +2,7 @@
 
 - Freyja's Falcon's Earthshaker slam deals a share of the spear in your hand instead of a flat amount, so it grows with the spear's upgrades, enchantments and your Spears skill: EpicLoot's 200/250/300 by rarity becomes 200/250/300% of the spear's damage. Falling further and carrying more still add to it.
 - When Heimdall's Legacy's Undying saves you from a killing blow, Bulwark's shield also makes you immune to combat damage for 3 s, so a burn tick or the next hit can't kill you right after.
+- With antialiasing off, distant torch and fire flames no longer flicker or vanish for a moment as you look around.
 
 # 1.28.0
 
