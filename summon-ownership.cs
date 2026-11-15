@@ -76,11 +76,21 @@ namespace EpicLootProgressionFix
             if (player) TryGet(__instance.GetComponent<Character>(), out _, out _, player);
         }
 
+        // Dead Raiser skeletons, Spirit Caller animals and Fylgja spirits pick enemies, follow, keep pace and heal by the same rules.
         internal static bool IsFollower(Character character)
         {
             var view = character ? GameFields.CharacterView(character) : null;
-            return character && character.IsTamed() && view && view.IsValid() &&
-                StaffTypes.TryGetValue(view.GetZDO().GetPrefab(), out var staff) && (staff == SkeletonStaff || staff == SpiritStaff);
+            if (!character || !character.IsTamed() || !view || !view.IsValid()) return false;
+            var data = view.GetZDO();
+            return StaffTypes.TryGetValue(data.GetPrefab(), out var staff) ? staff == SkeletonStaff || staff == SpiritStaff : data.GetLong(SpiritHash, 0L) != 0;
+        }
+
+        // EpicLoot records the player whose Fylgja's Bond summoned the spirit.
+        internal static bool IsFylgjaSpirit(ZDO data) => data != null && data.GetLong(SpiritHash, 0L) != 0;
+        internal static bool IsFylgjaSpirit(Character character)
+        {
+            var view = character ? GameFields.CharacterView(character) : null;
+            return view && view.IsValid() && IsFylgjaSpirit(view.GetZDO());
         }
 
         internal static bool TryGet(Character character, out long summoner, out string staff, Player following = null)
@@ -131,7 +141,13 @@ namespace EpicLootProgressionFix
             return data.GetLong(RaisedByHash, 0L) == id || data.GetLong(SpiritHash, 0L) == id ||
                 StaffTypes.ContainsKey(data.GetPrefab()) && TryGet(character, out long summoner, out _) && summoner == id;
         }
-        internal static Player Summoner(Character character) => TryGet(character, out long player, out _) ? Player.GetPlayer(player) : null;
+        internal static Player Summoner(Character character)
+        {
+            var view = character ? GameFields.CharacterView(character) : null;
+            long spirit = view && view.IsValid() ? view.GetZDO().GetLong(SpiritHash, 0L) : 0L;
+            if (spirit != 0) return Player.GetPlayer(spirit);
+            return TryGet(character, out long player, out _) ? Player.GetPlayer(player) : null;
+        }
         // The player who summoned any kind of player summon, or 0.
         internal static long SummonerId(Character character)
         {

@@ -107,7 +107,7 @@ namespace EpicLootProgressionFix
                 data.Set(ContactTimeKey, 0L);
             }
             // The moose and bear otherwise break off a fight to run circles around their enemy; wild ones keep the prefab's taunt.
-            if (SummonOwnership.StaffFor(data) == SummonOwnership.SpiritStaff) __instance.m_circleTargetInterval = 0f;
+            if (SummonOwnership.StaffFor(data) == SummonOwnership.SpiritStaff || SummonOwnership.IsFylgjaSpirit(data)) __instance.m_circleTargetInterval = 0f;
             var summoner = SummonOwnership.Summoner(creature);
             var commandedId = data.GetZDOID(CommandKey);
             var commanded = Resolve(commandedId);

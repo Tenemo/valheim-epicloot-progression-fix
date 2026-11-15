@@ -7,11 +7,13 @@ namespace EpicLootProgressionFix
     // no name. Each word that is missing or empty after the game and every mod have loaded a language gets an English name;
     // a real translation and a name a player gave the animal still show. A summon whose AI is alerted reads Alerted
     // instead of the Frightened the game shows for an animal being tamed. A summon keeps the name it has: Shift + E opens no
-    // rename box and its hover has no Rename row.
+    // rename box and its hover has no Rename row. A Fylgja spirit is named after its creature, such as Moose spirit, unless the
+    // bound animal had a name a player gave it.
     internal static class SummonNames
     {
         private const string Alerted = "epiclootprogressionfix_summon_alerted";
         internal const string Ride = "epiclootprogressionfix_summon_ride";
+        private const string FylgjaSpirit = "epiclootprogressionfix_fylgja_spirit";
         private static readonly Dictionary<string, string> Fallbacks = new Dictionary<string, string>
         {
             ["spiritcaller_bjorn"] = "Spirit Bear",
@@ -20,6 +22,7 @@ namespace EpicLootProgressionFix
             ["spiritcaller_boar"] = "Spirit Boar",
             [Alerted] = "Alerted",
             [Ride] = "Ride",
+            [FylgjaSpirit] = "spirit",
         };
         private static readonly AccessTools.FieldRef<Localization, Dictionary<string, string>> Words =
             AccessTools.FieldRefAccess<Localization, Dictionary<string, string>>("m_translations");
@@ -39,6 +42,9 @@ namespace EpicLootProgressionFix
                 prefix: new HarmonyMethod(typeof(SummonNames), nameof(NoRenaming)));
             harmony.Patch(AccessTools.Method(typeof(Tameable), nameof(Tameable.GetHoverText)),
                 postfix: new HarmonyMethod(typeof(SummonNames), nameof(NoRenameRow)));
+            // Hover text, health bars and StarLevelSystem's modifier names are all built from the creature's own name.
+            harmony.Patch(AccessTools.Method(typeof(Character), "Awake"),
+                postfix: new HarmonyMethod(typeof(SummonNames), nameof(SpiritName)));
             // The game usually sets up its language before this mod loads.
             if (Current() != null) FillBlanks(Current());
         }
@@ -60,6 +66,12 @@ namespace EpicLootProgressionFix
         private static void AlertedSummon(Character ___m_character, ref string __result)
         {
             if (__result == "$hud_tamefrightened" && SummonOwnership.IsPlayerSummon(___m_character)) __result = "$" + Alerted;
+        }
+
+        // Every game that loads the spirit names its own copy; the bound record and the creature's kind keep their name.
+        private static void SpiritName(Character __instance)
+        {
+            if (!(__instance is Player) && SummonOwnership.IsFylgjaSpirit(__instance)) __instance.m_name += " $" + FylgjaSpirit;
         }
 
         private static bool NoRenaming(Character ___m_character, bool alt, ref bool __result)
