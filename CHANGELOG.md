@@ -23,6 +23,7 @@
 - Mímir's Well's Eitr Barrier no longer delays your eitr regeneration each time it absorbs a hit.
 - In Set Etch, each set rune shows the one rune an etch uses out of the runes of that set you have, such as 1 / 4, instead of a quantity box, and the rune's cost tile counts only runes of that set instead of every etched rune of its rarity.
 - Staff fire rate runes show CS, for cast speed, instead of MFR, so they no longer look like the bow and crossbow Fire rate runes.
+- Coils of the World Serpent's Coiling Venom lands its poison over 3 seconds. Before, each hit's poison stretched the whole poison out, so 1,000 poison took 47 seconds and much of it never landed before the fight ended.
 
 # 1.26.0
 

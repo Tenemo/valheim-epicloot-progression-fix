@@ -407,6 +407,7 @@ namespace EpicLootProgressionFix
                 Run(typeof(DeathAttribution), patches => DeathAttribution.Initialize(patches));
                 Run(typeof(DeathLeaderboard), patches => DeathLeaderboard.Initialize(patches, Logger));
                 Run(typeof(CoilingVenomImmunity), patches => CoilingVenomImmunity.Initialize(patches));
+                Run(typeof(CoilingVenomPacing), patches => CoilingVenomPacing.Initialize(patches));
                 Run(typeof(SetEffectFriendlyFire), patches => SetEffectFriendlyFire.Initialize(patches));
                 Run(typeof(SetEitrRegeneration), patches => SetEitrRegeneration.Initialize(patches));
                 Run(typeof(HexenFormControls), patches => HexenFormControls.Initialize(patches));
