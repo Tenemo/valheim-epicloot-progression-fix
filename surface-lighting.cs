@@ -211,19 +211,22 @@ namespace EpicLootProgressionFix
                     {
                         if (light.placedFire) continue;
                         light.selected = false;
-                        // Distance first: the engine calls in Eligible matter only for the few within reach.
                         if (!light.active || !light.originalEnabled) continue;
                         light.distance = (light.transform.position - reference).sqrMagnitude;
-                        if (light.distance < HarvestableDistance * HarvestableDistance && light.Eligible) Harvestables.Add(light);
+                        if (light.distance < HarvestableDistance * HarvestableDistance) Harvestables.Add(light);
                     }
                     Harvestables.Sort((left, right) => {
                         int order = left.distance.CompareTo(right.distance);
                         return order != 0 ? order : left.GetInstanceID().CompareTo(right.GetInstanceID());
                     });
-                    for (int index = 0; index < Math.Min(HarvestableLimit, Harvestables.Count); index++)
+                    // Nearest first, so the engine calls in Eligible run only until the allowance is filled.
+                    for (int index = 0, chosen = 0; index < Harvestables.Count && chosen < HarvestableLimit; index++)
                     {
-                        Harvestables[index].selected = true;
-                        Harvestables[index].Wake();
+                        var light = Harvestables[index];
+                        if (!light.Eligible) continue;
+                        light.selected = true;
+                        light.Wake();
+                        chosen++;
                     }
                 }
                 // Keep native shadow priorities intact. Only the separate illumination counter excludes our lights.
