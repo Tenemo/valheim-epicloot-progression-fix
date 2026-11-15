@@ -20,7 +20,7 @@ namespace EpicLootProgressionFix
     // damage type that gets through every resistance, block and parry, movement and stamina costs, the current weapon's
     // hits and boosted skills. Every other enchantment follows in its section with its total across equipment,
     // runes, shardstones and set bonuses, so nothing is listed twice and nothing per item. It updates while open. Hovering a
-    // status, food or Forsaken power row shows what it does, in the window item tooltips use.
+    // status, food or Forsaken power row with an underlined name shows what it does, in the window item tooltips use.
     [HarmonyPatch]
     internal static class ActiveEffectsPage
     {
@@ -437,26 +437,30 @@ namespace EpicLootProgressionFix
                 string name = Localization.instance.Localize(effect.m_name);
                 if (string.IsNullOrWhiteSpace(name)) continue;
                 string detail = effect.GetIconText();
-                rows.Add(string.IsNullOrEmpty(detail) ? name : Row(name, detail));
                 tooltips.Add(Tooltip(name, Description(effect)));
+                string shown = Hoverable(name, tooltips[tooltips.Count - 1]);
+                rows.Add(string.IsNullOrEmpty(detail) ? shown : Row(shown, detail));
             }
             foreach (var food in player.GetFoods())
             {
                 string name = Localization.instance.Localize(food.m_item.m_shared.m_name);
-                rows.Add(Row(name, Duration(food.m_time)));
                 tooltips.Add(Tooltip(name, FoodText(food)));
+                rows.Add(Row(Hoverable(name, tooltips[tooltips.Count - 1]), Duration(food.m_time)));
             }
             player.GetGuardianPowerHUD(out var power, out float cooldown);
             if (power != null)
             {
                 string name = Localization.instance.Localize(power.m_name);
-                rows.Add(Row("Forsaken power: " + name, cooldown > 0f ? "ready in " + Duration(cooldown) : "ready"));
                 tooltips.Add(Tooltip(name, PowerText(player, power)));
+                rows.Add(Row("Forsaken power: " + Hoverable(name, tooltips[tooltips.Count - 1]), cooldown > 0f ? "ready in " + Duration(cooldown) : "ready"));
             }
         }
 
         // No text means no tooltip, so a window never just repeats the row's name.
         private static (string Topic, string Text) Tooltip(string name, string text) => text.Length == 0 ? ("", "") : (name, text);
+
+        // An underlined name opens a tooltip when hovered.
+        private static string Hoverable(string name, (string Topic, string Text) tooltip) => tooltip.Text.Length == 0 ? name : "<u>" + name + "</u>";
 
         // What the game's statuses do, by status name, where their own text only sets a mood or describes something else.
         private static string GameStatusText(StatusEffect effect)
