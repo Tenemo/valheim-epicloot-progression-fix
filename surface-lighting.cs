@@ -288,7 +288,8 @@ namespace EpicLootProgressionFix
                 {
                     owner.rawIntensity = ___m_light.intensity;
                     owner.writtenIntensity = owner.rawIntensity * owner.blend;
-                    ___m_light.intensity = owner.writtenIntensity;
+                    // At full blend the light already holds that value; writing it again would only make the engine redo the light.
+                    if (owner.blend != 1f) ___m_light.intensity = owner.writtenIntensity;
                 }
             }
         }
