@@ -12,6 +12,7 @@
 - Attack eitr cost works on Dundr: on the staff, your armor or your set it lowers the eitr each reload drains and the eitr you need to start one, and Dundr can roll it again. Dundr's tooltip shows the eitr each reload takes instead of eitr per second.
 - Fire rate also makes Dundr reload faster, for the same eitr per reload: +50% shortens a 0.95 s reload to 0.63 s. Attack speed still speeds up only the shot.
 - Dundr stays loaded when you put it away: switching to another weapon, hiding your weapons or eating no longer throws its shot away, so taking it out again doesn't cost another reload. Crossbows still lose their bolt.
+- Jumping no longer restarts Dundr's reload: a ground or air jump mid-reload keeps its progress and the eitr already spent, so the shot is ready on time.
 - Enchantments that would do nothing no longer roll, etch or socket on these items: Attack speed on the Serving Tray, Chain lightning on the Staff of Protection, Trollstav and Northern Vengeance, Executioner on the Scythe, Snow Shovel, Staff of Protection and Trollstav, and the Cyan shardstone on the Scythe, Snow Shovel and Sparkler.
 - A rune's tooltip lists the gear it fits, such as "Fits swords, knives, spears, some polearms and bows", with any rarity or property it needs. Hold Shift to see which items of a partly fitting kind it fits. Runes that can't be etched say so.
 - Every crop in a PlantEasily grid gets your cultivator's Green Thumb, even if you take out another tool while the grid is still being planted. Before, crops planted after the switch grew at the normal speed.

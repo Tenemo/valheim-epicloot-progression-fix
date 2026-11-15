@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using EpicLoot;
@@ -52,6 +53,27 @@ namespace EpicLootProgressionFix
             Stowed.Remove(weapon);
             SetWeaponLoaded(__instance, weapon);
         }
+
+        // The game clears every queued action when you jump, ground or air jump, so a jump threw away the reload's progress and
+        // the eitr it had drained, and the reload started over. A staff's reload now carries on through a jump; queued
+        // equipping and crossbow reloads still stop as in the game.
+        private static readonly AccessTools.FieldRef<Player, List<Player.MinorActionData>> ActionQueue =
+            AccessTools.FieldRefAccess<Player, List<Player.MinorActionData>>("m_actionQueue");
+        // Player overrides Humanoid's ClearActionQueue; calls name the Humanoid declaration and dispatch to Player's.
+        private static readonly MethodInfo ClearActionQueueMethod = AccessTools.Method(typeof(Humanoid), "ClearActionQueue");
+        private static readonly Action<Humanoid> ClearActionQueue = AccessTools.MethodDelegate<Action<Humanoid>>(ClearActionQueueMethod);
+
+        private static void ClearForJump(Player player)
+        {
+            var reload = ActionQueue(player).Find(action => action.m_type == Player.MinorActionData.ActionType.Reload && Reloads(action.m_item));
+            ClearActionQueue(player);
+            if (reload != null) ActionQueue(player).Add(reload);
+        }
+
+        [HarmonyPatch(typeof(Player), "OnJump"), HarmonyTranspiler]
+        private static IEnumerable<CodeInstruction> KeepThroughJump(IEnumerable<CodeInstruction> instructions) =>
+            Transpilers.CallInstead(instructions, instruction => instruction.Calls(ClearActionQueueMethod),
+                AccessTools.Method(typeof(StaffReload), nameof(ClearForJump)), 1, "Player.OnJump changed; expected one action queue clear.");
 
         [HarmonyPatch(typeof(ItemDrop.ItemData), nameof(ItemDrop.ItemData.GetWeaponLoadingTime)), HarmonyPostfix]
         private static void LoadingTime(ItemDrop.ItemData __instance, ref float __result) => __result /= FireRateFactor(Player.m_localPlayer, __instance);
