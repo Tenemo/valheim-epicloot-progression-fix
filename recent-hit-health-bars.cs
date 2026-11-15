@@ -26,8 +26,8 @@ namespace EpicLootProgressionFix
         }
 
         // The player's own summons keep their bar at any distance until they are gone.
-        internal static bool OwnSummon(Character target) =>
-            target && !target.m_hideHud && !FreshCreatureSpawns.Waiting(target) && SummonOwnership.OwnSummon(target);
+        internal static bool OwnSummon(Character target, bool notBat = false) =>
+            target && !target.m_hideHud && !FreshCreatureSpawns.Waiting(target) && SummonOwnership.OwnSummon(target, notBat);
 
         [HarmonyPatch(typeof(EnemyHud), "TestShow")]
         private static class Eligibility
@@ -35,7 +35,7 @@ namespace EpicLootProgressionFix
             private static void Postfix(Character c, ref bool __result)
             {
                 if (SummonedBats.IsBat(c)) __result = false;
-                else if (Revealed(c) || OwnSummon(c)) __result = true;
+                else if (Revealed(c) || OwnSummon(c, notBat: true)) __result = true;
             }
         }
 

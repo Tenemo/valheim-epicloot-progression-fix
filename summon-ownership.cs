@@ -9,6 +9,9 @@ namespace EpicLootProgressionFix
     {
         private const string SummonerKey = Plugin.Id + ".summoner";
         private const string StaffKey = Plugin.Id + ".summoning-staff";
+        // The ZDO's string-keyed reads hash the key on every call; bars ask these of every tamed creature each frame.
+        private static readonly int SummonerHash = SummonerKey.GetStableHashCode(), StaffHash = StaffKey.GetStableHashCode(),
+            RaisedByHash = "el-sumby".GetStableHashCode(), SpiritHash = "el-spirit".GetStableHashCode();
         internal const string SkeletonStaff = "StaffSkeleton", SpiritStaff = "StaffSpiritCaller";
         private static readonly Dictionary<int, string> StaffTypes = new Dictionary<string, string>
         {
@@ -86,8 +89,8 @@ namespace EpicLootProgressionFix
             var view = character ? GameFields.CharacterView(character) : null;
             if (!view || !view.IsValid() || !StaffTypes.TryGetValue(view.GetZDO().GetPrefab(), out string expected)) return false;
             var data = view.GetZDO();
-            summoner = data.GetLong(SummonerKey);
-            staff = data.GetString(StaffKey);
+            summoner = data.GetLong(SummonerHash);
+            staff = data.GetString(StaffHash);
             if (summoner != 0) return !string.IsNullOrEmpty(staff);
             if (!IsFollower(character)) return false;
             string name = data.GetString(ZDOVars.s_follow);
@@ -114,22 +117,24 @@ namespace EpicLootProgressionFix
         {
             var view = character ? GameFields.CharacterView(character) : null;
             var data = view && view.IsValid() ? view.GetZDO() : null;
-            return data != null && (StaffFor(data) != null || SummonedBats.SummonerId(data) != 0 || data.GetLong("el-sumby", 0L) != 0 || data.GetLong("el-spirit", 0L) != 0);
+            return data != null && (StaffFor(data) != null || SummonedBats.SummonerId(data) != 0 || data.GetLong(RaisedByHash, 0L) != 0 || data.GetLong(SpiritHash, 0L) != 0);
         }
         // A summon of the local player other than a shardstone bat: a staff summon, a Hel's Harvest raise or a Spirit Animal.
-        internal static bool OwnSummon(Character character)
+        // A caller that has just found the character is no bat says so instead of having it looked up again.
+        internal static bool OwnSummon(Character character, bool notBat = false)
         {
             var player = Player.m_localPlayer;
-            if (!player || !character || !character.IsTamed() || SummonedBats.IsBat(character)) return false;
+            if (!player || !character || !character.IsTamed() || !notBat && SummonedBats.IsBat(character)) return false;
             var data = GameFields.CharacterView(character).GetZDO();
             long id = player.GetPlayerID();
-            return data.GetLong("el-sumby", 0L) == id || data.GetLong("el-spirit", 0L) == id ||
-                TryGet(character, out long summoner, out _) && summoner == id;
+            // A tamed creature's view is valid, so TryGet can only find a record on a staff's kind of creature.
+            return data.GetLong(RaisedByHash, 0L) == id || data.GetLong(SpiritHash, 0L) == id ||
+                StaffTypes.ContainsKey(data.GetPrefab()) && TryGet(character, out long summoner, out _) && summoner == id;
         }
         internal static Player Summoner(Character character) => TryGet(character, out long player, out _) ? Player.GetPlayer(player) : null;
         internal static bool IsStaff(string prefab) => StaffTypes.ContainsValue(prefab);
         internal static string StaffFor(ZDO data) => data != null && StaffTypes.TryGetValue(data.GetPrefab(), out var staff) ? staff : null;
-        internal static bool Recorded(ZDO data, long player, string staff) => data.GetLong(SummonerKey) == player && data.GetString(StaffKey) == staff;
-        internal static bool Unrecorded(ZDO data) => data.GetLong(SummonerKey) == 0;
+        internal static bool Recorded(ZDO data, long player, string staff) => data.GetLong(SummonerHash) == player && data.GetString(StaffHash) == staff;
+        internal static bool Unrecorded(ZDO data) => data.GetLong(SummonerHash) == 0;
     }
 }
