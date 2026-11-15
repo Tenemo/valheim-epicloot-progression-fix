@@ -237,9 +237,10 @@ namespace EpicLootProgressionFix
                     AccessTools.Method(typeof(WorldLoading), nameof(FindReadyObjects)), 1, "Valheim's readiness sector search changed.");
         }
 
-        // EpicLoot places a bounty or treasure chest only once every object around its map circle has loaded, with its own
-        // search rather than the readiness check above, so a fish or loose pickup left out here held it until the player
-        // stood beside the circle.
+        // EpicLoot places a bounty or treasure chest on the ground only once every object around its map circle has loaded,
+        // with its own search rather than the readiness check above, so a fish or loose pickup left out here held it until the
+        // player stood beside the circle. A dungeon interior, far above the ground, appears only once its rooms have loaded,
+        // which can take many seconds, so a Burial Chamber in those zones kept a bounty waiting for up to 36 s.
         [HarmonyPatch]
         private static class AdventureReadiness
         {
@@ -248,7 +249,31 @@ namespace EpicLootProgressionFix
 
             private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
                 Transpilers.CallInstead(instructions, instruction => instruction.Calls(AccessTools.Method(typeof(ZDOMan), nameof(ZDOMan.FindSectorObjects))),
-                    AccessTools.Method(typeof(WorldLoading), nameof(FindReadyObjects)), 1, "EpicLoot's adventure area search changed.");
+                    AccessTools.Method(typeof(WorldLoading), nameof(FindSurfaceReadyObjects)), 1, "EpicLoot's adventure area search changed.");
+        }
+
+        private static void FindSurfaceReadyObjects(ZDOMan manager, Vector2s sector, SimulationDistance distance, List<ZDO> near, List<ZDO> distant)
+        {
+            FindReadyObjects(manager, sector, distance, near, distant);
+            near.RemoveAll(data => data.GetPosition().y > DungeonInteriors.InteriorHeight);
+        }
+
+        private static readonly List<ZDO> PlacementObjects = new List<ZDO>();
+
+        // ZNetScene.IsAreaReady for placing a creature: a point on the ground doesn't wait for a dungeon interior above it.
+        internal static bool PlacementReady(Vector3 point)
+        {
+            if (point.y > DungeonInteriors.InteriorHeight) return ZNetScene.instance.IsAreaReady(point);
+            var zone = ZoneSystem.GetZone(point);
+            if (!ZoneSystem.instance.IsZoneLoaded(zone)) return false;
+            try
+            {
+                FindSurfaceReadyObjects(ZDOMan.instance, zone, new SimulationDistance(1, 0), PlacementObjects, null);
+                foreach (var data in PlacementObjects)
+                    if (ZNetScene.instance.GetPrefab(data.GetPrefab()) != null && !ZNetScene.instance.HaveInstance(data)) return false;
+                return true;
+            }
+            finally { PlacementObjects.Clear(); }
         }
     }
 }

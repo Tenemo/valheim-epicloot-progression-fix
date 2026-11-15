@@ -273,7 +273,7 @@ namespace EpicLootProgressionFix
             var origin = OutOfFloor(AboveGround(character.transform.position));
             var saved = new Entry { Character = character, Scope = new Scope(), Origin = origin, Center = origin,
                 Radius = float.PositiveInfinity, Check = SameArea(origin) };
-            bool ready = ZNetScene.instance.IsAreaReady(origin), wild = !character.IsTamed(), discard = view.GetZDO().GetBool(DiscardKey);
+            bool ready = WorldLoading.PlacementReady(origin), wild = !character.IsTamed(), discard = view.GetZDO().GetBool(DiscardKey);
             float reach = ready ? Mathf.Max(.75f, CreatureClearance.Measure(character).Radius * 2f) : 0f;
             var wider = timedOut && ready && !discard ? CreaturePlacement.Candidates(origin, WideSearch) : Enumerable.Empty<Vector3>();
             foreach (var candidate in CreaturePlacement.Candidates(origin, reach).Concat(wider))
@@ -326,7 +326,7 @@ namespace EpicLootProgressionFix
                     }
                     // Another game already finished it while this one did not own it.
                     if (!view.GetZDO().GetBool(PendingKey)) { Complete(entry, character.transform.position); continue; }
-                    if (!ZNetScene.instance.IsAreaReady(entry.Origin) && !(scope.Summon && entry.TimedOut)) continue;
+                    if (!WorldLoading.PlacementReady(entry.Origin) && !(scope.Summon && entry.TimedOut)) continue;
                     Physics.SyncTransforms(); CreatureClearance.Measure(character, true);
                     bool found = TryPoint(entry, entry.Origin, out var position);
                     float search = Mathf.Max(.75f, CreatureClearance.Measure(character).Radius * 2f);
