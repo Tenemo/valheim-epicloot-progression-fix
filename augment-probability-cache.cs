@@ -57,7 +57,11 @@ namespace EpicLootProgressionFix
                     obsolete.Cancellation.Dispose();
                 }
                 if (Results.Count >= 128)
-                    Results.Remove(Results.First(pair => pair.Value.Completion.Task.IsCompleted).Key);
+                {
+                    // Prewarming continues after a choice, so keep the chances a chosen enchant shows while others remain.
+                    var evicted = Results.FirstOrDefault(pair => pair.Value.Completion.Task.IsCompleted && !pair.Value.Selected);
+                    Results.Remove(evicted.Value != null ? evicted.Key : Results.First(pair => pair.Value.Completion.Task.IsCompleted).Key);
+                }
                 var calculation = new Calculation { Key = key, Weights = (float[])weights.Clone(), Removable = (bool[])removable.Clone(), Choices = choices, Selected = priority };
                 Results.Add(key, calculation);
                 calculation.Pending = priority ? Pending.AddFirst(calculation) : Pending.AddLast(calculation);
