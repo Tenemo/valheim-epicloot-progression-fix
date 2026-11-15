@@ -30,8 +30,9 @@ namespace EpicLootProgressionFix
                 System.Array.Resize(ref obstructionHits, obstructionHits.Length * 2);
                 count = Physics.RaycastNonAlloc(origin, direction, obstructionHits, direction.magnitude, ObstructionMask, QueryTriggerInteraction.Ignore);
             }
+            // A hit names its collider by instance ID; finding the collider itself is an engine lookup, needed only the first time.
             for (int index = 0; index < count; index++)
-                if (Blocks(obstructionHits[index].collider)) return true;
+                if (BlockingColliders.TryGetValue(obstructionHits[index].colliderInstanceID, out bool blocks) ? blocks : Blocks(obstructionHits[index].collider)) return true;
             return false;
         }
 
@@ -42,7 +43,7 @@ namespace EpicLootProgressionFix
         private static bool Blocks(Collider collider)
         {
             int id = collider.GetInstanceID();
-            if (BlockingColliders.TryGetValue(id, out bool blocks)) return blocks;
+            bool blocks;
             if (BlockingColliders.Count > 20000) BlockingColliders.Clear();
             if (collider.GetComponentInParent<Heightmap>()) blocks = true;
             else if (collider.GetComponentInParent<Piece>() || collider.GetComponentInParent<Plant>() || collider.GetComponentInParent<Pickable>()) blocks = false;
@@ -60,12 +61,16 @@ namespace EpicLootProgressionFix
             var camera = Utils.GetMainCamera();
             if (!player || player.IsDead() || !camera) return;
             var playerId = player.GetZDOID();
-            foreach (DictionaryEntry entry in ___m_huds)
+            var viewpoint = camera.transform.position;
+            // The enumerator's own key and value: a foreach over the dictionary boxes a pair for every bar.
+            var huds = ___m_huds.GetEnumerator();
+            while (huds.MoveNext())
             {
-                var character = (Character)entry.Key;
+                var character = (Character)huds.Key;
+                var hud = huds.Value;
                 if (RecentHitHealthBars.Revealed(character) || RecentHitHealthBars.OwnSummon(character))
                 {
-                    HoverTimer(entry.Value) = 0f;
+                    HoverTimer(hud) = 0f;
                     continue;
                 }
                 if (!character || character.IsPlayer() || character.IsBoss() || character.m_hideHud || character.IsDead() ||
@@ -76,9 +81,9 @@ namespace EpicLootProgressionFix
                     var data = GameFields.CharacterView(character).GetZDO();
                     bool attacking = !playerId.IsNone() && data != null && data.GetZDOID(CombatTargets.TargetKey) == playerId &&
                         Vector3.Distance(player.transform.position, character.transform.position) <= Plugin.AttackerHealthBarRange.Value;
-                    bool obstructed = !attacking && Obstructed(camera.transform.position, character.GetCenterPoint()) &&
-                        Obstructed(camera.transform.position, character.GetEyePoint());
-                    HoverTimer(entry.Value) = obstructed ? __instance.m_hoverShowDuration : 0f;
+                    // Hidden only if both rays are blocked. The eye, above the body, is seen more often, so its ray goes first.
+                    bool obstructed = !attacking && Obstructed(viewpoint, character.GetEyePoint()) && Obstructed(viewpoint, character.GetCenterPoint());
+                    HoverTimer(hud) = obstructed ? __instance.m_hoverShowDuration : 0f;
                 }
             }
         }
