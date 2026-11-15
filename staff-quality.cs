@@ -81,6 +81,7 @@ namespace EpicLootProgressionFix
             var projectile = item.m_shared.m_attack?.m_attackProjectile;
             if (!projectile) yield break;
             int upgrades = Upgrades(quality);
+            if (IsFrost(item)) yield return "Aim spread: " + Number(FrostSpread(item.m_shared.m_attack.m_projectileAccuracy, quality)) + "°";
             switch (projectile.name)
             {
                 case "staff_shield_aoe":
