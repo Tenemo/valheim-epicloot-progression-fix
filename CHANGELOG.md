@@ -5,6 +5,7 @@
 - With antialiasing off, distant torch and fire flames no longer flicker or vanish for a moment as you look around.
 - On the Active effects page, statuses, foods and Forsaken powers you can point at for a description have their names underlined.
 - An item's tooltip in a crafting table's Upgrade tab stays still beside the pointer and scrolls with the mouse wheel, as in your inventory. A tooltip taller than the screen, such as an enchanted staff's with its set, used to jump up and down too fast to read.
+- A trader's list updates as soon as the coins you carry change, such as when you claim bounty rewards at Haldor: items you can now afford light up instead of staying grey until you reopen the window.
 
 # 1.28.0
 
