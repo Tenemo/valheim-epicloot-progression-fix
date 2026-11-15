@@ -13,6 +13,7 @@
 - Fire rate also makes Dundr reload faster, for the same eitr per reload: +50% shortens a 0.95 s reload to 0.63 s. Attack speed still speeds up only the shot.
 - Dundr stays loaded when you put it away: switching to another weapon, hiding your weapons or eating no longer throws its shot away, so taking it out again doesn't cost another reload. Crossbows still lose their bolt.
 - Enchantments that would do nothing no longer roll, etch or socket on these items: Attack speed on the Serving Tray, Chain lightning on the Staff of Protection, Trollstav and Northern Vengeance, Executioner on the Scythe, Snow Shovel, Staff of Protection and Trollstav, and the Cyan shardstone on the Scythe, Snow Shovel and Sparkler.
+- A rune's tooltip lists the gear it fits, such as "Fits swords, knives, spears, some polearms and bows", with any rarity or property it needs. Hold Shift to see which items of a partly fitting kind it fits. Runes that can't be etched say so.
 - Every crop in a PlantEasily grid gets your cultivator's Green Thumb, even if you take out another tool while the grid is still being planted. Before, crops planted after the switch grew at the normal speed.
 - Axe and pickaxe tooltips show their chop and mining damage, the damage that fells trees and breaks rocks and ore, with the range your Woodcutting or Pickaxes skill gives, so you can see what an upgrade adds.
 

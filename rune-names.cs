@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text.RegularExpressions;
 using EpicLoot;
 using EpicLoot.Crafting;
@@ -33,16 +34,26 @@ namespace EpicLootProgressionFix
 
         internal static string Description(MagicItemEffect effect)
         {
+            var fits = RuneFits.For(effect.EffectType);
+            bool etchable = fits?.Etchable ?? true;
             const string etch = "etch it over one of an item's enchantments in the enchanting table's Runes tab; that uses up the rune.";
-            if (!ShardSocketManager.RuneSocketingEnabled) return "Holds one enchantment. To use it, " + etch;
-            string removal;
-            switch (ShardSocketManager.GetRemovalPolicy(ShardType.None, effect))
+            string text;
+            if (!ShardSocketManager.RuneSocketingEnabled) text = "Holds one enchantment. To use it, " + etch;
+            else
             {
-                case SocketRemoval.BreakOnly: removal = "taking it out destroys it"; break;
-                case SocketRemoval.Locked: removal = "it can't be taken out"; break;
-                default: removal = "you can take it out again"; break;
+                string removal;
+                switch (ShardSocketManager.GetRemovalPolicy(ShardType.None, effect))
+                {
+                    case SocketRemoval.BreakOnly: removal = "taking it out destroys it"; break;
+                    case SocketRemoval.Locked: removal = "it can't be taken out"; break;
+                    default: removal = "you can take it out again"; break;
+                }
+                text = "Holds one enchantment. Drag it into a socket on gear it fits; " + removal + "." +
+                    (etchable ? " Or " + etch : " It can't be etched.");
             }
-            return "Holds one enchantment. Drag it into a socket on gear that can have this enchantment; " + removal + ". Or " + etch;
+            if (fits == null) return text;
+            var lines = fits.Rules.Concat(MagicItem.ShowEffectDetails ? fits.Details : Enumerable.Empty<string>());
+            return text + "\n\nFits " + fits.Gear + "." + string.Concat(lines.Select(line => "\n" + line));
         }
     }
 
