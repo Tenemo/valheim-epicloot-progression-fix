@@ -38,10 +38,12 @@ namespace EpicLootProgressionFix
         private static void Pace(Character __instance, bool __state)
         {
             if (!__state || !(__instance.GetSEMan().GetStatusEffect(SEMan.s_statusEffectPoison) is SE_Poison poison) || Time(poison) != 0f) return;
-            // Ticks fall one interval apart from now and the poison ends half an interval after the last, so exactly Ticks land.
-            poison.m_ttl = (Ticks + .5f) * poison.m_damageInterval;
+            // The next tick keeps its time, so hits that come faster than ticks never hold them back. Ticks fall one interval
+            // apart from it and the poison ends half an interval after the last, so exactly Ticks land.
+            float next = Mathf.Clamp(Timer(poison), 0f, poison.m_damageInterval);
+            poison.m_ttl = next + (Ticks - .5f) * poison.m_damageInterval;
             DamagePerHit(poison) = DamageLeft(poison) / Ticks;
-            Timer(poison) = poison.m_damageInterval;
+            Timer(poison) = next;
         }
     }
 }
