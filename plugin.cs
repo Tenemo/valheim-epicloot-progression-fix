@@ -410,6 +410,7 @@ namespace EpicLootProgressionFix
                 Run(typeof(CoilingVenomPacing), patches => CoilingVenomPacing.Initialize(patches));
                 Run(typeof(SetEffectFriendlyFire), patches => SetEffectFriendlyFire.Initialize(patches));
                 Run(typeof(SetEitrRegeneration), patches => SetEitrRegeneration.Initialize(patches));
+                Run(typeof(SummonLifesteal), patches => SummonLifesteal.Initialize(patches));
                 Run(typeof(HexenFormControls), patches => HexenFormControls.Initialize(patches));
                 Run(typeof(HexenFormCombat), patches => HexenFormCombat.Initialize(patches));
                 Run(typeof(VanishHunters), patches => VanishHunters.Initialize(patches));

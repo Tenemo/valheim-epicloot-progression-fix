@@ -132,6 +132,18 @@ namespace EpicLootProgressionFix
                 StaffTypes.ContainsKey(data.GetPrefab()) && TryGet(character, out long summoner, out _) && summoner == id;
         }
         internal static Player Summoner(Character character) => TryGet(character, out long player, out _) ? Player.GetPlayer(player) : null;
+        // The player who summoned any kind of player summon, or 0.
+        internal static long SummonerId(Character character)
+        {
+            long bat = SummonedBats.SummonerId(character);
+            if (bat != 0 || !character || !character.IsTamed()) return bat;
+            var data = GameFields.CharacterView(character).GetZDO();
+            long raised = data.GetLong(RaisedByHash, 0L);
+            if (raised != 0) return raised;
+            long spirit = data.GetLong(SpiritHash, 0L);
+            if (spirit != 0) return spirit;
+            return StaffTypes.ContainsKey(data.GetPrefab()) && TryGet(character, out long summoner, out _) ? summoner : 0;
+        }
         internal static bool IsStaff(string prefab) => StaffTypes.ContainsValue(prefab);
         internal static string StaffFor(ZDO data) => data != null && StaffTypes.TryGetValue(data.GetPrefab(), out var staff) ? staff : null;
         internal static bool Recorded(ZDO data, long player, string staff) => data.GetLong(SummonerHash) == player && data.GetString(StaffHash) == staff;

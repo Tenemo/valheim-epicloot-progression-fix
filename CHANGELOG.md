@@ -21,6 +21,7 @@
 - Svalinn's Arc's Shield Throw passes your tames and peaceful Dvergr instead of hitting them and turning the Dvergr hostile, as Frost Cone and Kinetic Quake already do. With PvP on it still hits other players.
 - Rime of Élivágar's Frostwalker no longer stops your eitr regenerating while you wade or swim. Only walking on its ice, which drains your eitr, holds regeneration back.
 - Mímir's Well's Eitr Barrier no longer delays your eitr regeneration each time it absorbs a hit.
+- While you hold a Blood Magic staff, your Lifesteal also heals you from your summons' hits, so Hel's Covenant's 5% Lifesteal works with Gjallarbrú in hand: a skeleton's 100-damage hit heals you 5. Before, holding the set's own staff meant it never healed.
 - In Set Etch, each set rune shows the one rune an etch takes against the runes of its set you have, such as 1 / 4, instead of a quantity box, and the cost counts only that set's runes.
 - Staff fire rate runes show CS, for cast speed, instead of MFR, so they no longer look like the bow and crossbow Fire rate runes.
 - Coils of the World Serpent's Coiling Venom lands its poison over 3 seconds. Before, each hit's poison stretched the whole poison out, so 1,000 poison took 47 seconds and much of it never landed before the fight ended.
