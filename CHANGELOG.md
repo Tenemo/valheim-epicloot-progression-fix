@@ -3,6 +3,8 @@
 - Your Fylgja's Bond spirit fights and follows like a Spirit Caller animal: it joins the fight against an enemy you hit, takes on enemies within 40 m of you and chases them up to 80 m, no longer breaks off to circle its enemy, waits two of its body lengths from you and keeps up with your running speed. Out of combat it heals to full in about 6 minutes; before, it never healed.
 - Your Fylgja's Bond spirit is named after its animal, such as Moose spirit.
 - A bounty target near a Burial Chamber or another dungeon is there when you reach its map circle. It used to appear up to half a minute later, in front of you.
+- Staff of Fracturing bursts into 12 splinters at every quality again; upgrades no longer add more.
+- Staff of Embers' fireball explodes 0.5 m wider per upgrade instead of 1 m: 3 m at quality 1, 4.5 m at 4.
 
 # 1.27.0
 

@@ -31,14 +31,17 @@ namespace EpicLootProgressionFix
         internal static bool IsRoots(SpawnAbility spawn) => spawn && Utils.GetPrefabName(spawn.gameObject) == "staff_greenroots_spawn";
         internal static int RootLimit(int limit, int quality) => limit + 2 * Upgrades(quality);
 
-        // Echo Spike and Staff of Frost deal a sixth more damage per upgrade, 1.5 times at quality 4, as Dundr and Fracturing gain a
-        // sixth more shots.
+        // Echo Spike and Staff of Frost deal a sixth more damage per upgrade, 1.5 times at quality 4, as Dundr gains a sixth more
+        // shots.
         internal static float UpgradeDamage(int quality) => 1f + Upgrades(quality) / 6f;
 
         // Staff of Frost's stream narrows by a quarter of its spread per upgrade, closing in on perfect aim without reaching it:
         // 5 degrees at quality 1, 2.9 at 4 and 1.3 at 12.
         internal static bool IsFrost(ItemDrop.ItemData item) => item?.m_dropPrefab?.name == FrostStaff;
         internal static float FrostSpread(float spread, int quality) => spread / (1f + .25f * Upgrades(quality));
+
+        // Staff of Embers' fireball explodes 0.5 m wider per upgrade: 3 m at quality 1, 4.5 m at 4.
+        private static float EmbersBlast(float radius, int quality) => radius + .5f * Upgrades(quality);
 
         [HarmonyPatch(typeof(Aoe), nameof(Aoe.Setup)), HarmonyPostfix]
         private static void ScaleArea(Aoe __instance, Character owner, ItemDrop.ItemData item)
@@ -89,10 +92,7 @@ namespace EpicLootProgressionFix
                     yield return "Reaches allies within: " + 5 * Mathf.Max(1, quality) + " m";
                     break;
                 case "staff_fireball_projectile":
-                    yield return "Blast radius: " + Number(projectile.GetComponent<Projectile>().m_aoe + upgrades) + " m";
-                    break;
-                case "staff_clusterbombstaff_projectile":
-                    yield return "Splinters: " + (projectile.GetComponent<Projectile>().m_spawnCount + 2 * upgrades);
+                    yield return "Blast radius: " + Number(EmbersBlast(projectile.GetComponent<Projectile>().m_aoe, quality)) + " m";
                     break;
                 case "staff_thunderblood_projectile":
                     var burst = Chaining(projectile.GetComponent<Projectile>().m_spawnOnHit);
@@ -153,13 +153,8 @@ namespace EpicLootProgressionFix
             if (item == null) return;
             switch (Utils.GetPrefabName(__instance.gameObject))
             {
-                // Staff of Embers' impact area grows 1 m per upgrade.
                 case "staff_fireball_projectile":
-                    if (Fires(item, "staff_fireball_projectile")) __instance.m_aoe += Upgrades(item.m_quality);
-                    break;
-                // Staff of Fracturing bursts into 2 more splinters per upgrade.
-                case "staff_clusterbombstaff_projectile":
-                    if (Fires(item, "staff_clusterbombstaff_projectile")) __instance.m_spawnCount += 2 * Upgrades(item.m_quality);
+                    if (Fires(item, "staff_fireball_projectile")) __instance.m_aoe = EmbersBlast(__instance.m_aoe, item.m_quality);
                     break;
                 // Echo Spike's spike, out and back.
                 case "staff_OrbofAhri_projectile":
@@ -189,7 +184,7 @@ namespace EpicLootProgressionFix
             if (!roots || !IsRoots(roots.GetComponent<SpawnAbility>())) throw new InvalidOperationException("Staff of the Wild's roots are missing.");
             var troll = __instance.GetPrefab("StaffRedTroll")?.GetComponent<ItemDrop>()?.m_itemData.m_shared.m_attack.m_attackProjectile;
             if (!troll || !troll.GetComponent<SpawnAbility>() || Utils.GetPrefabName(troll) != "staff_redtroll_spawn") throw new InvalidOperationException("The Trollstav's summoning is missing.");
-            foreach (string name in new[] { "staff_fireball_projectile", "staff_clusterbombstaff_projectile", "staff_OrbofAhri_projectile", "staff_OrbofAhri_projectile_return", DundrBolt })
+            foreach (string name in new[] { "staff_fireball_projectile", "staff_OrbofAhri_projectile", "staff_OrbofAhri_projectile_return", DundrBolt })
                 Require<Projectile>(name);
             if (!__instance.GetPrefab(FrostStaff)?.GetComponent<ItemDrop>()) throw new InvalidOperationException("Staff of Frost is missing.");
         }
