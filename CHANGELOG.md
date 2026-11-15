@@ -1,3 +1,8 @@
+# 1.29.0
+
+- Freyja's Falcon's Earthshaker slam deals a share of the spear in your hand instead of a flat amount, so it grows with the spear's upgrades, enchantments and your Spears skill: EpicLoot's 200/250/300 by rarity becomes 200/250/300% of the spear's damage. Falling further and carrying more still add to it.
+- When Heimdall's Legacy's Undying saves you from a killing blow, Bulwark's shield also makes you immune to combat damage for 3 s, so a burn tick or the next hit can't kill you right after.
+
 # 1.28.0
 
 - Your Fylgja's Bond spirit fights and follows like a Spirit Caller animal: it joins the fight against an enemy you hit, takes on enemies within 40 m of you and chases them up to 80 m, no longer breaks off to circle its enemy, waits two of its body lengths from you and keeps up with your running speed. Out of combat it heals to full in about 6 minutes; before, it never healed. It leaves alone enemies so far from you that it would fade chasing them, so with Epic Loot's default 60 m fade distance it fights only within 50 m.

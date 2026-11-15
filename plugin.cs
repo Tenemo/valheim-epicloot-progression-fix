@@ -417,6 +417,8 @@ namespace EpicLootProgressionFix
                 Run(typeof(HelsHarvestRaises), patches => HelsHarvestRaises.Initialize(patches));
                 Run(typeof(SpellbladeMagicSwords), patches => SpellbladeMagicSwords.Initialize(patches));
                 Run(typeof(QuarryMarkInFlight), patches => QuarryMarkInFlight.Initialize(patches));
+                Run(typeof(EarthshakerWeaponDamage), patches => EarthshakerWeaponDamage.Initialize(patches));
+                Run(typeof(UndyingGrace), patches => UndyingGrace.Initialize(patches));
                 foreach (var type in typeof(Plugin).Assembly.GetTypes())
                 {
                     if (ProtectionPatches.Contains(type) || type.ContainsGenericParameters || type.IsDefined(typeof(CompilerGeneratedAttribute), false))
