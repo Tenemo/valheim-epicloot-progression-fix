@@ -21,6 +21,8 @@ namespace EpicLootProgressionFix
             { AccessTools.FieldRefAccess<HexenForm, ItemDrop.ItemData>("_dodgeLeft"), AccessTools.FieldRefAccess<HexenForm, ItemDrop.ItemData>("_dodgeRight"),
               AccessTools.FieldRefAccess<HexenForm, ItemDrop.ItemData>("_dodgeUp"), AccessTools.FieldRefAccess<HexenForm, ItemDrop.ItemData>("_dodgeDown") };
         private static float dodgeStarted = float.MinValue;
+        // A dodge press during a blink starts no new attack, so only a new blink restarts the untouchable time.
+        private static Attack dodgeAttack;
 
         internal static void Initialize(IntegrationPatches harmony)
         {
@@ -81,7 +83,8 @@ namespace EpicLootProgressionFix
             var player = FormPlayer(__instance);
             if (player != Player.m_localPlayer || !(GameFields.CurrentAttack(player) is Attack attack)) return;
             var weapon = GameFields.AttackWeapon(attack);
-            foreach (var dodge in Dodges) if (weapon == dodge(__instance)) dodgeStarted = Time.time;
+            if (ReferenceEquals(attack, dodgeAttack)) return;
+            foreach (var dodge in Dodges) if (weapon == dodge(__instance)) { dodgeAttack = attack; dodgeStarted = Time.time; }
         }
 
         // Hits are resolved by the player they land on, so the local witch's own dodge decides.
