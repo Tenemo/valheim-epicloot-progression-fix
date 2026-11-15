@@ -116,15 +116,16 @@ namespace EpicLootProgressionFix
 
             var all = (ItemRarity[])Enum.GetValues(typeof(ItemRarity));
             string Rarity(ItemRarity rarity) => Localization.instance.Localize(EpicLoot.EpicLoot.GetRarityDisplayName(rarity));
-            if (rarities[0] != all[0])
+            // A cap at the top keeps the rune off better gear as surely as a floor keeps it off worse.
+            if (rarities.Count < all.Length)
                 result.Rules.Add(rarities.SequenceEqual(all.SkipWhile(rarity => rarity != rarities[0]))
                     ? "Only on " + Rarity(rarities[0]) + " or better gear."
                     : "Only on " + List(rarities.Select(Rarity).ToList(), "or") + " gear.");
             if (needed.Count > 0)
             {
                 var exempt = Kinds.Where(plain.Contains).ToList();
-                result.Rules.Add("The gear also needs " + List(needed.Select(EffectName).ToList(), "and") +
-                    (exempt.Count > 0 ? ", except " + List(exempt, "and") : "") + ".");
+                result.Rules.Add("Only on gear that also has " + List(needed.Select(EffectName).ToList(), "and") +
+                    (exempt.Count > 0 ? ", or on " + List(exempt, "and") : "") + ".");
             }
             return result;
         }
@@ -143,7 +144,7 @@ namespace EpicLootProgressionFix
             [nameof(MagicItemEffectRequirements.ItemUsesStaminaOnAttack)] = "Only on gear whose attacks cost stamina.",
             [nameof(MagicItemEffectRequirements.ItemUsesEitrOnAttack)] = "Only on gear whose attacks cost eitr.",
             [nameof(MagicItemEffectRequirements.ItemUsesHealthOnAttack)] = "Only on gear whose attacks cost health.",
-            [nameof(MagicItemEffectRequirements.ItemUsesDrawStaminaOnAttack)] = "Only on gear you draw with stamina.",
+            [nameof(MagicItemEffectRequirements.ItemUsesDrawStaminaOnAttack)] = "Only on gear that costs stamina to draw.",
         };
 
         private static MagicItemEffectRequirements Clone(MagicItemEffectRequirements requirements) =>
