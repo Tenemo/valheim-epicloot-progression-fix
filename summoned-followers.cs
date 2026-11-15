@@ -75,7 +75,21 @@ namespace EpicLootProgressionFix
             summoner && !summoner.IsDead() && target && target.gameObject.activeInHierarchy && !target.IsDead() && !target.IsPlayer() &&
             GameFields.CharacterView(target)?.IsValid() == true && !target.IsTamed() && !target.m_aiSkipTarget && BaseAI.IsEnemy(creature, target) &&
             (commanded ? SummonedBats.WithinSimulation(summoner, target) :
-                (target.transform.position - summoner.transform.position).sqrMagnitude <= HoldRange * HoldRange && SummonedBats.WildlifeCanFight(target));
+                (target.transform.position - summoner.transform.position).sqrMagnitude <= HoldRange * HoldRange && SummonedBats.WildlifeCanFight(target)) &&
+            WithinSpiritLeash(creature, summoner, target);
+
+        // EpicLoot fades a Fylgja spirit once it is farther than its leash from its player, 60 m unless configured, so the spirit
+        // takes on only enemies at least 10 m inside the leash, even ones its player hit; 80 m with the pack's 90 m leash.
+        private const float SpiritLeashMargin = 10f;
+        private static readonly Func<float> SpiritLeash =
+            AccessTools.MethodDelegate<Func<float>>(AccessTools.PropertyGetter(typeof(EpicLoot.MagicItemEffects.SpiritAnimal), "LeashDistance"));
+
+        private static bool WithinSpiritLeash(Character creature, Player summoner, Character target)
+        {
+            if (!SummonOwnership.IsFylgjaSpirit(creature)) return true;
+            float reach = SpiritLeash() - SpiritLeashMargin;
+            return (target.transform.position - summoner.transform.position).sqrMagnitude <= reach * reach;
+        }
 
         // This runs inside the native candidate loop, before it compares distances or chooses the nearest enemy.
         internal static bool CanHunt(Character creature, Character target)
