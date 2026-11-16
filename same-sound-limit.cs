@@ -8,13 +8,20 @@ namespace EpicLootProgressionFix
     // impact, weakness hit and lightning sounds in a few seconds, most of them repeats of the same sound in the same place,
     // so footsteps, swings and other combat sounds cut out while it lasts. The game itself limits a sound's repeats only for
     // a few prefabs and only within 0.2 s. Here a one-shot sound doesn't start while three copies of it are still playing
-    // within the distance the game already uses for that sound's limit, so a pile-up sounds like three of it instead of
+    // within the distance the game uses for that sound's limit, so a pile-up sounds like three of it instead of
     // twenty, and the voices stay free for everything else.
     internal static class SameSoundLimit
     {
         private const int Copies = 3;
         // Each one-shot sound's playing copies and where they started, pruned as they finish.
         private static readonly Dictionary<int, List<(AudioSource Source, Vector3 Position)>> playing = new Dictionary<int, List<(AudioSource, Vector3)>>();
+        // A sound is known by its first clip. The game's sound hash can't tell sounds apart: dozens of different sounds share
+        // one, such as lightning, blood and nature impacts and the player's catching-fire cue, and some have none.
+        private static int Sound(ZSFX sfx)
+        {
+            var clips = sfx.m_audioClips;
+            return clips.Length > 0 && clips[0] ? clips[0].GetInstanceID() : sfx.m_hash;
+        }
         // Off plays every repeat, as natively; the isolated client switches it for paired measurements.
         internal static bool Limiting = true;
 
@@ -24,9 +31,11 @@ namespace EpicLootProgressionFix
 
         private static bool Prefix(ZSFX sfx, ref bool __result)
         {
-            if (!Limiting || sfx.IsLooping() || !playing.TryGetValue(sfx.m_hash, out var copies)) return true;
+            if (!Limiting || sfx.IsLooping() || !playing.TryGetValue(Sound(sfx), out var copies)) return true;
             var position = sfx.transform.position;
-            float distance = sfx.GetConcurrencyDistance();
+            // Sounds the game limits world-wide, such as cinder rain hits and some boss attacks, are limited here only within
+            // the radius every other sound uses, so three of them still play in each spot.
+            float distance = sfx.m_ignoreConcurrencyDistance ? Mathf.Max(1f, sfx.GetComponent<AudioSource>().minDistance) : sfx.GetConcurrencyDistance();
             int near = 0;
             for (int i = copies.Count - 1; i >= 0; i--)
             {
@@ -44,7 +53,8 @@ namespace EpicLootProgressionFix
             if (!__result || !Limiting || sfx.IsLooping()) return;
             var source = sfx.GetComponent<AudioSource>();
             if (!source) return;
-            if (!playing.TryGetValue(sfx.m_hash, out var copies)) playing.Add(sfx.m_hash, copies = new List<(AudioSource, Vector3)>());
+            int sound = Sound(sfx);
+            if (!playing.TryGetValue(sound, out var copies)) playing.Add(sound, copies = new List<(AudioSource, Vector3)>());
             copies.Add((source, sfx.transform.position));
         }
     }

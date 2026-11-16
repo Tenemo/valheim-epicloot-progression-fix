@@ -33,6 +33,7 @@ namespace EpicLootProgressionFix
         private static long character, world, treasuresWorld, treasuresPlayer;
         private static float nextSend, nextSave, nextError, nextTreasureSend;
         private static readonly HashSet<string> overdue = new HashSet<string>();
+        private static readonly Dictionary<string, float> offeredSince = new Dictionary<string, float>();
         private static readonly Dictionary<ZRpc, ItemActivityBatchLimit> batchLimits = new Dictionary<ZRpc, ItemActivityBatchLimit>();
         private static readonly ConcurrentQueue<(ZRpc Rpc, List<string> Ids, string Treasures)> written = new ConcurrentQueue<(ZRpc, List<string>, string)>();
         private static readonly JsonSerializerSettings Json = new JsonSerializerSettings { MaxDepth = 8 };
@@ -59,7 +60,7 @@ namespace EpicLootProgressionFix
                         if (payload == null || payload.Length > 4096) throw new InvalidDataException("Invalid item activity acknowledgement.");
                         var ids = JsonConvert.DeserializeObject<List<string>>(payload, Json);
                         if (Active) outbox.Acknowledge(ids);
-                        if (treasures != null && treasures.Acknowledge(ids) > 0) overdue.ExceptWith(ids);
+                        if (treasures != null && treasures.Acknowledge(ids) > 0) { overdue.ExceptWith(ids); foreach (string id in ids) offeredSince.Remove(id); }
                     }
                     catch (Exception error) { Error(error); }
                 });
@@ -148,9 +149,13 @@ namespace EpicLootProgressionFix
                 {
                     nextTreasureSend = now + 5f;
                     network.GetServerPeer().m_rpc.Invoke(EventsRpc, JsonConvert.SerializeObject(store.Pending.Take(BatchSize).ToList()));
+                    // Counted from this game's first offer, so a receipt an earlier session left pending is not overdue the moment it is offered again.
                     foreach (var waiting in store.Pending)
-                        if (DateTime.UtcNow - DateTime.Parse(waiting.At, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) > TimeSpan.FromMinutes(1) && overdue.Add(waiting.Id))
+                    {
+                        if (!offeredSince.TryGetValue(waiting.Id, out float since)) offeredSince[waiting.Id] = since = now;
+                        if (now - since > 60f && overdue.Add(waiting.Id))
                             logger?.LogError($"Private item activity: the server has not accepted the {waiting.Treasure.Biome} treasure discovery receipt {waiting.Id} for a minute; it stays pending.");
+                    }
                 }
                 // The outbox's path names only its world and character.
                 string path = outboxPath == null || playerId != character || network.GetWorldUID() != world ? Path.Combine(Paths.BepInExRootPath, "item-activity-state",
