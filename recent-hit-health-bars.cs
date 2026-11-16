@@ -32,10 +32,11 @@ namespace EpicLootProgressionFix
         [HarmonyPatch(typeof(EnemyHud), "TestShow")]
         private static class Eligibility
         {
+            // A bar the game already shows needs only the bat check.
             private static void Postfix(Character c, ref bool __result)
             {
                 if (SummonedBats.IsBat(c)) __result = false;
-                else if (Revealed(c) || OwnSummon(c, notBat: true)) __result = true;
+                else if (!__result && (Revealed(c) || OwnSummon(c, notBat: true))) __result = true;
             }
         }
 
