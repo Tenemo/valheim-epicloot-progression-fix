@@ -8,6 +8,7 @@ using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using EpicLoot;
+using EpicLoot.LegendarySystem;
 using EpicLoot.MagicItemEffects;
 using EpicLoot.ShardStones;
 using HarmonyLib;
@@ -18,7 +19,7 @@ using UnityEngine;
 
 namespace EpicLootProgressionFix
 {
-    // Runes with a yes/no effect have one useful tier. Numeric runes keep their exact tier and power.
+    // Runes with a yes/no effect have one useful tier, and set runes one rune per set. Numeric runes keep their exact tier and power.
     internal static class RuneStacks
     {
         internal static int Limit => Plugin.RuneStackSize.Value;
@@ -142,6 +143,7 @@ namespace EpicLootProgressionFix
             string saved = item.m_customData[MagicKey];
             var magic = item.GetMagicItem();
             bool normalizedData = item.m_customData[MagicKey] != saved;
+            if (magic != null && !string.IsNullOrEmpty(magic.SetID)) return NormalizeSetRune(item, magic) || normalizedData;
             if (magic == null || magic.Effects.Count != 1 || magic.SocketCount != 0 || magic.Sockets.Count != 0 ||
                 !string.IsNullOrEmpty(magic.LegendaryID) || !string.IsNullOrEmpty(magic.SetID) || magic.IsUnidentified) return normalizedData;
             var effect = magic.Effects[0];
@@ -164,6 +166,27 @@ namespace EpicLootProgressionFix
             // An Indestructible rune holds EpicLoot's copy of the old tier's shared data. Give that back first, or EpicLoot
             // keeps the old tier as the original and every later rune of the new tier turns into the old one.
             Indestructible.Revert(item);
+            item.m_dropPrefab = prefab;
+            item.m_shared = prefab.GetComponent<ItemDrop>().m_itemData.m_shared;
+            item.m_shared.m_maxStackSize = Limit;
+            item.SaveMagicItem(normalized);
+            return true;
+        }
+
+        // Set Etch takes its eligibility, cost and piece from the target, so a set rune's own rarity and the piece it was
+        // extracted from only kept runes of one set apart. They become one Legendary rune per set. Runes below Legendary
+        // stay as they are, so no rune is worth more shards when sacrificed.
+        private const ItemRarity SetRuneRarity = ItemRarity.Legendary;
+        private static bool NormalizeSetRune(ItemDrop.ItemData item, MagicItem magic)
+        {
+            if (magic.Effects.Count != 0 || magic.SocketCount != 0 || magic.Sockets.Count != 0 || magic.IsUnidentified ||
+                magic.Rarity < SetRuneRarity || !UniqueLegendaryHelper.TryGetLegendarySetInfo(magic.SetID, out _)) return false;
+            var prefab = PrefabManager.Instance.GetPrefab("EtchedRunestone" + SetRuneRarity);
+            if (prefab == null) throw new InvalidOperationException("Missing set rune prefab: " + SetRuneRarity);
+            if (magic.Rarity == SetRuneRarity && magic.LegendaryID == null && item.m_dropPrefab == prefab) return false;
+            var normalized = RuneExtractionPower.Deserialize(RuneExtractionPower.Serialize(magic));
+            normalized.Rarity = SetRuneRarity;
+            normalized.LegendaryID = null;
             item.m_dropPrefab = prefab;
             item.m_shared = prefab.GetComponent<ItemDrop>().m_itemData.m_shared;
             item.m_shared.m_maxStackSize = Limit;

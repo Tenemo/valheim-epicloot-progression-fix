@@ -15,6 +15,7 @@
 - Staff of Fracturing knocks each creature back once per cast, away from where the bolt bursts. Before, the bolt and every splinter that reached a creature shoved it again in its own direction, so creatures caught in a burst jittered about. Every splinter still deals its damage.
 - Sprinting on a mount through knee-deep water carries it forward, slowed by the water, instead of throwing it backwards again and again.
 - When many copies of one sound start in one spot, such as Staff of Fracturing's splinter impacts or enemies' weakness hits, at most three play at once, so your other combat sounds no longer cut out.
+- All set runes of one set stack, up to 10. Every set rune is now Legendary, whatever the item you extracted it from, and set runes you already have change as you carry them or open their chest. The item you etch still decides which piece of the set it becomes. Set runes from Mythic and Ancient items now sacrifice for 2 Legendary shards instead of 2 of their own rarity.
 - Each player keeps as many Trollstav trolls as the staff's quality, and casting another sends your oldest one away. Other players' trolls no longer count, so you're no longer refused while two trolls are nearby. Your trolls still fight everything near them and stay where they land. They now train your Blood Magic as Dead Raiser's skeletons do, heal you through Lifesteal while you hold a Blood Magic staff, and get your Summon damage and Summon health, which can roll on the Trollstav again. The tooltip shows this as Troll limit.
 
 # 1.28.0
