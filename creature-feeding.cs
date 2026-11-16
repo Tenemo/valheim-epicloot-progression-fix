@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
@@ -27,14 +28,36 @@ namespace EpicLootProgressionFix
         [HarmonyPatch(typeof(MonsterAI), "FindClosestConsumableItem")]
         private static class Selection
         {
+            private static readonly int ItemMask = LayerMask.GetMask("item");
+            private static Collider[] nearby = new Collider[64];
+            private static readonly List<ItemDrop> Candidates = new List<ItemDrop>();
+            private static readonly List<float> Distances = new List<float>();
+
+            // The nearest consumable item the animal has a path to, the first found among equally near ones.
             private static bool Prefix(MonsterAI __instance, float maxRange, ref ItemDrop __result)
             {
                 var origin = __instance.transform.position;
-                __result = Physics.OverlapSphere(origin, maxRange, LayerMask.GetMask("item"))
-                    .Select(collider => collider.attachedRigidbody ? collider.attachedRigidbody.GetComponent<ItemDrop>() : null)
-                    .Where(item => item && item.GetComponent<ZNetView>().IsValid() && CanConsume(__instance, item.m_itemData))
-                    .Distinct().OrderBy(item => (item.transform.position - origin).sqrMagnitude)
-                    .FirstOrDefault(item => HavePath(__instance, item.transform.position));
+                int count;
+                while ((count = Physics.OverlapSphereNonAlloc(origin, maxRange, nearby, ItemMask)) == nearby.Length) Array.Resize(ref nearby, nearby.Length * 2);
+                Candidates.Clear(); Distances.Clear();
+                for (int index = 0; index < count; index++)
+                {
+                    var body = nearby[index].attachedRigidbody;
+                    var item = body ? body.GetComponent<ItemDrop>() : null;
+                    if (item && item.GetComponent<ZNetView>().IsValid() && CanConsume(__instance, item.m_itemData) && !Candidates.Contains(item)) Candidates.Add(item);
+                }
+                foreach (var item in Candidates) Distances.Add((item.transform.position - origin).sqrMagnitude);
+                __result = null;
+                while (Candidates.Count > 0)
+                {
+                    int nearest = 0;
+                    for (int index = 1; index < Candidates.Count; index++)
+                        if (Distances[index] < Distances[nearest]) nearest = index;
+                    var item = Candidates[nearest];
+                    if (HavePath(__instance, item.transform.position)) { __result = item; break; }
+                    Candidates.RemoveAt(nearest); Distances.RemoveAt(nearest);
+                }
+                Candidates.Clear();
                 return false;
             }
         }

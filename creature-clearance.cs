@@ -28,7 +28,8 @@ namespace EpicLootProgressionFix
 
         private static readonly ConditionalWeakTable<Character, Body> Bodies = new ConditionalWeakTable<Character, Body>();
         private static readonly ConditionalWeakTable<Mesh, Vertices> Meshes = new ConditionalWeakTable<Mesh, Vertices>();
-        private static readonly string[] EnvironmentLayers = { "terrain", "Default", "static_solid", "piece", "piece_nonsolid", "vehicle" };
+        private static readonly int[] EnvironmentLayers = { LayerMask.NameToLayer("terrain"), LayerMask.NameToLayer("Default"), LayerMask.NameToLayer("static_solid"),
+            LayerMask.NameToLayer("piece"), LayerMask.NameToLayer("piece_nonsolid"), LayerMask.NameToLayer("vehicle") };
 
         internal static List<Collider> Colliders(Character character, bool refresh = false)
         {
@@ -69,13 +70,11 @@ namespace EpicLootProgressionFix
                 attached = collider.GetComponentInParent<Rigidbody>(true);
             if (attached != body) return false;
             // A prefab or a temporarily inactive root can still be measured before it enters the physics scene.
-            for (var child = collider.transform; child && child != body.transform; child = child.parent)
+            var root = body.transform;
+            for (var child = collider.transform; child && child != root; child = child.parent)
                 if (!child.gameObject.activeSelf) return false;
-            foreach (string name in EnvironmentLayers)
-            {
-                int layer = LayerMask.NameToLayer(name);
+            foreach (int layer in EnvironmentLayers)
                 if (layer >= 0 && LayerContact(collider, body, layer, !Physics.GetIgnoreLayerCollision(collider.gameObject.layer, layer)).Allowed) return true;
-            }
             return false;
         }
 

@@ -48,7 +48,9 @@ namespace EpicLootProgressionFix
         // While heading for a ledge, swim towards it whatever the AI asks for.
         private static void Steer(Character __instance)
         {
-            if (!States.TryGetValue(__instance, out var state) || state.HeadingUntil < Time.time || !Eligible(__instance)) return;
+            // Most characters are out of water, which the eligibility check tests first.
+            if (__instance.IsPlayer() || !__instance.InWater() || !States.TryGetValue(__instance, out var state) || state.HeadingUntil < Time.time ||
+                !Eligible(__instance)) return;
             MoveDirection(__instance) = state.Heading;
             __instance.SetLookDir(state.Heading);
         }
