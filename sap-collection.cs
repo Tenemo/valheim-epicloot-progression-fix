@@ -126,8 +126,11 @@ namespace EpicLootProgressionFix
             var player = Player.m_localPlayer;
             if (!player || !BulkPickup.TryGetHarvestRadius(out float radius, true)) return;
             if (running) { __result += BulkPickup.Hint("Collecting sap"); return; }
-            int stored = Collectable(__instance, player, radius).Sum(Level);
-            if (stored > 0) __result += BulkPickup.Hint($"Collect sap nearby ({stored})");
+            __result += HoverPreviews.Get(__instance, 8, HoverPreviews.With(0, radius), () =>
+            {
+                int stored = Collectable(__instance, player, radius).Sum(Level);
+                return stored > 0 ? BulkPickup.Hint($"Collect sap nearby ({stored})") : "";
+            });
         }
 
         [HarmonyPrefix, HarmonyPatch(typeof(Player), nameof(Player.SetLocalPlayer))]

@@ -129,43 +129,65 @@ namespace EpicLootProgressionFix
             return null;
         }
 
+        // The preview's lines for one barrel: for an empty one its heading's warning and its Use line, and the bulk line.
+        private sealed class PreviewLines
+        {
+            internal bool Empty;
+            internal string Reason, Action, Appended;
+        }
+
         [HarmonyPostfix, HarmonyPatch(typeof(Fermenter), nameof(Fermenter.GetHoverText))]
         private static void Preview(Fermenter __instance, ref string __result)
         {
             var player = Player.m_localPlayer;
             var view = __instance.GetComponent<ZNetView>();
             if (!player || !view || !view.IsValid()) return;
-            var localization = Localization.instance;
-            bool busy = running;
-            string activity = tapping ? "Tapping fermenters" : "Loading fermenters";
-            if (Ready(__instance))
+            bool ready = Ready(__instance), bulk = BulkPickup.TryGetHarvestRadius(out float radius, true);
+            var lines = HoverPreviews.Get(__instance, 0, HoverPreviews.With(HoverPreviews.Flags(running, tapping, ready, bulk), radius),
+                () => Lines(__instance, player, ready, bulk, radius));
+            if (lines.Empty)
             {
-                // The native ready line and its tap control stay as they are.
-                if (!BulkPickup.TryGetHarvestRadius(out float tapRadius, true)) return;
-                int ready = Tappable(__instance, player, tapRadius).Count;
-                if (busy || ready > 0) __result += BulkPickup.Hint(busy ? activity : $"Tap nearby fermenters ({ready} ready)");
-                return;
-            }
-            if (Content(__instance) == 0 && WardAccess.Allowed(__instance, player.GetPlayerID()))
-            {
-                string reason = Unavailable(__instance, player.GetPlayerID());
-                var supply = reason == null ? Select(__instance, player, false) : null;
-                string action = busy ? activity : supply == null ? localization.Localize(reason ?? "$msg_noprocessableitems") :
-                    "Add " + localization.Localize(supply.Item.m_shared.m_name) + " (" + Stock(__instance, player, supply.Item.m_dropPrefab.name, false, 0f) + ")";
+                var localization = Localization.instance;
                 // The native cover cache can be ten seconds old. Keep the empty heading's warning consistent with the preview without resetting a timer.
                 int headingEnd = __result.IndexOf('\n');
                 if (headingEnd >= 0 && __result.StartsWith(localization.Localize(__instance.m_name), StringComparison.Ordinal))
-                    __result = localization.Localize(__instance.m_name + " ( $piece_container_empty" + (reason == null ? "" : ", " + reason) + " )") + __result.Substring(headingEnd);
+                    __result = localization.Localize(__instance.m_name + " ( $piece_container_empty" + (lines.Reason == null ? "" : ", " + lines.Reason) + " )") + __result.Substring(headingEnd);
                 string original = localization.Localize("$piece_fermenter_add");
                 int start = __result.LastIndexOf(original, StringComparison.Ordinal);
-                if (start >= 0) __result = __result.Remove(start, original.Length).Insert(start, action);
+                if (start >= 0) __result = __result.Remove(start, original.Length).Insert(start, lines.Action);
             }
-            if (BulkPickup.TryGetHarvestRadius(out float radius, true))
+            if (lines.Appended != null) __result += lines.Appended;
+        }
+
+        private static PreviewLines Lines(Fermenter target, Player player, bool ready, bool bulk, float radius)
+        {
+            var localization = Localization.instance;
+            var lines = new PreviewLines();
+            bool busy = running;
+            string activity = tapping ? "Tapping fermenters" : "Loading fermenters";
+            if (ready)
             {
-                var supply = FirstSupply(Nearby(__instance, radius), player, true);
-                __result += BulkPickup.Hint(busy ? activity : supply == null ? "No nearby fermenter can accept an available base" :
-                    "Fill nearby fermenters with " + localization.Localize(supply.Item.m_shared.m_name) + " (" + Stock(__instance, player, supply.Item.m_dropPrefab.name, true, radius) + ")");
+                // The native ready line and its tap control stay as they are.
+                if (!bulk) return lines;
+                int count = busy ? 0 : Tappable(target, player, radius).Count;
+                if (busy || count > 0) lines.Appended = BulkPickup.Hint(busy ? activity : $"Tap nearby fermenters ({count} ready)");
+                return lines;
             }
+            if (Content(target) == 0 && WardAccess.Allowed(target, player.GetPlayerID()))
+            {
+                lines.Empty = true;
+                lines.Reason = Unavailable(target, player.GetPlayerID());
+                var supply = busy || lines.Reason != null ? null : Select(target, player, false);
+                lines.Action = busy ? activity : supply == null ? localization.Localize(lines.Reason ?? "$msg_noprocessableitems") :
+                    "Add " + localization.Localize(supply.Item.m_shared.m_name) + " (" + Stock(target, player, supply.Item.m_dropPrefab.name, false, 0f) + ")";
+            }
+            if (bulk)
+            {
+                var supply = busy ? null : FirstSupply(Nearby(target, radius), player, true);
+                lines.Appended = BulkPickup.Hint(busy ? activity : supply == null ? "No nearby fermenter can accept an available base" :
+                    "Fill nearby fermenters with " + localization.Localize(supply.Item.m_shared.m_name) + " (" + Stock(target, player, supply.Item.m_dropPrefab.name, true, radius) + ")");
+            }
+            return lines;
         }
 
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(Fermenter), nameof(Fermenter.Interact))]

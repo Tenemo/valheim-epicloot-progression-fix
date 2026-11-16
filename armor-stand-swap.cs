@@ -61,7 +61,14 @@ namespace EpicLootProgressionFix
             {
                 var stand = ArmorStandStorage.Stand(__instance);
                 var view = stand ? ArmorStandStorage.View(stand) : null;
-                if (view == null || !view.IsValid() || !PrivateArea.CheckAccess(stand.transform.position, 0f, false)) return;
+                if (view == null || !view.IsValid()) return;
+                __result += HoverPreviews.Get(stand, 9, 0, () => Lines(stand, view));
+            }
+
+            // Ward access and the stand's stored extras, read a few times a second instead of every frame.
+            private static string Lines(ArmorStand stand, ZNetView view)
+            {
+                if (!PrivateArea.CheckAccess(stand.transform.position, 0f, false)) return "";
                 var zdo = view.GetZDO();
                 bool hidden = false;
                 for (int extra = ArmorStandStorage.Utility; extra <= ArmorStandStorage.Trinket; extra++)
@@ -73,7 +80,7 @@ namespace EpicLootProgressionFix
                 // The game offers E only for items its stand shows.
                 if (hidden && stand.GetNrOfAttachedItems() == 0) text.Append("\n[<color=yellow><b>$KEY_Use</b></color>] $piece_itemstand_take");
                 text.Append("\n[<color=yellow><b>Left Alt + $KEY_Use</b></color>] Swap equipment");
-                __result += Localization.instance.Localize(text.ToString());
+                return Localization.instance.Localize(text.ToString());
             }
         }
 

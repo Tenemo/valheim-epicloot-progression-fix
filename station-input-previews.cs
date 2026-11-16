@@ -14,7 +14,6 @@ namespace EpicLootProgressionFix
     [HarmonyPatch]
     internal static class StationInputPreviews
     {
-        private static MethodInfo query, chestName, itemCount;
         private static Func<bool> prevented;
         private static Func<string, string, bool> canPull;
         private static Func<int, int> leaveOne;
@@ -34,15 +33,13 @@ namespace EpicLootProgressionFix
             if (!PluginIds.TryGet(PluginIds.AzuCraftyBoxes, out var plugin)) return;
             var assembly = plugin.Instance.GetType().Assembly;
             var boxes = assembly.GetType("AzuCraftyBoxes.Util.Functions.Boxes", true);
-            var container = assembly.GetType("AzuCraftyBoxes.IContainers.IContainer", true);
-            query = AccessTools.Method(AccessTools.Inner(boxes, "QueryFrame"), "Get").MakeGenericMethod(typeof(Component));
-            chestName = AccessTools.Method(container, "GetPrefabName"); itemCount = AccessTools.Method(container, "ItemCount");
             canPull = AccessTools.MethodDelegate<Func<string, string, bool>>(AccessTools.Method(assembly.GetType("AzuCraftyBoxes.API", true), "CanItemBePulled", new[] { typeof(string), typeof(string) }));
             leaveOne = AccessTools.MethodDelegate<Func<int, int>>(AccessTools.Method(boxes, "CheckAndDecrement"));
             prevented = AccessTools.MethodDelegate<Func<bool>>(AccessTools.Method(assembly.GetType("AzuCraftyBoxes.Util.Functions.MiscFunctions", true), "ShouldPrevent"));
             fillKey = (ConfigEntry<KeyboardShortcut>)AccessTools.Field(plugin.Instance.GetType(), "fillAllModKey").GetValue(null);
-            if (chestName == null || itemCount == null || fillKey == null || !plugin.Instance.Config.TryGetEntry("2 - CraftyBoxes", "Container Range", out range))
+            if (fillKey == null || !plugin.Instance.Config.TryGetEntry("2 - CraftyBoxes", "Container Range", out range))
                 throw new InvalidOperationException("AzuCraftyBoxes' station preview inputs changed.");
+            FrameChests.Initialize(assembly, () => range.Value);
             foreach (var target in new[] {
                 ("OverrideHoverText", "UpdateAddOreSwitchHoverText"), ("OverrideHoverText", "UpdateAddWoodSwitchHoverText"),
                 ("OverrideHoverTextSg", "UpdateAddFuelSwitchHoverText"), ("FireplaceGetHoverTextPatch", "Postfix"), ("TurretGetHoverTextPatch", "Postfix") })
@@ -68,26 +65,19 @@ namespace EpicLootProgressionFix
             return !keys.Any(key => key == bulk || (bulk == KeyCode.LeftShift || bulk == KeyCode.RightShift) && (key == KeyCode.LeftShift || key == KeyCode.RightShift));
         }
 
-        // Each hover shares its eligible chest lists. Simulated spends are local and reset between action predictions.
+        // Each preview reads the chests once a frame (FrameChests). Simulated spends are local and reset between action predictions.
         private sealed class Supplies
         {
             internal readonly Player Player = Player.m_localPlayer;
             internal Inventory Bag => Player.GetInventory();
-            private readonly Dictionary<Component, object[]> nearby = new Dictionary<Component, object[]>();
             private readonly Dictionary<(object, string), int> spent = new Dictionary<(object, string), int>();
             internal bool Crafty => !prevented();
             internal void Reset() => spent.Clear();
-            internal object[] Chests(Component origin)
-            {
-                if (!Crafty) return Array.Empty<object>();
-                if (!nearby.TryGetValue(origin, out var found))
-                    nearby.Add(origin, found = ((IEnumerable)query.Invoke(null, new object[] { origin, range.Value })).Cast<object>().ToArray());
-                return found;
-            }
+            internal FrameChests.Chest[] Chests(Component origin) => FrameChests.Around(origin);
             private int Used(object source, string name) => spent.TryGetValue((source, name), out int value) ? value : 0;
             internal int BagCount(ItemDrop item) => Math.Max(0, Bag.CountItems(item.m_itemData.m_shared.m_name) - Used(Bag, item.m_itemData.m_shared.m_name));
-            internal int RawCount(object chest, ItemDrop item) => Math.Max(0, (int)itemCount.Invoke(chest, new object[] { item.m_itemData.m_shared.m_name }) - Used(chest, item.m_itemData.m_shared.m_name));
-            internal int ChestCount(object chest, ItemDrop item) => canPull((string)chestName.Invoke(chest, null), item.name) ? Math.Max(0, leaveOne(RawCount(chest, item))) : 0;
+            internal int RawCount(FrameChests.Chest chest, ItemDrop item) => Math.Max(0, FrameChests.Count(chest, item.m_itemData.m_shared.m_name) - Used(chest, item.m_itemData.m_shared.m_name));
+            internal int ChestCount(FrameChests.Chest chest, ItemDrop item) => canPull(chest.Name, item.name) ? Math.Max(0, leaveOne(RawCount(chest, item))) : 0;
             // An ordinary use's or a fill's whole stock of an item, before any simulated spending: every bag stack, and what
             // each chest AzuCraftyBoxes pulls from for this station may give.
             internal int Stock(Component origin, Component station, ItemDrop item)
@@ -96,7 +86,7 @@ namespace EpicLootProgressionFix
                 int total = Bag.CountItems(name);
                 if (BulkProcessing.CanPull(station, item.name))
                     foreach (var chest in Chests(origin))
-                        if (canPull((string)chestName.Invoke(chest, null), item.name)) total += Math.Max(0, leaveOne((int)itemCount.Invoke(chest, new object[] { name })));
+                        if (canPull(chest.Name, item.name)) total += Math.Max(0, leaveOne(FrameChests.Count(chest, name)));
                 return total;
             }
             internal int Take(object source, ItemDrop item, int amount)
@@ -134,6 +124,27 @@ namespace EpicLootProgressionFix
         private static string Selected(string verb, ItemDrop item, Func<ItemDrop, int> stock, string unavailable = "$msg_noprocessableitems") =>
             item ? verb + " " + Stocked(item, stock(item)) : Local(unavailable);
         private static ItemDrop Prefab(ItemDrop.ItemData item) => item?.m_dropPrefab ? item.m_dropPrefab.GetComponent<ItemDrop>() : null;
+
+        // A preview's computed lines: the Use line, the lines under it and, for a cooking fuel switch, the food line after them.
+        private sealed class Lines
+        {
+            internal string Single, After;
+            internal string[] Extra;
+        }
+        private static string mergedText, merged;
+        private static Lines mergedLines;
+        // The game rebuilds its own hover text every frame; the merge repeats only when that text or the lines change.
+        private static string Actions(string text, Lines lines)
+        {
+            if (lines == mergedLines && text == mergedText) return merged;
+            mergedText = text; mergedLines = lines;
+            return merged = Actions(text, lines.Single, lines.Extra);
+        }
+        private static int State()
+        {
+            bool own = OwnModifier(out float radius);
+            return HoverPreviews.With(HoverPreviews.Flags(BulkProcessing.Busy, BulkCooking.Busy, own, ShowFill(false)), radius);
+        }
 
         // Replace only the automatic Use line. Manual item-selection, configuration and timer lines stay in place.
         private static string Actions(string text, string single, params string[] extra)
@@ -182,12 +193,15 @@ namespace EpicLootProgressionFix
             if (available.Length == 0) return "No eligible cooking space nearby";
             return available.Any(candidate => OrdinaryCooking(candidate, supplies)) ? "Only protected ingredients available" : Local(station.m_noCookableItemsMessage);
         }
-        private static string FoodText(CookingStation station, string text, Supplies supplies)
+        private static Lines FoodLines(CookingStation station)
         {
+            var supplies = new Supplies();
             bool bulk = BulkCooking.Supported(station) && OwnModifier(out _);
             OwnModifier(out float radius);
-            return Actions(text, CookingSingle(station, supplies), bulk ? Bulk(CookingBulk(station, supplies, radius)) : null);
+            return new Lines { Single = CookingSingle(station, supplies), Extra = new[] { bulk ? Bulk(CookingBulk(station, supplies, radius)) : null } };
         }
+        private static string FoodText(CookingStation station, string text) =>
+            Actions(text, HoverPreviews.Get(station, 1, State(), () => FoodLines(station)));
 
         private static string WithCookingTimers(CookingStation station, string text)
         {
@@ -271,27 +285,23 @@ namespace EpicLootProgressionFix
         private static void CookingHover(CookingStation __instance, ref string __result)
         {
             if (!Valid(__instance) || __instance.m_addFoodSwitch || Denied(__result)) return;
-            __result = FoodText(__instance, __result, new Supplies());
+            __result = FoodText(__instance, __result);
         }
         [HarmonyPostfix, HarmonyPriority(Priority.Last), HarmonyPatch(typeof(Switch), nameof(Switch.GetHoverText))]
         private static void SwitchHover(Switch __instance, ref string __result)
         {
             if (!Player.m_localPlayer || Denied(__result)) return;
-            var supplies = new Supplies();
             var cooking = __instance.GetComponentInParent<CookingStation>();
             if (cooking && Valid(cooking))
             {
                 if (__instance == cooking.m_addFoodSwitch)
                 {
-                    __result = WithCookingTimers(cooking, FoodText(cooking, __result, supplies));
+                    __result = WithCookingTimers(cooking, FoodText(cooking, __result));
                 }
                 else if (__instance == cooking.m_addFuelSwitch)
                 {
-                    bool own = BulkProcessing.Supported(cooking) && OwnModifier(out _); OwnModifier(out float radius);
-                    string single = BulkProcessing.Room(cooking, true) == 0 ? "Fuel full" : Selected("Add", OrdinaryFuel(cooking, cooking.m_fuelItem, supplies, true),
-                        item => supplies.Stock(cooking, cooking, item), "$msg_outof " + cooking.m_fuelItem.m_itemData.m_shared.m_name);
-                    __result = Actions(__result, single, own ? Bulk(MachineBulk(cooking, true, supplies, radius)) : null);
-                    __result = WithCookingTimers(cooking, __result + "\n" + CookingSingle(cooking, supplies));
+                    var lines = HoverPreviews.Get(cooking, 2, State(), () => CookingFuelLines(cooking));
+                    __result = WithCookingTimers(cooking, Actions(__result, lines) + "\n" + lines.After);
                 }
                 return;
             }
@@ -299,34 +309,58 @@ namespace EpicLootProgressionFix
             if (machine && Valid(machine) && (__instance == machine.m_addOreSwitch || __instance == machine.m_addWoodSwitch && !AshlandsHotTubs.Heated(machine)))
             {
                 bool fuel = __instance == machine.m_addWoodSwitch;
-                bool own = BulkProcessing.Supported(machine) && OwnModifier(out _); OwnModifier(out float radius);
-                string single;
-                if (BulkProcessing.Room(machine, fuel) == 0) single = fuel ? "Fuel full" : Local("$msg_itsfull");
-                else if (fuel) single = Selected("Add", OrdinaryFuel(machine, machine.m_fuelItem, supplies, false), item => supplies.Stock(machine, machine, item),
-                    "$msg_outof " + machine.m_fuelItem.m_itemData.m_shared.m_name);
-                else single = Selected(OreAction(machine), OrdinaryOre(machine, supplies), item => supplies.Stock(supplies.Player, machine, item), OreUnavailable(machine, supplies));
-                string nearby = own ? Bulk(MachineBulk(machine, fuel, supplies, radius)) : null;
-                supplies.Reset();
-                string fill = ShowFill(own) ? FillHint(fuel ? FuelFill(machine, machine.m_fuelItem, supplies, BulkProcessing.Room(machine, true)) : OreFill(machine, supplies)) : null;
-                __result = Actions(__result, single, nearby, fill);
+                __result = Actions(__result, HoverPreviews.Get(machine, fuel ? 4 : 3, State(), () => MachineLines(machine, fuel)));
                 return;
             }
             var shield = __instance.GetComponentInParent<ShieldGenerator>();
             if (shield && Valid(shield) && __instance == shield.m_addFuelSwitch && shield.m_fuelItems.Count > 0)
+                __result = Actions(__result, HoverPreviews.Get(shield, 5, State(), () => ShieldLines(shield)));
+        }
+
+        private static Lines CookingFuelLines(CookingStation cooking)
+        {
+            var supplies = new Supplies();
+            bool own = BulkProcessing.Supported(cooking) && OwnModifier(out _); OwnModifier(out float radius);
+            string single = BulkProcessing.Room(cooking, true) == 0 ? "Fuel full" : Selected("Add", OrdinaryFuel(cooking, cooking.m_fuelItem, supplies, true),
+                item => supplies.Stock(cooking, cooking, item), "$msg_outof " + cooking.m_fuelItem.m_itemData.m_shared.m_name);
+            return new Lines { Single = single, Extra = new[] { own ? Bulk(MachineBulk(cooking, true, supplies, radius)) : null }, After = CookingSingle(cooking, supplies) };
+        }
+
+        private static Lines MachineLines(Smelter machine, bool fuel)
+        {
+            var supplies = new Supplies();
+            bool own = BulkProcessing.Supported(machine) && OwnModifier(out _); OwnModifier(out float radius);
+            string single;
+            if (BulkProcessing.Room(machine, fuel) == 0) single = fuel ? "Fuel full" : Local("$msg_itsfull");
+            else if (fuel) single = Selected("Add", OrdinaryFuel(machine, machine.m_fuelItem, supplies, false), item => supplies.Stock(machine, machine, item),
+                "$msg_outof " + machine.m_fuelItem.m_itemData.m_shared.m_name);
+            else
             {
-                int room = Math.Max(0, Mathf.FloorToInt(shield.m_maxFuel - shield.GetComponent<ZNetView>().GetZDO().GetFloat(ZDOVars.s_fuel)));
-                ItemDrop item = shield.m_fuelItems.FirstOrDefault(value => supplies.BagCount(value) > 0);
-                if (!item) item = shield.m_fuelItems.FirstOrDefault(value => BulkProcessing.CanPull(shield, value.name) && supplies.ChestFirst(shield, value));
-                string single = room == 0 ? "Fuel full" : Selected("Add fuel:", item, value => supplies.Stock(shield, shield, value));
-                var parts = new List<(ItemDrop, int, int)>();
-                if (ShowFill(false)) foreach (var value in shield.m_fuelItems)
-                {
-                    int stock = supplies.Stock(shield, shield, value), amount = supplies.Fill(shield, value, room, true); room -= amount;
-                    if (amount > 0) parts.Add((value, amount, stock));
-                    if (room == 0) break;
-                }
-                __result = Actions(__result, single, ShowFill(false) ? FillHint(parts.Count > 0 ? "Add fuel: " + Parts(parts) : room == 0 ? "Fuel full" : "No eligible fuel") : null);
+                // The refusal is only needed when no ore is available.
+                var ore = OrdinaryOre(machine, supplies);
+                single = Selected(OreAction(machine), ore, item => supplies.Stock(supplies.Player, machine, item), ore ? null : OreUnavailable(machine, supplies));
             }
+            string nearby = own ? Bulk(MachineBulk(machine, fuel, supplies, radius)) : null;
+            supplies.Reset();
+            string fill = ShowFill(own) ? FillHint(fuel ? FuelFill(machine, machine.m_fuelItem, supplies, BulkProcessing.Room(machine, true)) : OreFill(machine, supplies)) : null;
+            return new Lines { Single = single, Extra = new[] { nearby, fill } };
+        }
+
+        private static Lines ShieldLines(ShieldGenerator shield)
+        {
+            var supplies = new Supplies();
+            int room = Math.Max(0, Mathf.FloorToInt(shield.m_maxFuel - shield.GetComponent<ZNetView>().GetZDO().GetFloat(ZDOVars.s_fuel)));
+            ItemDrop item = shield.m_fuelItems.FirstOrDefault(value => supplies.BagCount(value) > 0);
+            if (!item) item = shield.m_fuelItems.FirstOrDefault(value => BulkProcessing.CanPull(shield, value.name) && supplies.ChestFirst(shield, value));
+            string single = room == 0 ? "Fuel full" : Selected("Add fuel:", item, value => supplies.Stock(shield, shield, value));
+            var parts = new List<(ItemDrop, int, int)>();
+            if (ShowFill(false)) foreach (var value in shield.m_fuelItems)
+            {
+                int stock = supplies.Stock(shield, shield, value), amount = supplies.Fill(shield, value, room, true); room -= amount;
+                if (amount > 0) parts.Add((value, amount, stock));
+                if (room == 0) break;
+            }
+            return new Lines { Single = single, Extra = new[] { ShowFill(false) ? FillHint(parts.Count > 0 ? "Add fuel: " + Parts(parts) : room == 0 ? "Fuel full" : "No eligible fuel") : null } };
         }
 
         [HarmonyPostfix, HarmonyPriority(Priority.Last), HarmonyPatch(typeof(Fireplace), nameof(Fireplace.GetHoverText))]
@@ -343,14 +377,21 @@ namespace EpicLootProgressionFix
                 }
                 __result += "\nFuel maintained automatically"; return;
             }
+            var lines = HoverPreviews.Get(__instance, 6, HoverPreviews.Flags(toggle, ShowFill(false, true)), () => FireLines(__instance, toggle));
+            if (toggle) { if (lines.Extra[0] != null) __result += "\n" + lines.Extra[0]; return; }
+            __result = Actions(__result, lines);
+        }
+
+        private static Lines FireLines(Fireplace fire, bool toggle)
+        {
             var supplies = new Supplies();
-            int room = Math.Max(0, Mathf.FloorToInt(__instance.m_maxFuel - Mathf.Ceil(__instance.GetComponent<ZNetView>().GetZDO().GetFloat(ZDOVars.s_fuel))));
-            string fill = ShowFill(false, true) ? FillHint(FuelFill(__instance, __instance.m_fuelItem, supplies, room), true) : null;
+            int room = Math.Max(0, Mathf.FloorToInt(fire.m_maxFuel - Mathf.Ceil(fire.GetComponent<ZNetView>().GetZDO().GetFloat(ZDOVars.s_fuel))));
+            string fill = ShowFill(false, true) ? FillHint(FuelFill(fire, fire.m_fuelItem, supplies, room), true) : null;
             supplies.Reset();
-            if (toggle) { if (fill != null) __result += "\n" + fill; return; }
-            string single = room == 0 ? "Fuel full" : Selected("Add fuel:", OrdinaryFuel(__instance, __instance.m_fuelItem, supplies, false),
-                item => supplies.Stock(__instance, __instance, item), "$msg_outof " + __instance.m_fuelItem.m_itemData.m_shared.m_name);
-            __result = Actions(__result, single, fill);
+            if (toggle) return new Lines { Extra = new[] { fill } };
+            string single = room == 0 ? "Fuel full" : Selected("Add fuel:", OrdinaryFuel(fire, fire.m_fuelItem, supplies, false),
+                item => supplies.Stock(fire, fire, item), "$msg_outof " + fire.m_fuelItem.m_itemData.m_shared.m_name);
+            return new Lines { Single = single, Extra = new[] { fill } };
         }
 
         private static ItemDrop NativeAmmo(Turret turret, Supplies supplies)
@@ -362,6 +403,11 @@ namespace EpicLootProgressionFix
         private static void TurretHover(Turret __instance, ref string __result)
         {
             if (!Valid(__instance) || __instance.m_maxAmmo <= 0 || !__instance.m_targetEnemies || Denied(__result)) return;
+            __result = Actions(__result, HoverPreviews.Get(__instance, 7, HoverPreviews.Flags(ShowFill(false, true)), () => TurretLines(__instance)));
+        }
+
+        private static Lines TurretLines(Turret __instance)
+        {
             var supplies = new Supplies(); int room = Math.Max(0, __instance.m_maxAmmo - AmmoCount(__instance));
             var ammo = NativeAmmo(__instance, supplies);
             var current = ZNetScene.instance.GetPrefab(AmmoType(__instance))?.GetComponent<ItemDrop>();
@@ -376,7 +422,7 @@ namespace EpicLootProgressionFix
                 fill = FillHint(room == 0 ? Local("$msg_itsfull") : amount > 0 ? "Add ammunition: " + amount + " x " + Stocked(current, stock) :
                     Selected("Add ammunition:", NativeAmmo(__instance, supplies), Stock, "$msg_noturretammo"), true);
             }
-            __result = Actions(__result, single, fill);
+            return new Lines { Single = single, Extra = new[] { fill } };
         }
 
         [HarmonyPostfix, HarmonyPriority(Priority.Last), HarmonyPatch(typeof(ItemStand), nameof(ItemStand.GetHoverText))]

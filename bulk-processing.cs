@@ -91,6 +91,7 @@ namespace EpicLootProgressionFix
             if (chestInventory == null || chestName == null || saveChest == null || fillAllKey == null ||
                 !plugin.Instance.Config.TryGetEntry("2 - CraftyBoxes", "Container Range", out supplyRange))
                 throw new InvalidOperationException("AzuCraftyBoxes' machine supply changed.");
+            FrameChests.Initialize(assembly, () => supplyRange.Value);
             var hints = assembly.GetType("AzuCraftyBoxes.Patches.OverrideHoverText", true);
             foreach (string method in new[] { "UpdateAddOreSwitchHoverText", "UpdateAddWoodSwitchHoverText" })
                 harmony.Patch(AccessTools.Method(hints, method), prefix: new HarmonyMethod(typeof(BulkProcessing), nameof(KeepSingleMachineHint)));
@@ -182,6 +183,7 @@ namespace EpicLootProgressionFix
         internal static (Inventory Inventory, ItemDrop.ItemData Item, object Chest) ChestSupply(Component origin, string[] prefabs, bool protectFavorites)
         {
             if (query == null || pullingPrevented()) return default;
+            if (HoverPreviews.Computing) return PreviewSupply(origin, prefabs, protectFavorites);
             foreach (var chest in (IEnumerable)query.Invoke(null, new object[] { origin, supplyRange.Value }))
             foreach (string prefab in prefabs)
             {
@@ -192,6 +194,20 @@ namespace EpicLootProgressionFix
                     (!protectFavorites || !FavoriteProtection.IsFavoriteInStorage(candidate))).ToList();
                 if (eligible.Count == 0 || leaveOne(eligible.Sum(candidate => candidate.m_stack)) <= 0) continue;
                 return (inventory, eligible[0], chest);
+            }
+            return default;
+        }
+        // The same choice from this frame's chest reads, for previews, which take nothing.
+        private static (Inventory Inventory, ItemDrop.ItemData Item, object Chest) PreviewSupply(Component origin, string[] prefabs, bool protectFavorites)
+        {
+            foreach (var chest in FrameChests.Around(origin))
+            foreach (string prefab in prefabs)
+            {
+                if (!canPull(chest.Name, prefab)) continue;
+                var stacks = FrameChests.Of(chest, prefab);
+                var first = protectFavorites ? stacks?.FirstUnprotected : stacks?.First;
+                if (first == null || leaveOne(protectFavorites ? stacks.Unprotected : stacks.All) <= 0) continue;
+                return (chest.Inventory, first, chest.Source);
             }
             return default;
         }
@@ -206,6 +222,17 @@ namespace EpicLootProgressionFix
         {
             if (query == null || pullingPrevented()) return 0;
             var counted = new HashSet<Inventory>(); int total = 0;
+            if (HoverPreviews.Computing)
+            {
+                foreach (var origin in origins)
+                foreach (var chest in FrameChests.Around(origin))
+                {
+                    if (chest.Inventory == null || !counted.Add(chest.Inventory) || !canPull(chest.Name, prefab)) continue;
+                    var stacks = FrameChests.Of(chest, prefab);
+                    total += Math.Max(0, leaveOne(stacks == null ? 0 : protectFavorites ? stacks.Unprotected : stacks.All));
+                }
+                return total;
+            }
             foreach (var origin in origins)
             foreach (var chest in (IEnumerable)query.Invoke(null, new object[] { origin, supplyRange.Value }))
             {
