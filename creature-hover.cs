@@ -61,6 +61,9 @@ namespace EpicLootProgressionFix
                 result = new CreatureRay { Creature = character, Contact = point, Inside = true };
             }
             if (result.Inside || !castRay) return result;
+            // The closest hit alone decides, unless it is the player's own body; only then are all hits sorted through.
+            if (!Physics.Raycast(new Ray(origin, direction), out var closest, distanceLimit, mask)) return default;
+            if (closest.collider.GetComponentInParent<Player>() != player) return Hit(closest, eye);
             count = Physics.RaycastNonAlloc(new Ray(origin, direction), rayHits, distanceLimit, mask);
             while (count == rayHits.Length)
             {
@@ -80,9 +83,11 @@ namespace EpicLootProgressionFix
                 rayHits[best] = rayHits[--count];
             }
             if (!first.collider) return default;
-            return new CreatureRay { Creature = first.collider.GetComponentInParent<Character>(),
-                Contact = Measurable(first.collider) ? first.collider.ClosestPoint(eye) : first.point };
+            return Hit(first, eye);
         }
+
+        private static CreatureRay Hit(RaycastHit hit, Vector3 eye) => new CreatureRay { Creature = hit.collider.GetComponentInParent<Character>(),
+            Contact = Measurable(hit.collider) ? hit.collider.ClosestPoint(eye) : hit.point };
 
         internal static bool ClearBodyPath(Player player, Vector3 contact) =>
             !Physics.Linecast(player.GetEyePoint(), contact, GameFields.InteractMask(player) & ~CreatureMask, QueryTriggerInteraction.Ignore);
