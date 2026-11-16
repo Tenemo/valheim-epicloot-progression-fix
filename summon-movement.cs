@@ -12,6 +12,9 @@ namespace EpicLootProgressionFix
     {
         internal const string MovementKey = Plugin.Id + ".summon-movement";
         internal const string RunningKey = Plugin.Id + ".summon-running";
+        // Hashed once: the object data's string keys hash on every read.
+        private static readonly int MovementHash = MovementKey.GetStableHashCode();
+        private static readonly int RunningHash = RunningKey.GetStableHashCode();
         private static readonly Func<Character, float> JogFactor = AccessTools.MethodDelegate<Func<Character, float>>(AccessTools.Method(typeof(Character), "GetJogSpeedFactor"));
         private static readonly Func<Character, float> RunFactor = AccessTools.MethodDelegate<Func<Character, float>>(AccessTools.Method(typeof(Character), "GetRunSpeedFactor"));
         private static readonly AccessTools.FieldRef<Character, bool> Running = AccessTools.FieldRefAccess<Character, bool>("m_running");
@@ -40,16 +43,15 @@ namespace EpicLootProgressionFix
         [HarmonyPatch(typeof(Player), "Update"), HarmonyPostfix]
         private static void Refresh(Player __instance)
         {
-            if (__instance != Player.m_localPlayer) return;
+            if (__instance != Player.m_localPlayer || sampledPlayer == __instance && Time.unscaledTime < refreshAt) return;
             var view = GameFields.CharacterView(__instance);
             if (!view || !view.IsValid() || !view.IsOwner()) return;
-            if (sampledPlayer == __instance && Time.unscaledTime < refreshAt) return;
             sampledPlayer = __instance; refreshAt = Time.unscaledTime + .25f;
             var data = view.GetZDO();
             float movement = __instance.IsDead() ? 1f : Calculate(__instance, false);
             float running = __instance.IsDead() ? 1f : Calculate(__instance, true);
-            if (data.GetFloat(MovementKey) != movement) data.Set(MovementKey, movement);
-            if (data.GetFloat(RunningKey) != running) data.Set(RunningKey, running);
+            if (data.GetFloat(MovementHash) != movement) data.Set(MovementHash, movement);
+            if (data.GetFloat(RunningHash) != running) data.Set(RunningHash, running);
         }
 
         internal static float Multiplier(Character character, bool running)
@@ -58,15 +60,27 @@ namespace EpicLootProgressionFix
             var player = SummonOwnership.Summoner(character);
             if (!player || player.IsDead()) return 1f;
             var view = GameFields.CharacterView(player);
-            return view && view.IsValid() ? ValidMultiplier(view.GetZDO().GetFloat(running ? RunningKey : MovementKey, 1f)) : 1f;
+            return view && view.IsValid() ? ValidMultiplier(view.GetZDO().GetFloat(running ? RunningHash : MovementHash, 1f)) : 1f;
         }
 
         // A ridden summon keeps at least its walking pace: a wolf's jog is a slow trot well below it.
         private static float RiddenPace(Character character) => character.HaveRider() && !character.IsRunning() && SummonOwnership.IsFollower(character)
             ? Mathf.Max(1f, character.m_walkSpeed / character.m_speed) : 1f;
 
-        private static void Boost(Character character, ref float speed) => speed *= Multiplier(character, character.IsRunning()) * RiddenPace(character);
-        private static void Turning(Character character, ref float speed) => speed *= Multiplier(character, character.IsRunning());
+        // UpdateWalking always boosts the ground speed before it turns, and nothing between the two changes what the
+        // multiplier reads, so the turn reuses the walk's multiplier.
+        private static Character boosted;
+        private static float boostMultiplier;
+
+        private static void Boost(Character character, ref float speed)
+        {
+            boosted = character;
+            boostMultiplier = Multiplier(character, character.IsRunning());
+            speed *= boostMultiplier * RiddenPace(character);
+        }
+
+        private static void Turning(Character character, ref float speed) =>
+            speed *= (object)boosted == character ? boostMultiplier : Multiplier(character, character.IsRunning());
 
         [HarmonyPatch(typeof(Character), "UpdateWalking"), HarmonyTranspiler]
         private static IEnumerable<CodeInstruction> GroundMovement(IEnumerable<CodeInstruction> instructions)

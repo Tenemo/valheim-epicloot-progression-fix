@@ -14,7 +14,7 @@ namespace EpicLootProgressionFix
         // One completed transfer identity survives ownership changes; pending leases themselves are never saved.
         private const string MovedKey = Plugin.Id + ".dungeon-move";
         private const string BatExpiryKey = Plugin.Id + ".dungeon-bat-expiry";
-        private const string SettlingKey = Plugin.Id + ".dungeon-settling";
+        private static readonly int SettlingKey = (Plugin.Id + ".dungeon-settling").GetStableHashCode();
         private const float Lifetime = 30f, DoorRange = 10f, ArrivalRange = 3f, Step = 1f, SearchRadius = 10f;
         private static readonly int FloorMask = LayerMask.GetMask("terrain", "Default", "static_solid", "piece", "piece_nonsolid");
         private static readonly int SolidMask = LayerMask.GetMask("Default", "static_solid", "piece", "piece_nonsolid");
@@ -702,10 +702,12 @@ namespace EpicLootProgressionFix
         private static void KeepTransferOwner(ZDO creature, long owner, ref bool __result)
         {
             if (__result) return;
-            if (ZNet.instance.IsServer()) __result = Trips.Values.Any(trip => trip.Arrived && trip.Peer == owner && Time.realtimeSinceStartup <= trip.Expires &&
-                trip.Targets.Any(target => target.Id == creature.m_uid && target.HandedOver && target.Result == Result.Pending));
+            if (ZNet.instance.IsServer()) __result = HandingOver(creature, owner);
             else __result = owner == ZDOMan.GetSessionID() && HeldCreatures.TryGetValue(creature.m_uid, out var held) && held.Move && !held.Done && held.Lease > ZNet.instance.GetTime().Ticks;
         }
+        // Apart, so the client's path allocates no closure.
+        private static bool HandingOver(ZDO creature, long owner) => Trips.Values.Any(trip => trip.Arrived && trip.Peer == owner && Time.realtimeSinceStartup <= trip.Expires &&
+            trip.Targets.Any(target => target.Id == creature.m_uid && target.HandedOver && target.Result == Result.Pending));
         private static void End(Trip trip, bool park)
         {
             if (!Trips.Remove(trip.Token)) return;

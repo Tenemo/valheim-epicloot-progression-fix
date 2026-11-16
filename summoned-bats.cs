@@ -13,10 +13,11 @@ namespace EpicLootProgressionFix
     internal static class SummonedBats
     {
         private static readonly int BatPrefab = "EL_TamedBat".GetStableHashCode();
-        private const string SummonerKey = "elpf_bat_summoner";
-        private const string TargetKey = "elpf_bat_target";
-        private const string ContactTimeKey = "elpf_bat_contact";
-        private const string ContactSequenceKey = "elpf_bat_contact_sequence";
+        // Hashed once: the object data's string keys hash on every read.
+        private static readonly int SummonerKey = "elpf_bat_summoner".GetStableHashCode();
+        private static readonly KeyValuePair<int, int> TargetKey = ZDO.GetHashZDOID("elpf_bat_target");
+        private static readonly int ContactTimeKey = "elpf_bat_contact".GetStableHashCode();
+        private static readonly int ContactSequenceKey = "elpf_bat_contact_sequence".GetStableHashCode();
         private static float PursuitRange => Plugin.BatPursuitRange.Value;
         private const double ContactLifetime = 2.5;
         private static readonly AccessTools.FieldRef<MonsterAI, Character> Target = AccessTools.FieldRefAccess<MonsterAI, Character>("m_targetCreature");
@@ -69,7 +70,7 @@ namespace EpicLootProgressionFix
             IsBat(target) && attacker && (attacker.IsPlayer() || attacker.IsTamed());
 
         private static Player Summoner(Character bat) =>
-            Player.GetPlayer(bat.GetComponent<ZNetView>().GetZDO().GetLong(SummonerKey, 0));
+            Player.GetPlayer(GameFields.OwnView(bat).GetZDO().GetLong(SummonerKey, 0));
 
         internal static long SummonerId(Character bat) => IsBat(bat) ? SummonerId(bat.GetComponent<ZNetView>().GetZDO()) : 0;
         internal static long SummonerId(ZDO data) => data != null && data.GetPrefab() == BatPrefab ? data.GetLong(SummonerKey, 0) : 0;
@@ -203,7 +204,7 @@ namespace EpicLootProgressionFix
             if (__instance.GetFollowTarget() != (summoner ? summoner.gameObject : null))
                 __instance.SetFollowTarget(summoner ? summoner.gameObject : null);
             __instance.m_alertRange = PursuitRange;
-            var batData = creature.GetComponent<ZNetView>().GetZDO();
+            var batData = GameFields.OwnView(creature).GetZDO();
             if (summoner)
             {
                 if (RecentContact(summoner, out var target, out long sequence, out _) && sequence != batData.GetLong(ContactSequenceKey, 0))
@@ -247,7 +248,7 @@ namespace EpicLootProgressionFix
             var creature = GameFields.HeldCreature ? ___m_character : __instance.GetComponent<Character>();
             var target = Target(__instance);
             if (!IsBat(creature) || !creature.IsOwner() || !target) return;
-            var data = creature.GetComponent<ZNetView>().GetZDO();
+            var data = GameFields.OwnView(creature).GetZDO();
             if (data.GetZDOID(TargetKey) != target.GetZDOID() || !ValidTarget(creature, Summoner(creature), target, true)) return;
             // This selects the native pursuit branch without granting sight through cover or bypassing bite reach.
             canHearTarget = true;

@@ -10,10 +10,11 @@ namespace EpicLootProgressionFix
     {
         // New enemies are picked up near the caster; one a summon already fights is kept until it is twice as far.
         private const float CombatRange = 40f, HoldRange = 80f;
-        private const string CommandKey = Plugin.Id + ".summon-target";
-        private const string ContactKey = Plugin.Id + ".summon-contact";
-        private const string ContactTimeKey = Plugin.Id + ".summon-contact-time";
-        private const string SessionKey = Plugin.Id + ".summon-target-session";
+        // Hashed once: the object data's string keys hash on every read.
+        private static readonly KeyValuePair<int, int> CommandKey = ZDO.GetHashZDOID(Plugin.Id + ".summon-target");
+        private static readonly int ContactKey = (Plugin.Id + ".summon-contact").GetStableHashCode();
+        private static readonly int ContactTimeKey = (Plugin.Id + ".summon-contact-time").GetStableHashCode();
+        private static readonly int SessionKey = (Plugin.Id + ".summon-target-session").GetStableHashCode();
         private static readonly AccessTools.FieldRef<MonsterAI, Character> Target = AccessTools.FieldRefAccess<MonsterAI, Character>("m_targetCreature");
         private static readonly AccessTools.FieldRef<MonsterAI, float> Unseen = AccessTools.FieldRefAccess<MonsterAI, float>("m_timeSinceSensedTargetCreature");
         private static readonly AccessTools.FieldRef<MonsterAI, float> Inactive = AccessTools.FieldRefAccess<MonsterAI, float>("m_timeSinceAttacking");

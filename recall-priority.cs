@@ -12,9 +12,10 @@ namespace EpicLootProgressionFix
     internal static class RecallPriority
     {
         internal const float ReservationSeconds = 5f;
-        private const string PlayerKey = "elpf_recall_player";
-        private const string PeerKey = "elpf_recall_peer";
-        private const string DeadlineKey = "elpf_recall_until";
+        // Hashed once: the object data's string keys hash on every read.
+        private static readonly int PlayerKey = "elpf_recall_player".GetStableHashCode();
+        private static readonly int PeerKey = "elpf_recall_peer".GetStableHashCode();
+        private static readonly int DeadlineKey = "elpf_recall_until".GetStableHashCode();
         private static readonly AccessTools.FieldRef<Humanoid, ItemDrop.ItemData> HiddenRightItem =
             AccessTools.FieldRefAccess<Humanoid, ItemDrop.ItemData>("m_hiddenRightItem");
         private static readonly AccessTools.FieldRef<Humanoid, ItemDrop.ItemData> HiddenLeftItem =

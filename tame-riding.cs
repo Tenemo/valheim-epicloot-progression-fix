@@ -28,7 +28,8 @@ namespace EpicLootProgressionFix
     internal static class TameRiding
     {
         private const string Runtime = "Ainzworth.TameRidingOverhaul.Runtime.";
-        private const string SitKey = "uk.ainzworth.tameridingoverhaul.sit", SitRpc = Plugin.Id + ".tame-sit";
+        private const string SitRpc = Plugin.Id + ".tame-sit";
+        private static readonly int SitKey = "uk.ainzworth.tameridingoverhaul.sit".GetStableHashCode();
         private static readonly int SitFollowHash = (Plugin.Id + ".sit-follow").GetStableHashCode();
 
         // Personal or native-replaced settings are not synchronized; Internal holds the mod's migration markers.
@@ -154,15 +155,17 @@ namespace EpicLootProgressionFix
 
         private static bool Skip() => false;
 
+        // Creature hooks ask this every update, so the settings come before the creature, and the integration's state
+        // before the object data.
         internal static bool HoldingPosition(Character character)
         {
-            if (!character || character.HaveRider()) return false;
-            var view = character.GetComponent<ZNetView>();
+            if (enabled?.Value != true || stayEnabled?.Value != true || !character || character.HaveRider()) return false;
+            var view = GameFields.OwnView(character);
             return view && view.IsValid() && HoldingPosition(view.GetZDO());
         }
 
         internal static bool HoldingPosition(ZDO data) => enabled?.Value == true && stayEnabled?.Value == true &&
-            OptionalIntegrations.Enabled(typeof(TameRiding)) && data != null && data.GetBool(SitKey);
+            data != null && OptionalIntegrations.Enabled(typeof(TameRiding)) && data.GetBool(SitKey);
 
         // The native drain also starts the native regeneration delay.
         private static bool SpendAttack(Sadle sadle, float cost)
