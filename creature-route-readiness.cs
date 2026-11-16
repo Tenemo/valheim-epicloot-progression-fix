@@ -26,7 +26,7 @@ namespace EpicLootProgressionFix
 
         private static bool Eligible(BaseAI ai)
         {
-            var character = ai.GetComponent<Character>(); var view = ai.GetComponent<ZNetView>();
+            var character = GameFields.AiCharacter(ai); var view = GameFields.AiView(ai);
             // Retain the existing bounty behavior, including its non-ground movement profiles.
             if (view && view.IsValid() && view.GetZDO().GetString(BountyCreature.IdKey).Length > 0) return true;
             var attack = character is Humanoid humanoid ? GameFields.CurrentAttack(humanoid) : null;
@@ -64,7 +64,7 @@ namespace EpicLootProgressionFix
             // Moving the failed request back past the five-second reuse makes the native method ask again.
             if (eligible && !___m_lastFindPathResult && Time.time - ___m_lastFindPathTime >= 1f && Waiting.TryGetValue(__instance, out _))
                 ___m_lastFindPathTime -= 5f;
-            var character = __instance.GetComponent<Character>();
+            var character = GameFields.AiCharacter(__instance);
             if (!eligible && !(character && character.IsOwner() && SummonOwnership.IsFollower(character))) return;
             float age = Time.time - ___m_lastFindPathTime;
             if (age < 1f || age < 5f && Vector3.Distance(target, ___m_lastFindPathTarget) < 1f || !Pathfinding.instance || !ZoneSystem.instance) return;
@@ -105,7 +105,7 @@ namespace EpicLootProgressionFix
         // to build. A follower whose route gives out short of its goal heads straight for it, unless water or lava lies ahead.
         private static bool WalkStraight(BaseAI ai, Vector3 point, float dist, bool run)
         {
-            var character = ai.GetComponent<Character>();
+            var character = GameFields.AiCharacter(ai);
             var position = ai.transform.position;
             if (Utils.DistanceXZ(point, position) < Mathf.Max(dist, 1f) || !SummonOwnership.IsFollower(character) || !Eligible(ai)) return false;
             var direction = point - position; direction.y = 0f; direction.Normalize();

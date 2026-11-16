@@ -23,13 +23,13 @@ namespace EpicLootProgressionFix
 
         private static bool TamedAnimal(BaseAI animal)
         {
-            var character = animal.GetComponent<Character>();
-            return character && character.IsTamed() && animal.GetComponent<Tameable>() && !SummonedBats.IsBat(character) &&
+            var character = GameFields.AiCharacter(animal);
+            return character && character.IsTamed() && GameFields.AiTameable(animal) && !SummonedBats.IsBat(character) &&
                 GameFields.CharacterView(character)?.GetZDO()?.GetPrefab() != FriendlySkeleton;
         }
 
         private static float Sight(BaseAI animal) => TamedAnimal(animal) ? 50f : animal.m_viewRange;
-        private static float Alert(MonsterAI animal) => SummonOwnership.IsFollower(animal.GetComponent<Character>())
+        private static float Alert(MonsterAI animal) => SummonOwnership.IsFollower(GameFields.AiCharacter(animal))
             ? animal.m_alertRange : TamedAnimal(animal) ? 30f : animal.m_alertRange;
 
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, MethodBase __originalMethod)

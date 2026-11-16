@@ -72,11 +72,11 @@ namespace EpicLootProgressionFix
         private static void Observe(BaseAI __instance, float dt, Vector3 point, bool __result)
         {
             if (fleeing > 0) return;
-            var character = __instance.GetComponent<Character>();
+            var character = GameFields.AiCharacter(__instance);
             if (!character || character.IsPlayer() || !character.IsOwner()) return;
             var data = GameFields.CharacterView(character).GetZDO();
             var target = (__instance as MonsterAI)?.GetTargetCreature();
-            var state = States.GetValue(__instance, _ => new State { Character = character });
+            if (!States.TryGetValue(__instance, out var state)) States.Add(__instance, state = new State { Character = character });
             bool flying = character.IsFlying(), swimming = character.IsSwimming();
             bool reset = state.Target != target || state.Owner != data.GetOwner() || state.OwnerRevision != data.OwnerRevision ||
                 state.Profile != __instance.m_pathAgentType || state.Navigation != Pathfinding.instance || Vector3.Distance(state.Goal, point) > 1f ||
@@ -91,7 +91,7 @@ namespace EpicLootProgressionFix
             }
             var path = Path(__instance);
             var attack = character is Humanoid humanoid ? GameFields.CurrentAttack(humanoid) : null;
-            if (__result || path.Count == 0 || character.IsFlying() || character.IsSwimming() || !character.IsOnGround() ||
+            if (__result || path.Count == 0 || flying || swimming || !character.IsOnGround() ||
                 character.IsDead() || character.HaveRider() || character.InAttack() || attack != null && !attack.IsDone() ||
                 character.IsStaggering() || __instance.IsSleeping() || (__instance is MonsterAI monster && monster.IsCharging()) ||
                 TameRiding.HoldingPosition(character) || FreshCreatureSpawns.Waiting(character) || MoveDirection(character).sqrMagnitude < .001f ||
