@@ -8,7 +8,7 @@ namespace EpicLootProgressionFix
     // impact, weakness hit and lightning sounds in a few seconds, most of them repeats of the same sound in the same place,
     // so footsteps, swings and other combat sounds cut out while it lasts. The game itself limits a sound's repeats only for
     // a few prefabs and only within 0.2 s. Here a one-shot sound doesn't start while three copies of it are still playing
-    // within the distance the game already uses for that sound's limit, so a pile-up sounds like three of it instead of
+    // within the distance the game uses for that sound's limit, so a pile-up sounds like three of it instead of
     // twenty, and the voices stay free for everything else.
     internal static class SameSoundLimit
     {
@@ -33,7 +33,9 @@ namespace EpicLootProgressionFix
         {
             if (!Limiting || sfx.IsLooping() || !playing.TryGetValue(Sound(sfx), out var copies)) return true;
             var position = sfx.transform.position;
-            float distance = sfx.GetConcurrencyDistance();
+            // Sounds the game limits world-wide, such as cinder rain hits and some boss attacks, are limited here only within
+            // the radius every other sound uses, so three of them still play in each spot.
+            float distance = sfx.m_ignoreConcurrencyDistance ? Mathf.Max(1f, sfx.GetComponent<AudioSource>().minDistance) : sfx.GetConcurrencyDistance();
             int near = 0;
             for (int i = copies.Count - 1; i >= 0; i--)
             {
