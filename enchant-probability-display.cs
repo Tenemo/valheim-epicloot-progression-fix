@@ -30,6 +30,23 @@ namespace EpicLootProgressionFix
             if (!AugmentProbabilityDisplay.SelectionRulesSupported()) return "the native effect sampler is not supported";
             if (LootRoller.CheatEffectCount >= 1 || !string.IsNullOrEmpty(LootRoller.CheatForceUniqueID) || LootRoller.CheatForceUniqueRarity.HasValue)
                 return "an Enchant generation cheat is active";
+            string patched = OtherPatches();
+            if (patched != null) return patched;
+            var definitions = MagicItemEffectDefinitions.AllDefinitions.Values;
+            if (definitions.Any(d => d.Requirements == null || !d.Requirements.ExclusiveSelf || d.Requirements.ExternalRequirements?.Count > 0))
+                return "the effect definitions have unsupported repeat or external requirements";
+            return null;
+        }
+
+        // The Enchant tab asks this twice a second; other mods' patches are rescanned once a second.
+        private static string patchedBy;
+        private static float patchesScanned = float.NegativeInfinity;
+        private static string OtherPatches()
+        {
+            float now = Time.realtimeSinceStartup;
+            if (now >= patchesScanned && now - patchesScanned < 1f) return patchedBy;
+            patchesScanned = now;
+            patchedBy = null;
             var methods = new[] { "RollMagicItem", "RollUniqueInfo", "RollEffectCountPerRarity", "GetEffectCountsPerRarity" }
                 .SelectMany(name => AccessTools.GetDeclaredMethods(typeof(LootRoller)).Where(m => m.Name == name))
                 .Concat(new[] { AccessTools.Method(typeof(MagicItemEffectDefinitions), "GetAvailableEffects"),
@@ -38,11 +55,8 @@ namespace EpicLootProgressionFix
             foreach (var method in methods)
             {
                 var owners = Harmony.GetPatchInfo(method)?.Owners.Where(owner => owner != Plugin.Id).ToArray();
-                if (owners?.Length > 0) return string.Join(", ", owners) + " changes " + method.Name;
+                if (owners?.Length > 0) return patchedBy = string.Join(", ", owners) + " changes " + method.Name;
             }
-            var definitions = MagicItemEffectDefinitions.AllDefinitions.Values;
-            if (definitions.Any(d => d.Requirements == null || !d.Requirements.ExclusiveSelf || d.Requirements.ExternalRequirements?.Count > 0))
-                return "the effect definitions have unsupported repeat or external requirements";
             return null;
         }
 

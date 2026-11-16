@@ -49,6 +49,18 @@ namespace EpicLootProgressionFix
             Verification.GetAwaiter().GetResult();
             if (!VerifiedSampler.Value) return "this game build's random numbers are not the verified Unity Windows x64 ones";
             if (LootRoller.CheatEffectRarityTier > 0) return "EpicLoot's effect rarity cheat is on";
+            return OtherPatches();
+        }
+
+        // The enchanting window asks this every frame while it prepares chances; other mods' patches are rescanned once a second.
+        private static string patchedBy;
+        private static float patchesScanned = float.NegativeInfinity;
+        private static string OtherPatches()
+        {
+            float now = Time.realtimeSinceStartup;
+            if (now >= patchesScanned && now - patchesScanned < 1f) return patchedBy;
+            patchesScanned = now;
+            patchedBy = null;
             var methods = new[] { nameof(LootRoller.RollAugmentEffects), nameof(LootRoller.RollEffects), nameof(LootRoller.RollEffect) }
                 .Select(name => AccessTools.Method(typeof(LootRoller), name))
                 .Concat(AccessTools.GetDeclaredMethods(typeof(WeightedRandomCollection<MagicItemEffectDefinition>))
@@ -56,7 +68,7 @@ namespace EpicLootProgressionFix
             foreach (var method in methods)
             {
                 var others = Harmony.GetPatchInfo(method)?.Owners.Where(owner => owner != Plugin.Id).ToList();
-                if (others?.Count > 0) return string.Join(", ", others) + " patches " + method.DeclaringType.Name + "." + method.Name;
+                if (others?.Count > 0) return patchedBy = string.Join(", ", others) + " patches " + method.DeclaringType.Name + "." + method.Name;
             }
             return null;
         }
