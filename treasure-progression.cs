@@ -15,6 +15,7 @@ namespace EpicLootProgressionFix
     internal static class TreasureProgression
     {
         private const string HistoryKey = Plugin.Id + ".treasure-history";
+        private static readonly int HistoryHash = HistoryKey.GetStableHashCode();
         private const string CheckedKey = Plugin.Id + ".treasure-checked";
         private const int Version = 1;
         private static readonly int TreasureBiomeKey = "TreasureMapChest.Biome".GetStableHashCode();
@@ -119,9 +120,10 @@ namespace EpicLootProgressionFix
         {
             if (!Eligibility.CraftingMode) return true;
             var view = __instance.GetComponent<ZNetView>();
-            if (!view || !view.IsValid() || !readTreasure(view.GetZDO(), out var treasure) || treasure.PlayerID == 0) return true;
+            // The spawner's update runs every frame: a recorded history ends the check before the treasure is deserialized.
+            if (!view || !view.IsValid() || view.GetZDO().GetByteArray(HistoryHash) != null) return true;
+            if (!readTreasure(view.GetZDO(), out var treasure) || treasure.PlayerID == 0) return true;
             var data = view.GetZDO();
-            if (data.GetByteArray(HistoryKey) != null) return true;
             var history = Capture(treasure.PlayerID);
             if (history == null)
             {
