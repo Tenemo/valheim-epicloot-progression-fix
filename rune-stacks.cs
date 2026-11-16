@@ -242,24 +242,46 @@ namespace EpicLootProgressionFix
             return data;
         }
 
-        // An inventory's migration compares every pair of same-tier runes, and each comparison works out both runes' canonical
-        // text again: one chest of runes took up to 210 ms in one frame. While a migration runs, each text's canonical form is
-        // kept and given back for the same text; the effect definitions it depends on cannot change during the migration.
+        // Working out a rune text's canonical form parses it twice, and every rune added to an inventory, every chest load's
+        // migration and every pair it compares asks again for texts already seen: one chest of runes took up to 210 ms in one
+        // frame. Each text's answer is kept for the session and given back for the same text. Besides the text, it depends
+        // only on whether EpicLoot defines each of the text's effects and whether that effect is yes/no, so a kept answer is
+        // given back only after asking those questions again and getting the same answers, however the definitions changed.
         internal static bool KeepCanonicalTexts = true;
-        private static Dictionary<string, string> canonicalTexts;
+        private const int KeptCanonicalTexts = 4096;
+        private sealed class KeptCanonical
+        {
+            internal string Text;
+            internal readonly List<(string type, bool defined, bool valueless)> Asked = new List<(string, bool, bool)>();
+        }
+        private static readonly Dictionary<string, KeptCanonical> canonicalTexts = new Dictionary<string, KeptCanonical>();
 
         private static bool CanonicalMagic(string raw, out string canonical)
         {
-            if (canonicalTexts == null || string.IsNullOrEmpty(raw)) return WorkOutCanonicalMagic(raw, out canonical);
-            if (!canonicalTexts.TryGetValue(raw, out canonical))
+            // The full check reads the text through Json.NET's default settings, which a mod could change at any time.
+            if (!KeepCanonicalTexts || string.IsNullOrEmpty(raw) || JsonConvert.DefaultSettings != null) return WorkOutCanonicalMagic(raw, out canonical, null);
+            if (canonicalTexts.TryGetValue(raw, out var kept) && SameDefinitions(kept))
             {
-                WorkOutCanonicalMagic(raw, out canonical);
-                canonicalTexts.Add(raw, canonical);
+                canonical = kept.Text;
+                return canonical != null;
             }
+            kept = new KeptCanonical();
+            WorkOutCanonicalMagic(raw, out canonical, kept);
+            kept.Text = canonical;
+            if (canonicalTexts.Count >= KeptCanonicalTexts && !canonicalTexts.ContainsKey(raw)) canonicalTexts.Clear();
+            canonicalTexts[raw] = kept;
             return canonical != null;
         }
 
-        private static bool WorkOutCanonicalMagic(string raw, out string canonical)
+        // The definition questions the work asked, asked again in the same order.
+        private static bool SameDefinitions(KeptCanonical kept)
+        {
+            foreach (var (type, defined, valueless) in kept.Asked)
+                if (MagicItemEffectDefinitions.TryGet(type, out _) != defined || defined && MagicItemEffectDefinitions.IsValuelessEffect(type) != valueless) return false;
+            return true;
+        }
+
+        private static bool WorkOutCanonicalMagic(string raw, out string canonical, KeptCanonical asked)
         {
             canonical = null;
             if (string.IsNullOrEmpty(raw)) return false;
@@ -270,9 +292,12 @@ namespace EpicLootProgressionFix
                     !(magic["Effects"] is JArray effects) || effects.Count == 0 && string.IsNullOrEmpty((string)magic["SetID"])) return false;
                 foreach (var token in effects)
                 {
-                    if (!(token is JObject effect) || effect["EffectType"]?.Type != JTokenType.String ||
-                        !MagicItemEffectDefinitions.TryGet((string)effect["EffectType"], out _)) return false;
-                    bool valueless = MagicItemEffectDefinitions.IsValuelessEffect((string)effect["EffectType"]);
+                    if (!(token is JObject effect) || effect["EffectType"]?.Type != JTokenType.String) return false;
+                    string type = (string)effect["EffectType"];
+                    bool defined = MagicItemEffectDefinitions.TryGet(type, out _);
+                    if (!defined) { asked?.Asked.Add((type, false, false)); return false; }
+                    bool valueless = MagicItemEffectDefinitions.IsValuelessEffect(type);
+                    asked?.Asked.Add((type, true, valueless));
                     if (!SingleValue(effect["EffectValue"], out float value) &&
                         !(valueless && effect["EffectValue"]?.Type == JTokenType.String && (string)effect["EffectValue"] == "NaN")) return false;
                     // Match EpicLoot's existing FixupValuelessEffects, including old NaN-valued yes/no effects.
@@ -302,14 +327,6 @@ namespace EpicLootProgressionFix
         private static bool Migrate(Inventory inventory)
         {
             if (!CanNormalize || inventory == null) return false;
-            bool outermost = canonicalTexts == null && KeepCanonicalTexts;
-            if (outermost) canonicalTexts = new Dictionary<string, string>();
-            try { return MigrateItems(inventory); }
-            finally { if (outermost) canonicalTexts = null; }
-        }
-
-        private static bool MigrateItems(Inventory inventory)
-        {
             bool changed = false;
             var items = inventory.GetAllItems();
             foreach (var item in items) changed |= Normalize(item);
@@ -366,7 +383,7 @@ namespace EpicLootProgressionFix
             playerReady = Player.m_localPlayer != null;
             if (playerReady) Migrate(Player.m_localPlayer.GetInventory());
         }
-        private static void LeavingWorld() => playerReady = false;
+        private static void LeavingWorld() { playerReady = false; canonicalTexts.Clear(); }
         private static void AfterInventoryLoad(Inventory __instance)
         {
             if (Player.m_localPlayer != null && __instance == Player.m_localPlayer.GetInventory()) Migrate(__instance);
@@ -403,6 +420,7 @@ namespace EpicLootProgressionFix
         internal static void DefinitionsChanged()
         {
             migratedContainers = new ConditionalWeakTable<Container, Inventory>();
+            canonicalTexts.Clear();
             if (playerReady && Game.instance != null) Game.instance.StartCoroutine(ReadyPlayer());
         }
 

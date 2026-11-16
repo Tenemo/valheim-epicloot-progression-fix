@@ -3,6 +3,7 @@
 - All set runes of one set stack, up to 10. Every set rune is now Legendary, whatever the item you extracted it from, and set runes you already have change as you carry them or open their chest. The item you etch still decides which piece of the set it becomes. Set runes from Mythic and Ancient items now sacrifice for 2 Legendary shards instead of 2 of their own rarity.
 - A chest holding many runes no longer makes the game stutter for up to a fifth of a second when you arrive near it.
 - The first enchanted item to drop after you join no longer makes the game stutter for about 40 ms.
+- A chest of about 40 runes loads about a quarter faster the first time you come near it and twice as fast when you return, so arriving at a base with such chests stutters less.
 
 # 1.29.0
 
