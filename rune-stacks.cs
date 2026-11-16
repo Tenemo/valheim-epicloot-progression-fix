@@ -242,7 +242,24 @@ namespace EpicLootProgressionFix
             return data;
         }
 
+        // An inventory's migration compares every pair of same-tier runes, and each comparison works out both runes' canonical
+        // text again: one chest of runes took up to 210 ms in one frame. While a migration runs, each text's canonical form is
+        // kept and given back for the same text; the effect definitions it depends on cannot change during the migration.
+        internal static bool KeepCanonicalTexts = true;
+        private static Dictionary<string, string> canonicalTexts;
+
         private static bool CanonicalMagic(string raw, out string canonical)
+        {
+            if (canonicalTexts == null || string.IsNullOrEmpty(raw)) return WorkOutCanonicalMagic(raw, out canonical);
+            if (!canonicalTexts.TryGetValue(raw, out canonical))
+            {
+                WorkOutCanonicalMagic(raw, out canonical);
+                canonicalTexts.Add(raw, canonical);
+            }
+            return canonical != null;
+        }
+
+        private static bool WorkOutCanonicalMagic(string raw, out string canonical)
         {
             canonical = null;
             if (string.IsNullOrEmpty(raw)) return false;
@@ -285,6 +302,14 @@ namespace EpicLootProgressionFix
         private static bool Migrate(Inventory inventory)
         {
             if (!CanNormalize || inventory == null) return false;
+            bool outermost = canonicalTexts == null && KeepCanonicalTexts;
+            if (outermost) canonicalTexts = new Dictionary<string, string>();
+            try { return MigrateItems(inventory); }
+            finally { if (outermost) canonicalTexts = null; }
+        }
+
+        private static bool MigrateItems(Inventory inventory)
+        {
             bool changed = false;
             var items = inventory.GetAllItems();
             foreach (var item in items) changed |= Normalize(item);
