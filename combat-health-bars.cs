@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using HarmonyLib;
@@ -19,6 +20,11 @@ namespace EpicLootProgressionFix
             AccessTools.FieldRefAccess<GameObject>(AccessTools.Inner(typeof(EnemyHud), "HudData"), "m_gui");
         private static readonly int ObstructionMask = LayerMask.GetMask("Default", "static_solid", "Default_small", "piece", "terrain", "viewblock", "vehicle");
         private static RaycastHit[] obstructionHits = new RaycastHit[32];
+        private static readonly Func<EnemyHud, Character, bool, bool> TestShow =
+            AccessTools.MethodDelegate<Func<EnemyHud, Character, bool, bool>>(AccessTools.Method(typeof(EnemyHud), "TestShow"));
+        // Bound to the game's private bar type, so the bars are visited through the dictionary's own enumerator, which boxes nothing.
+        private static readonly Action<EnemyHud, Player, Sadle, Vector3, IDictionary> VisitBars = AccessTools.MethodDelegate<Action<EnemyHud, Player, Sadle, Vector3, IDictionary>>(
+            AccessTools.Method(typeof(CombatHealthBars), nameof(Visit)).MakeGenericMethod(AccessTools.Inner(typeof(EnemyHud), "HudData")));
 
         private static bool Obstructed(Vector3 origin, Vector3 destination)
         {
@@ -56,18 +62,22 @@ namespace EpicLootProgressionFix
             return blocks;
         }
 
-        private static void Prefix(EnemyHud __instance, Player player, IDictionary ___m_huds)
+        private static void Prefix(EnemyHud __instance, Player player, Sadle sadle, IDictionary ___m_huds)
         {
             var camera = Utils.GetMainCamera();
             if (!player || player.IsDead() || !camera) return;
+            VisitBars(__instance, player, sadle, camera.transform.position, ___m_huds);
+        }
+
+        private static void Visit<THud>(EnemyHud __instance, Player player, Sadle sadle, Vector3 viewpoint, IDictionary bars) where THud : class
+        {
             var playerId = player.GetZDOID();
-            var viewpoint = camera.transform.position;
-            // The enumerator's own key and value: a foreach over the dictionary boxes a pair for every bar.
-            var huds = ___m_huds.GetEnumerator();
-            while (huds.MoveNext())
+            var hovered = player.GetHoverCreature();
+            var mount = sadle ? sadle.GetCharacter() : null;
+            foreach (var bar in (Dictionary<Character, THud>)bars)
             {
-                var character = (Character)huds.Key;
-                var hud = huds.Value;
+                var character = bar.Key;
+                var hud = bar.Value;
                 if (RecentHitHealthBars.Revealed(character) || RecentHitHealthBars.OwnSummon(character))
                 {
                     HoverTimer(hud) = 0f;
@@ -78,6 +88,9 @@ namespace EpicLootProgressionFix
                 var ai = character.GetBaseAI();
                 if (ai && !ai.IsSleeping() && ((ai.IsAlerted() && BaseAI.IsEnemy(player, character)) || CreatureHover.KnownAnimal(character)))
                 {
+                    // The game zeroes the timer of the creature under the crosshair whenever it keeps that bar, so its rays
+                    // would decide nothing.
+                    if (character == hovered && character != mount && TestShow(__instance, character, true)) continue;
                     var data = GameFields.CharacterView(character).GetZDO();
                     bool attacking = !playerId.IsNone() && data != null && data.GetZDOID(CombatTargets.TargetKey) == playerId &&
                         Vector3.Distance(player.transform.position, character.transform.position) <= Plugin.AttackerHealthBarRange.Value;
@@ -90,9 +103,11 @@ namespace EpicLootProgressionFix
 
         private static void Postfix(Player player, IDictionary ___m_huds)
         {
+            // Most frames hover no body.
             var character = CreatureHover.BodyHover;
+            if (!character) return;
             var camera = Utils.GetMainCamera();
-            if (!player || player.IsDead() || player.GetDoodadController() != null || !camera || !character || character.IsDead() ||
+            if (!player || player.IsDead() || player.GetDoodadController() != null || !camera || character.IsDead() ||
                 character.IsBoss() || character.m_hideHud || FreshCreatureSpawns.Waiting(character) ||
                 player.GetHoverCreature() != character || Vector3.Distance(player.transform.position, character.transform.position) >= EnemyHud.instance.m_maxShowDistance ||
                 !___m_huds.Contains(character)) return;
