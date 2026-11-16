@@ -306,6 +306,7 @@ namespace EpicLootProgressionFix
                 Run(typeof(SealColors), patches => SealColors.Initialize(patches));
                 Run(typeof(MooseAntlers), patches => MooseAntlers.Initialize(patches));
                 Run(typeof(BountyPlacement), patches => BountyPlacement.Initialize(patches, Logger));
+                Run(typeof(BountyRecovery), patches => BountyRecovery.Initialize(patches, Logger));
                 Run(typeof(CreatureSizeCompatibility), patches => CreatureSizeCompatibility.Initialize(patches));
                 Run(typeof(StarLevelWorldBalance), patches => StarLevelWorldBalance.Initialize(patches));
                 Run(typeof(NemesisMinibosses), patches => NemesisMinibosses.Initialize(patches));
