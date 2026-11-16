@@ -15,6 +15,13 @@ namespace EpicLootProgressionFix
         private const int Copies = 3;
         // Each one-shot sound's playing copies and where they started, pruned as they finish.
         private static readonly Dictionary<int, List<(AudioSource Source, Vector3 Position)>> playing = new Dictionary<int, List<(AudioSource, Vector3)>>();
+        // A sound is known by its first clip. The game's sound hash can't tell sounds apart: dozens of different sounds share
+        // one, such as lightning, blood and nature impacts and the player's catching-fire cue, and some have none.
+        private static int Sound(ZSFX sfx)
+        {
+            var clips = sfx.m_audioClips;
+            return clips.Length > 0 && clips[0] ? clips[0].GetInstanceID() : sfx.m_hash;
+        }
         // Off plays every repeat, as natively; the isolated client switches it for paired measurements.
         internal static bool Limiting = true;
 
@@ -24,7 +31,7 @@ namespace EpicLootProgressionFix
 
         private static bool Prefix(ZSFX sfx, ref bool __result)
         {
-            if (!Limiting || sfx.IsLooping() || !playing.TryGetValue(sfx.m_hash, out var copies)) return true;
+            if (!Limiting || sfx.IsLooping() || !playing.TryGetValue(Sound(sfx), out var copies)) return true;
             var position = sfx.transform.position;
             float distance = sfx.GetConcurrencyDistance();
             int near = 0;
@@ -44,7 +51,8 @@ namespace EpicLootProgressionFix
             if (!__result || !Limiting || sfx.IsLooping()) return;
             var source = sfx.GetComponent<AudioSource>();
             if (!source) return;
-            if (!playing.TryGetValue(sfx.m_hash, out var copies)) playing.Add(sfx.m_hash, copies = new List<(AudioSource, Vector3)>());
+            int sound = Sound(sfx);
+            if (!playing.TryGetValue(sound, out var copies)) playing.Add(sound, copies = new List<(AudioSource, Vector3)>());
             copies.Add((source, sfx.transform.position));
         }
     }
