@@ -138,6 +138,9 @@ namespace EpicLootProgressionFix
                 owner = player;
                 profile = currentProfile;
                 legacyCredits = credits;
+                // Finding the cooking stations' casts walks every prefab, about 50 ms; done here, behind the loading screen,
+                // instead of in the frame of the first enchanted drop.
+                ConversionSources();
             }
             catch (Exception error)
             {
