@@ -13,15 +13,15 @@ namespace EpicLootProgressionFix
         {
             switch (biome)
             {
-                case Heightmap.Biome.Meadows: return (25, 1, 0);
-                case Heightmap.Biome.BlackForest: return (50, 2, 0);
-                case Heightmap.Biome.Swamp: return (100, 2, 1);
-                case Heightmap.Biome.Mountain: return (175, 3, 1);
-                case Heightmap.Biome.Plains: return (250, 3, 2);
-                case Heightmap.Biome.Ocean: return (250, 3, 2);
-                case Heightmap.Biome.Mistlands: return (400, 4, 2);
-                case Heightmap.Biome.AshLands: return (550, 4, 3);
-                case Heightmap.Biome.DeepNorth: return (700, 5, 4);
+                case Heightmap.Biome.Meadows: return (18, 1, 0);
+                case Heightmap.Biome.BlackForest: return (35, 2, 0);
+                case Heightmap.Biome.Swamp: return (70, 2, 1);
+                case Heightmap.Biome.Mountain: return (120, 3, 1);
+                case Heightmap.Biome.Plains: return (175, 3, 2);
+                case Heightmap.Biome.Ocean: return (175, 3, 2);
+                case Heightmap.Biome.Mistlands: return (280, 4, 2);
+                case Heightmap.Biome.AshLands: return (385, 4, 3);
+                case Heightmap.Biome.DeepNorth: return (490, 5, 4);
                 default: return (0, 0, 0);
             }
         }

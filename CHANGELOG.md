@@ -4,6 +4,7 @@
 - A chest holding many runes no longer makes the game stutter for up to a fifth of a second when you arrive near it.
 - The first enchanted item to drop after you join no longer makes the game stutter for about 40 ms.
 - A chest of about 40 runes loads about a quarter faster the first time you come near it and twice as fast when you return, so arriving at a base with such chests stutters less.
+- Bounty targets and Nemesis minibosses drop about 30% fewer coins when killed, from 18 in the Meadows to 490 in the Deep North. They drop the same bounty tokens as before.
 
 # 1.29.0
 
