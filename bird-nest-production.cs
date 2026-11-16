@@ -1,5 +1,4 @@
-using System;
-using HarmonyLib;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace EpicLootProgressionFix
@@ -12,18 +11,40 @@ namespace EpicLootProgressionFix
     internal static class BirdNestProduction
     {
         private static readonly int Nest = "piece_birdnest".GetStableHashCode();
-        private static readonly Func<Beehive, bool> CheckBiome = AccessTools.MethodDelegate<Func<Beehive, bool>>(AccessTools.Method(typeof(Beehive), "CheckBiome"));
-        private static readonly Func<Beehive, bool> HaveFreeSpace = AccessTools.MethodDelegate<Func<Beehive, bool>>(AccessTools.Method(typeof(Beehive), "HaveFreeSpace"));
 
-        // Called for an owned nest or hive whose production step is due.
-        internal static bool MayProduce(ZNetView view, Beehive hive)
+        // Called for an owned nest or hive whose production step is due, with the biome and space check the game's update
+        // has just made.
+        internal static bool MayProduce(ZNetView view, Beehive hive, bool biomeAndSpace)
         {
             var zdo = view.GetZDO();
             if (zdo.GetPrefab() != Nest) return true;
-            if (!ZNetScene.instance.IsAreaReady(hive.transform.position)) return false;
-            if (CheckBiome(hive) && HaveFreeSpace(hive)) return true;
+            if (!AreaReady(hive.transform.position)) return false;
+            if (biomeAndSpace) return true;
             zdo.Set(ZDOVars.s_lastTime, ZNet.instance.GetTime().Ticks);
             return false;
+        }
+
+        // IsAreaReady visits every object in the 3 by 3 zones around a point, and the nests a base loaded together all step
+        // in one batch of the game's delayed calls. Within one batch, identified by its frame and fixed step, a zone's
+        // answer is kept for the nests after the first; it never outlives the batch.
+        private static readonly Dictionary<Vector2s, bool> BatchAnswers = new Dictionary<Vector2s, bool>();
+        private static int batchFrame = -1;
+        private static bool batchFixedStep;
+        private static double batchFixedTime;
+
+        internal static bool AreaReady(Vector3 position)
+        {
+            int frame = Time.frameCount;
+            bool fixedStep = Time.inFixedTimeStep;
+            double fixedTime = Time.fixedTimeAsDouble;
+            if (frame != batchFrame || fixedStep != batchFixedStep || fixedTime != batchFixedTime)
+            {
+                BatchAnswers.Clear();
+                batchFrame = frame; batchFixedStep = fixedStep; batchFixedTime = fixedTime;
+            }
+            var zone = ZoneSystem.GetZone(position);
+            if (!BatchAnswers.TryGetValue(zone, out bool ready)) BatchAnswers[zone] = ready = ZNetScene.instance.IsAreaReady(position);
+            return ready;
         }
     }
 }
