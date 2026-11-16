@@ -10,6 +10,7 @@
 - A cargo crate sunk into the ground, out of sight and reach, rises back onto the surface within half a minute of you coming near. A loaded cart or ship that breaks could leave its cargo buried like this.
 - Magic from your staves, Dundr and the Jotun Witch form no longer damages buildings players built, and neither does the Trollstav's landing blast. The troll itself still smashes everything near it, buildings included. Ruins and other buildings found in the world still take the damage.
 - Staff of Fracturing knocks each creature back once per cast, away from where the bolt bursts. Before, the bolt and every splinter that reached a creature shoved it again in its own direction, so creatures caught in a burst jittered about. Every splinter still deals its damage.
+- Sprinting on a mount through knee-deep water carries it forward, slowed by the water, instead of throwing it backwards again and again.
 
 # 1.28.0
 

@@ -16,7 +16,8 @@ namespace EpicLootProgressionFix
     // - Mounted controls come from the game's guarded input, so chat, menus and text entry never move or attack, and
     //   controller movement, sprint, jump and attacks work like the keyboard.
     // - Riding multiplies ground movement only, from the creature's current speeds; a speed another mod changes
-    //   during the ride is kept and multiplied, and dismounting restores only what riding set.
+    //   during the ride is kept and multiplied, and dismounting restores only what riding set. Water slows
+    //   a ridden creature as it would at its own speed, before the multiplier.
     // - Vegetation clearing runs only on the mount's owner, never touches protected crops and plantings, and every
     //   collision it passes through comes back even after the ride ends.
     // - Sit goes through the animal's owner instead of taking ownership, and releasing it resumes following whoever
@@ -100,6 +101,8 @@ namespace EpicLootProgressionFix
             harmony.Patch(Method(movement, "Update"), prefix: Hook(nameof(UpdateMovement)));
             harmony.Patch(Method(movement, "Restore"), prefix: Hook(nameof(RestoreMovement)));
             harmony.Patch(Method(movement, "RestoreAll"), prefix: Hook(nameof(RestoreAllMovement)));
+            harmony.Patch(AccessTools.Method(typeof(Character), "ApplyLiquidResistance") ?? throw new InvalidOperationException("Character's liquid resistance moved."),
+                prefix: Hook(nameof(WadeAtOwnSpeed)), postfix: Hook(nameof(KeepRidingMultiplier)));
             harmony.Patch(Method(trample, "Update"), prefix: Hook(nameof(OwnerTramples)));
             harmony.Patch(Method(trample, "IsTrampleable"), postfix: Hook(nameof(ProtectPlantings)));
             harmony.Patch(AccessTools.Method(typeof(Sadle), "FixedUpdate"), postfix: Hook(nameof(RestoreCollisions)));
@@ -295,6 +298,20 @@ namespace EpicLootProgressionFix
             foreach (var character in Rides.Keys.ToList()) RestoreMovement(character);
             return false;
         }
+
+        // Water a third of a creature's height deep takes speed * speed / 20 off its ground speed, which goes below zero past
+        // 20 m/s: a Spirit Moose's 12.6 m/s sprint ridden at 2.5x went backwards in knee-deep water. Wading uses the
+        // creature's own speed.
+        private static void WadeAtOwnSpeed(Character __instance, ref float speed, out float __state)
+        {
+            __state = 1f;
+            if (Rides.Count == 0 || !Rides.TryGetValue(__instance, out var ride)) return;
+            int field = __instance.IsWalking() ? 1 : __instance.IsRunning() ? 2 : 0;
+            if (ride.Original[field] > 0f && Speed(__instance, field) == ride.Applied[field]) __state = ride.Applied[field] / ride.Original[field];
+            speed /= __state;
+        }
+
+        private static void KeepRidingMultiplier(ref float speed, float __state) => speed *= __state;
 
         private static bool OwnerTramples(Character mount)
         {
