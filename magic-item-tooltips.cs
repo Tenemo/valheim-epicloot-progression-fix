@@ -77,17 +77,18 @@ namespace EpicLootProgressionFix
         }
 
         // A single summon per cast goes without saying, and the cap shared by everyone's summons shows only with Shift, except
-        // Staff of the Wild's, which grows with each upgrade.
+        // Staff of the Wild's, which grows with each upgrade. The Trollstav's trolls follow no one and have only their caster's limit.
         private static void AddSummons(List<string> rows, Player player, ItemDrop.ItemData item, int quality)
         {
             var spawn = Summoning(item);
             if (!spawn) return;
+            bool troll = TrollstavSummons.Summons(spawn);
             int maximum = spawn.m_maxToSpawn > spawn.m_minToSpawn ? spawn.m_maxToSpawn - 1 : spawn.m_minToSpawn;
             if (spawn.m_minToSpawn != 1 || maximum != 1) rows.Add("Summons per cast: " + spawn.m_minToSpawn + (maximum == spawn.m_minToSpawn ? "" : "-" + maximum));
             var level = spawn.m_levelUpSettings?.AsEnumerable().Reverse().FirstOrDefault(setting => player.GetSkillLevel(setting.m_skill) >= setting.m_skillLevel);
             int following = level == null ? 0 : spawn.m_setMaxInstancesFromWeaponLevel ? quality : level.m_maxSpawns;
-            if (spawn.m_commandOnSpawn && following > 0) rows.Add("Follower limit: " + following);
-            int nearby = StaffQuality.IsRoots(spawn) ? StaffQuality.RootLimit(spawn.m_maxSpawned, quality) : spawn.m_maxSpawned;
+            if (spawn.m_commandOnSpawn && following > 0) rows.Add((troll ? "Troll limit: " : "Follower limit: ") + following);
+            int nearby = troll ? 0 : StaffQuality.IsRoots(spawn) ? StaffQuality.RootLimit(spawn.m_maxSpawned, quality) : spawn.m_maxSpawned;
             if (nearby > 0 && (MagicItem.ShowEffectDetails || StaffQuality.IsRoots(spawn))) rows.Add("Summon limit nearby: " + nearby + " per type");
             if (spawn.m_copySkill != Skills.SkillType.None && spawn.m_copySkillToRandomFactor > 0)
                 rows.Add("Summon damage multiplier: " + (1f + player.GetSkillLevel(spawn.m_copySkill) * spawn.m_copySkillToRandomFactor).ToString("0.###", CultureInfo.CurrentCulture) + "x");

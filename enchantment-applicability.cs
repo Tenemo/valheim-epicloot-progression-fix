@@ -155,8 +155,8 @@ namespace EpicLootProgressionFix
             if (effectType == MagicEffectType.FrostDamageAOE)
                 return builds ? "a build tool never attacks" : weapon && (!damage || !attacks.Any(attack => attack.m_attackType == Attack.AttackType.Horizontal ||
                     attack.m_attackType == Attack.AttackType.Vertical)) ? "it has no melee swing" : null;
-            // The bonuses reach tamed magic summons as they appear. Trollstav's troll is not tamed and the other casts summon
-            // nothing; Dead Raiser, Spirit Caller and Hel's staff, whose full set raises thralls, stay.
+            // The bonuses reach tamed magic summons and the Trollstav's troll as they appear; the other casts summon nothing.
+            // Dead Raiser, Spirit Caller, the Trollstav and Hel's staff, whose full set raises thralls, stay.
             if (effectType == MagicEffectType.ModifySummonDamage || effectType == MagicEffectType.ModifySummonHealth)
                 return weapon && !attacks.Any(Summons) && !RaisesThralls(magic) ? "it summons nothing these bonuses reach" : null;
             return null;
@@ -190,8 +190,9 @@ namespace EpicLootProgressionFix
 
         private static bool Summons(Attack attack) =>
             attack.m_attackProjectile && attack.m_attackProjectile.GetComponent<SpawnAbility>()?.m_spawnPrefab?.Any(prefab => prefab &&
-                prefab.GetComponent<Tameable>() is Tameable tame && tame.m_startsTamed &&
-                (tame.m_levelUpOwnerSkill == Skills.SkillType.BloodMagic || tame.m_levelUpOwnerSkill == Skills.SkillType.ElementalMagic)) == true;
+                (prefab.GetComponent<Tameable>() is Tameable tame && tame.m_startsTamed &&
+                (tame.m_levelUpOwnerSkill == Skills.SkillType.BloodMagic || tame.m_levelUpOwnerSkill == Skills.SkillType.ElementalMagic) ||
+                prefab.name == TrollstavSummons.Troll)) == true;
 
         private static bool RaisesThralls(MagicItem magic) =>
             UniqueLegendaryHelper.TryGetLegendarySetInfo(magic.SetID, out var set) && set.SetBonuses.Any(bonus => bonus?.Effect?.Type == MagicEffectType.HelsHarvest);

@@ -39,7 +39,7 @@ namespace EpicLootProgressionFix
         private static float Bonus(Character character)
         {
             var data = GameFields.CharacterView(character).GetZDO();
-            if (Player.m_localPlayer)
+            if (Player.m_localPlayer && !TrollstavSummons.IsTroll(data))
             {
                 float bonus = Player.m_localPlayer.HasActiveMagicEffect(MagicEffectType.ModifySummonHealth, out float value, .01f) ? value : 0f;
                 data.Set(BonusKey, bonus);
@@ -48,8 +48,12 @@ namespace EpicLootProgressionFix
             return data.GetFloat(BonusKey);
         }
 
+        // The Trollstav's caster stores their bonus when the troll appears, since whoever runs it later may be someone else.
+        internal static void Record(Character troll, Player caster) =>
+            GameFields.CharacterView(troll).GetZDO().Set(BonusKey, caster.HasActiveMagicEffect(MagicEffectType.ModifySummonHealth, out float value, .01f) ? value : 0f);
+
         // The server has no local player. Carry the client's applied bonus with the summon across ownership and loads;
-        // clients still use the current equipped effect, as EpicLoot does.
+        // clients still use the current equipped effect, as EpicLoot does. A troll always keeps its caster's stored bonus.
         private static bool ApplyBonus(Character __0, ref float __1)
         {
             if (!MagicSummon(__0)) return true;
@@ -59,8 +63,9 @@ namespace EpicLootProgressionFix
 
         private static bool MagicSummon(Character character)
         {
-            if (!character || !character.IsTamed()) return false;
+            if (!character) return false;
             var view = GameFields.CharacterView(character);
+            if (!character.IsTamed()) return view && view.IsValid() && view.IsOwner() && TrollstavSummons.IsTroll(view.GetZDO());
             var tame = character.GetComponent<Tameable>();
             return view && view.IsValid() && view.IsOwner() && tame &&
                 (tame.m_levelUpOwnerSkill == Skills.SkillType.BloodMagic || tame.m_levelUpOwnerSkill == Skills.SkillType.ElementalMagic);

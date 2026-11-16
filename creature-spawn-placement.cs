@@ -519,6 +519,7 @@ namespace EpicLootProgressionFix
             if (!view || !view.IsValid()) return;
             var ai = character.GetBaseAI();
             if (ai) SpawnPoint(ai) = view.GetZDO().GetVec3(ZDOVars.s_spawnPoint, character.transform.position);
+            TrollstavSummons.Landed(character);
             if (!tame || !view.IsOwner()) return;
             int limit = view.GetZDO().GetInt(ZDOVars.s_maxInstances);
             if (limit > 0) EnforceSummonLimit(tame, limit);

@@ -148,11 +148,12 @@ namespace EpicLootProgressionFix
             if (spirit != 0) return Player.GetPlayer(spirit);
             return TryGet(character, out long player, out _) ? Player.GetPlayer(player) : null;
         }
-        // The player who summoned any kind of player summon, or 0.
+        // The player who summoned any kind of player summon, or 0. The Trollstav's troll is the one untamed summon.
         internal static long SummonerId(Character character)
         {
             long bat = SummonedBats.SummonerId(character);
-            if (bat != 0 || !character || !character.IsTamed()) return bat;
+            if (bat != 0 || !character) return bat;
+            if (!character.IsTamed()) return TryGet(character, out long caster, out string staff) && staff == TrollstavSummons.Staff ? caster : 0;
             var data = GameFields.CharacterView(character).GetZDO();
             long raised = data.GetLong(RaisedByHash, 0L);
             if (raised != 0) return raised;
