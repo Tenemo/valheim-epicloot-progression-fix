@@ -30,7 +30,7 @@ namespace EpicLootProgressionFix
         private static TreasureReceipts treasures;
         private static TreasureRecordingStart recordingStart;
         private static string outboxPath, treasuresPath;
-        private static long character, world;
+        private static long character, world, treasuresWorld, treasuresPlayer;
         private static float nextSend, nextSave, nextError, nextTreasureSend;
         private static readonly HashSet<string> overdue = new HashSet<string>();
         private static readonly Dictionary<ZRpc, ItemActivityBatchLimit> batchLimits = new Dictionary<ZRpc, ItemActivityBatchLimit>();
@@ -65,9 +65,11 @@ namespace EpicLootProgressionFix
                 });
         }
 
-        // The store of the current world and character, opened when either changes; receipts left unsaved are reported.
+        // The store of the current world and character, opened when either changes; receipts left unsaved are reported. Tick asks
+        // every frame, so the open store is matched by its ids before the path is built.
         private static TreasureReceipts Treasures(long worldId, long playerId)
         {
+            if (treasures != null && worldId == treasuresWorld && playerId == treasuresPlayer) return treasures;
             string path = Path.Combine(Paths.BepInExRootPath, "item-activity-state",
                 worldId.ToString(CultureInfo.InvariantCulture) + "-" + playerId.ToString(CultureInfo.InvariantCulture) + ".treasure.json");
             if (path == treasuresPath && treasures != null) return treasures;
@@ -75,6 +77,7 @@ namespace EpicLootProgressionFix
                 logger?.LogError($"Private item activity: {treasures.Pending.Count} treasure discovery receipt(s) could not be saved before the character or world changed.");
             treasures = null;
             treasuresPath = path;
+            treasuresWorld = worldId; treasuresPlayer = playerId;
             treasures = new TreasureReceipts(path);
             if (treasures.Unreadable != null) logger?.LogError("Private item activity: unreadable treasure discovery receipts were kept aside as " + treasures.Unreadable);
             return treasures;
