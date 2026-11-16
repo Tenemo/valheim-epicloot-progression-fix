@@ -6,7 +6,10 @@ using UnityEngine;
 
 namespace EpicLootProgressionFix
 {
-    internal static class TamedBuildingDamage
+    // Player-built pieces take no damage from tames, which include most player summons, from the magic of a player's staff,
+    // Dundr or Jotun Witch form, or from the Trollstav's landing blast. The untamed troll's own attacks still hit them, and
+    // ruins and other world-generated buildings take every hit as before.
+    internal static class FriendlyBuildingDamage
     {
         private sealed class Origin
         {
@@ -14,7 +17,7 @@ namespace EpicLootProgressionFix
             internal Origin(ZDOID creature) { Creature = creature; }
         }
 
-        private const string OriginKey = Plugin.Id + ".tame-origin";
+        private const string OriginKey = Plugin.Id + ".friendly-origin";
         private static readonly ConditionalWeakTable<Component, Origin> Origins = new ConditionalWeakTable<Component, Origin>();
         private static Origin current;
 
@@ -25,12 +28,20 @@ namespace EpicLootProgressionFix
             return view && !view.GetComponent<Character>() ? view : null;
         }
 
-        private static Origin Capture(Character owner)
+        private static Origin Capture(Character owner, ItemDrop.ItemData weapon = null)
         {
             if (!owner) return current;
-            var view = GameFields.CharacterView(owner);
-            return !owner.IsPlayer() && view && view.IsValid() && owner.IsTamed() ? new Origin(view.GetZDO().m_uid) : null;
+            return (owner.IsPlayer() ? IsMagic(weapon) : owner.IsTamed()) ? Source(owner) : null;
         }
+
+        private static Origin Source(Character owner)
+        {
+            var view = GameFields.CharacterView(owner);
+            return view && view.IsValid() ? new Origin(view.GetZDO().m_uid) : null;
+        }
+
+        private static bool IsMagic(ItemDrop.ItemData weapon) => weapon != null && (HexenCollateralDamage.IsWitchWeapon(weapon) ||
+            weapon.m_shared.m_skillType == Skills.SkillType.ElementalMagic || weapon.m_shared.m_skillType == Skills.SkillType.BloodMagic);
 
         private static void Remember(Component effect, Origin origin)
         {
@@ -57,7 +68,7 @@ namespace EpicLootProgressionFix
             foreach (var projectile in effect.GetComponentsInChildren<Projectile>(true)) Remember(projectile, origin);
         }
 
-        private static bool FromTame(HitData hit)
+        private static bool FromFriend(HitData hit)
         {
             if (hit.m_attacker == ZDOID.None) return current != null;
             if (current != null && hit.m_attacker == current.Creature) return true;
@@ -85,20 +96,22 @@ namespace EpicLootProgressionFix
                 // Planted vegetation retains its existing crop/trampling policy and normal tree damage.
                 if (__instance is Destructible destructible && (__instance.GetComponent<Plant>() || __instance.GetComponent<Pickable>() ||
                     (destructible.GetDestructibleType() & DestructibleType.Tree) != 0)) return true;
-                return !FromTame(hit);
+                return !FromFriend(hit);
             }
         }
 
         [HarmonyPatch(typeof(Projectile), nameof(Projectile.Setup))]
         private static class ProjectileSetup
         {
-            private static void Postfix(Projectile __instance, Character owner) => Remember(__instance, Capture(owner));
+            private static void Postfix(Projectile __instance, Character owner, ItemDrop.ItemData item) => Remember(__instance, Capture(owner, item));
         }
 
         [HarmonyPatch(typeof(Aoe), nameof(Aoe.Setup))]
         private static class AreaSetup
         {
-            private static void Postfix(Aoe __instance, Character owner) => Remember(__instance, Capture(owner));
+            // The Trollstav's landing blast belongs to the troll it brings, which isn't tamed.
+            private static void Postfix(Aoe __instance, Character owner, ItemDrop.ItemData item) =>
+                Remember(__instance, owner && Utils.GetPrefabName(__instance.transform.root.gameObject) == StaffQuality.TrollLanding ? Source(owner) : Capture(owner, item));
         }
 
         [HarmonyPatch(typeof(Aoe), "Awake")]
@@ -145,14 +158,21 @@ namespace EpicLootProgressionFix
             private static void Finalizer(Origin __state) => current = __state;
         }
 
-        [HarmonyPatch(typeof(Attack), "DoAreaAttack")]
-        private static class AreaAttack
+        // The Jotun Witch form's magic blast is a melee attack.
+        [HarmonyPatch]
+        private static class DirectAttack
         {
+            private static IEnumerable<MethodBase> TargetMethods()
+            {
+                yield return AccessTools.Method(typeof(Attack), "DoAreaAttack");
+                yield return AccessTools.Method(typeof(Attack), "DoMeleeAttack");
+            }
+
             [HarmonyPriority(Priority.First)]
             private static void Prefix(Attack __instance, out Origin __state)
             {
                 __state = current;
-                current = Capture(GameFields.AttackCharacter(__instance));
+                current = Capture(GameFields.AttackCharacter(__instance), GameFields.AttackWeapon(__instance));
             }
             private static void Finalizer(Origin __state) => current = __state;
         }

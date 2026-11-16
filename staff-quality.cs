@@ -16,6 +16,7 @@ namespace EpicLootProgressionFix
     {
         private const string TrollQualityKey = Plugin.Id + ".trollstav-quality";
         private const string DundrBolt = "staff_lightning_projectile";
+        internal const string TrollLanding = "staff_redtroll_aoe";
         internal const string FrostStaff = "StaffIceShards";
         private static readonly ConditionalWeakTable<Attack, StrongBox<int>> SetBolts = new ConditionalWeakTable<Attack, StrongBox<int>>();
         private static readonly ConditionalWeakTable<GameObject, object> ScaledBursts = new ConditionalWeakTable<GameObject, object>();
@@ -71,7 +72,7 @@ namespace EpicLootProgressionFix
                     break;
                 // The Trollstav's landing blast reaches 5 m further per upgrade. Its owner is the summoned troll, which carries the
                 // staff's quality because the blast may be released later, by whichever game finishes placing the troll.
-                case "staff_redtroll_aoe":
+                case TrollLanding:
                     var data = owner ? GameFields.CharacterView(owner)?.GetZDO() : null;
                     if (data != null) __instance.m_radius = 10f + 5f * Upgrades(data.GetInt(TrollQualityKey, 1));
                     break;
@@ -177,7 +178,7 @@ namespace EpicLootProgressionFix
                 var prefab = __instance.GetPrefab(name);
                 if (!prefab || !prefab.GetComponentInChildren<T>(true)) throw new InvalidOperationException("Staff effect " + name + " with its " + typeof(T).Name + " is missing.");
             }
-            foreach (string name in new[] { "staff_shield_aoe", "staff_FrostOrbs_aoe", "staff_OrbofAhri_aoe", "staff_redtroll_aoe" }) Require<Aoe>(name);
+            foreach (string name in new[] { "staff_shield_aoe", "staff_FrostOrbs_aoe", "staff_OrbofAhri_aoe", TrollLanding }) Require<Aoe>(name);
             if (!Chaining(__instance.GetPrefab("staff_thunderblood_aoe"))) throw new InvalidOperationException("Lightning Strike's chaining burst is missing.");
             // The two summonings aren't networked: Staff of the Wild's projectile spawns its roots, and the Trollstav's attack is its spawn.
             var roots = __instance.GetPrefab("staff_greenroots_projectile")?.GetComponent<Projectile>()?.m_spawnOnHit;

@@ -170,7 +170,7 @@ namespace EpicLootProgressionFix
         private static void Spawned(GameObject spawned, SpawnAbility ability)
         {
             var caster = SpawnerOf(ability);
-            TamedBuildingDamage.Remember(spawned, caster);
+            FriendlyBuildingDamage.Remember(spawned, caster);
             var area = spawned ? spawned.GetComponent<Aoe>() : null;
             if (area && caster && !caster.IsPlayer()) Remember(area, factorOf(caster));
         }

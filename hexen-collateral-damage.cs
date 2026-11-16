@@ -10,8 +10,8 @@ namespace EpicLootProgressionFix
     // deal 10% to buildings and 25% to ordinary tames; summons, wild creatures and players take full damage. No creature
     // takes its fourfold surprise damage from them. The game that makes a hit changes it once, before it is sent, so the
     // owner of the target never changes it again, and a bolt keeps its source after the Hexen that cast it dies. A player in
-    // the Jotun Witch form casts the same attacks: they deal the same 10% to buildings, so her own base survives them, and
-    // only reach her enemies.
+    // the Jotun Witch form casts the same attacks: they deal the same 10% to world-generated buildings, none to player-built
+    // ones, and only reach her enemies.
     internal static class HexenCollateralDamage
     {
         internal const float BuildingFactor = .1f, TameFactor = .25f;
@@ -38,8 +38,10 @@ namespace EpicLootProgressionFix
         internal static bool IsWildHexen(Character character) =>
             character && !character.IsPlayer() && !character.IsTamed() && GameFields.CharacterView(character)?.GetZDO()?.GetPrefab() == Hexen;
 
-        private static bool IsHexenAttack(Character attacker, ItemDrop.ItemData weapon) => IsWildHexen(attacker) ||
-            (attacker is Player && weapon?.m_dropPrefab && weapon.m_dropPrefab.name.StartsWith(WitchWeapon, StringComparison.Ordinal));
+        internal static bool IsWitchWeapon(ItemDrop.ItemData weapon) =>
+            weapon?.m_dropPrefab && weapon.m_dropPrefab.name.StartsWith(WitchWeapon, StringComparison.Ordinal);
+
+        private static bool IsHexenAttack(Character attacker, ItemDrop.ItemData weapon) => IsWildHexen(attacker) || (attacker is Player && IsWitchWeapon(weapon));
 
         private static void MarkBolt(Projectile __instance, Character owner, ItemDrop.ItemData item)
         {

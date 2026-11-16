@@ -8,6 +8,7 @@
 - Gullveig's Jotun Witch form is now an activated set ability: with the full set worn and its staff in hand, T (or the set abilities' gamepad button) turns you into the witch and back, so you can also cast the staff's own spell. Turning back in the air drops you, and putting the staff away still ends the form. While the set is worn with its staff, T no longer opens the emote wheel.
 - A trader's list updates as soon as the coins you carry change, such as when you claim bounty rewards at Haldor: items you can now afford light up instead of staying grey until you reopen the window.
 - A cargo crate sunk into the ground, out of sight and reach, rises back onto the surface within half a minute of you coming near. A loaded cart or ship that breaks could leave its cargo buried like this.
+- Magic from your staves, Dundr and the Jotun Witch form no longer damages buildings players built, and neither does the Trollstav's landing blast. The troll itself still smashes everything near it, buildings included. Ruins and other buildings found in the world still take the damage.
 
 # 1.28.0
 
