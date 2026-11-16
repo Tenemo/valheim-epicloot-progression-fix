@@ -92,10 +92,15 @@ namespace EpicLootProgressionFix
             groups.Add(group);
             foreach (string type in types) owners.Add("EpicLootProgressionFix." + type, group);
         }
+        // Owners are fixed once constructed, and hooks of integrations ask for theirs on every update, so each type's owner
+        // is looked up by name once.
+        private readonly Dictionary<Type, Group> typeOwners = new Dictionary<Type, Group>();
         private Group Owner(Type type)
         {
-            for (; type != null; type = type.DeclaringType) if (owners.TryGetValue(type.FullName, out var group)) return group;
-            return null;
+            if (typeOwners.TryGetValue(type, out var known)) return known;
+            Group found = null;
+            for (var declaring = type; declaring != null && found == null; declaring = declaring.DeclaringType) owners.TryGetValue(declaring.FullName, out found);
+            return typeOwners[type] = found;
         }
         internal static bool Enabled(Type type) => current?.Owner(type) is Group group ? group.Active && !group.Failed : true;
         private bool Allowed(Group group)

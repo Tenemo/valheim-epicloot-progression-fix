@@ -11,6 +11,7 @@ namespace EpicLootProgressionFix
     {
         private sealed class Equipment { internal float RemovedPenalty; }
         private static ConditionalWeakTable<Player, Equipment> Players = new ConditionalWeakTable<Player, Equipment>();
+        private static readonly string LowHealthMovement = ModifyWithLowHealth.EffectNameWithLowHealth(MagicEffectType.ModifyMovementSpeed);
 
         [HarmonyPrefix, HarmonyPatch(typeof(ModifyMovementSpeed), "GetModifyMovementSpeedAmount")]
         private static bool Movement(Player __0, ref float __result)
@@ -26,7 +27,7 @@ namespace EpicLootProgressionFix
         {
             float bonus = player.GetTotalActiveMagicEffectValue(MagicEffectType.ModifyMovementSpeed, .01f);
             if (ModifyWithLowHealth.PlayerHasLowHealth(player))
-                bonus += player.GetTotalActiveMagicEffectValue(ModifyWithLowHealth.EffectNameWithLowHealth(MagicEffectType.ModifyMovementSpeed), .01f);
+                bonus += player.GetTotalActiveMagicEffectValue(LowHealthMovement, .01f);
             return bonus;
         }
 

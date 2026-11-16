@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using HarmonyLib;
 using UnityEngine;
 
@@ -38,11 +39,22 @@ namespace EpicLootProgressionFix
         {
             private static bool Prepare() => AshRoof != null;
 
+            // Whether a piece is a ship, cart, vine or plant comes with its prefab, so each prefab is looked at once.
+            private static readonly Dictionary<int, bool> SparedPrefabs = new Dictionary<int, bool>();
+
             private static void Prefix(WearNTear __instance)
             {
                 ref bool covered = ref AshRoof(__instance);
-                if (!covered && (!__instance.m_burnable || __instance.GetComponent<Ship>() || __instance.GetComponent<Vagon>()
-                    || __instance.GetComponent<Vine>() || __instance.GetComponent<Plant>())) covered = true;
+                if (covered) return;
+                if (!__instance.m_burnable) { covered = true; return; }
+                var data = GameFields.WearView(__instance)?.GetZDO();
+                int prefab = data != null ? data.GetPrefab() : 0;
+                if (prefab == 0 || !SparedPrefabs.TryGetValue(prefab, out bool spared))
+                {
+                    spared = __instance.GetComponent<Ship>() || __instance.GetComponent<Vagon>() || __instance.GetComponent<Vine>() || __instance.GetComponent<Plant>();
+                    if (prefab != 0) SparedPrefabs[prefab] = spared;
+                }
+                if (spared) covered = true;
             }
         }
 

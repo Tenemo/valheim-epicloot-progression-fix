@@ -117,9 +117,12 @@ namespace EpicLootProgressionFix
         {
             Raised.Clear();
             if (eventSpawners) return;
-            var potions = PlayersInZone.SelectMany(player => PheromonePotions.EffectsOf(player.GetSEMan())).OfType<SE_Stats>()
-                .Where(effect => effect.m_pheromoneTarget != null && !effect.m_pheromoneFlee).ToList();
-            if (potions.Count == 0) return;
+            // Built only once a potion turns up; most passes find none.
+            List<SE_Stats> potions = null;
+            foreach (var player in PlayersInZone)
+                foreach (var effect in PheromonePotions.EffectsOf(player.GetSEMan()))
+                    if (effect is SE_Stats stats && stats.m_pheromoneTarget != null && !stats.m_pheromoneFlee) (potions ??= new List<SE_Stats>()).Add(stats);
+            if (potions == null) return;
             var raised = new List<SpawnSystem.SpawnData>(spawners);
             for (int index = 0; index < raised.Count; index++)
             {

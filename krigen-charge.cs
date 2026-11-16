@@ -27,9 +27,10 @@ namespace EpicLootProgressionFix
             if (!(__instance is Humanoid humanoid) || humanoid.IsPlayer() || !humanoid.InAttack()) return;
             var attack = CurrentAttack(humanoid);
             // Krigen carry a two-handed sword or axe; both charge the same way.
-            if (attack == null || attack.m_attackAnimation != Charge || Utils.GetPrefabName(humanoid.gameObject) != Krigen) return;
+            if (attack == null || attack.m_attackAnimation != Charge) return;
+            // The target before the name, which is copied into a new string on every read.
             var target = humanoid.GetBaseAI() is MonsterAI ai ? Target(ai) : null;
-            if (!target) return;
+            if (!target || Utils.GetPrefabName(humanoid.gameObject) != Krigen) return;
             // The slam is a sphere of the attack's width around a point the attack's range ahead of the creature.
             var slam = humanoid.transform.position + humanoid.transform.forward * attack.m_attackRange;
             var toTarget = target.transform.position - slam;

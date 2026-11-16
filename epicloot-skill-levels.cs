@@ -118,10 +118,11 @@ namespace EpicLootProgressionFix
         private static float InCarryWeight(Skills skills, Skills.SkillType skill, Player local)
         {
             if ((object)local == null) return skills.GetSkillLevel(skill);
-            if (Time.time >= carryBonusesUntil)
+            float now = Time.time;
+            if (now >= carryBonusesUntil)
             {
                 CarryBonuses.Clear();
-                carryBonusesUntil = Time.time + 1f;
+                carryBonusesUntil = now + 1f;
             }
             if (!CarryBonuses.TryGetValue(skill, out int bonus)) CarryBonuses[skill] = bonus = WornBonus(local, skill);
             return skills.GetSkillLevel(skill) + bonus;

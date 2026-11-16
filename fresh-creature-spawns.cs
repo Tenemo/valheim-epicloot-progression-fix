@@ -141,6 +141,8 @@ namespace EpicLootProgressionFix
         private bool collisions, released;
         private float releaseAt;
         private readonly Dictionary<Renderer, bool> renderers = new Dictionary<Renderer, bool>();
+        // Reused by every hidden creature's frame instead of a new array.
+        private static readonly List<Renderer> Found = new List<Renderer>();
 
         internal void Begin(Character creature)
         {
@@ -168,7 +170,8 @@ namespace EpicLootProgressionFix
         {
             // Leave renderers/components enabled: SLS must still find and recolor them, and VisEquipment may add
             // more before the first setup. forceRenderingOff only withholds drawing the unfinished model.
-            foreach (var renderer in character.GetVisual().GetComponentsInChildren<Renderer>(true))
+            character.GetVisual().GetComponentsInChildren(true, Found);
+            foreach (var renderer in Found)
             {
                 if (!renderers.ContainsKey(renderer)) renderers.Add(renderer, renderer.forceRenderingOff);
                 renderer.forceRenderingOff = true;

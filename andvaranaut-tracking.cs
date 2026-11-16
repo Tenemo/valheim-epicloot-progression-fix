@@ -44,11 +44,11 @@ namespace EpicLootProgressionFix
         }
 
         // The add-on does all of the local ring's pinging, so EpicLoot's own pings within its range stay off.
-        private static bool Prefix(SE_CustomFinder __instance) => !IsLocalRing(__instance);
+        private static bool Prefix(SE_CustomFinder __instance, out bool __state) => !(__state = IsLocalRing(__instance));
 
-        private static void Postfix(SE_CustomFinder __instance, float dt)
+        private static void Postfix(SE_CustomFinder __instance, float dt, bool __state)
         {
-            if (!IsLocalRing(__instance)) return;
+            if (!__state) return;
             var player = Player.m_localPlayer;
             if (__instance != finder)
             {

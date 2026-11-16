@@ -75,8 +75,10 @@ namespace EpicLootProgressionFix
             foreach (var controller in Active)
             {
                 if (controller.moves || controller.turn == frame) controller.place = controller.location.position;
-                float distance = Vector3.Distance(position, controller.place);
-                float blend = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(80f, 160f, distance));
+                // Within 80 m the blend is 0 and beyond 160 m it is 1; the root is taken only between them.
+                float squared = (position - controller.place).sqrMagnitude;
+                float blend = squared <= 80f * 80f ? 0f : squared >= 160f * 160f ? 1f :
+                    Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(80f, 160f, Vector3.Distance(position, controller.place)));
                 if (controller.prepared && controller.lastBlend == blend && controller.lastScreenMinimum == screenMinimum) continue;
                 controller.prepared = true;
                 controller.lastBlend = blend;

@@ -267,14 +267,15 @@ namespace EpicLootProgressionFix
         internal static void Tick()
         {
             var player = Player.m_localPlayer;
-            if (!player || player.GetPlayerID() == 0) return;
+            long playerId = player ? player.GetPlayerID() : 0;
+            if (playerId == 0) return;
             // Release the cell of a weapon that is carried again by any route, such as an attack that did not consume it.
             if (Reserved.Count > 0)
                 foreach (var item in player.GetInventory().GetAllItems())
                     if (item.m_customData.TryGetValue(ItemKey, out string id) && Reserved.ContainsKey(id)) Returned(player.GetInventory(), item);
             Load(player);
             if (Problem != null || player.IsDead() || Game.instance == null || Game.instance.WaitingForRespawn()) return;
-            var held = Recovered[player.GetPlayerID()];
+            var held = Recovered[playerId];
             if (held.Count == 0) return;
             foreach (var item in held.ToArray())
             {

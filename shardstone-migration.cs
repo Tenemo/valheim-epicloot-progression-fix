@@ -170,8 +170,9 @@ namespace EpicLootProgressionFix
 
         private static void GroundItem(ItemDrop __instance)
         {
+            if (!Ready || repairing) return;
             var view = __instance.GetComponent<ZNetView>();
-            if (!Ready || repairing || view == null || !view.IsValid() || !view.IsOwner()) return;
+            if (view == null || !view.IsValid() || !view.IsOwner()) return;
             repairing = true;
             try
             {

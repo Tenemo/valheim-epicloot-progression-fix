@@ -15,6 +15,7 @@ namespace EpicLootProgressionFix
         private const string Preference = "ProgressionFixShowFps";
         private const string ToggleName = "ProgressionFixShowFps";
         private static bool? shown;
+        private static FpsCounter instance;
         private TextMeshProUGUI label;
         private int frames;
         private float elapsed;
@@ -22,14 +23,20 @@ namespace EpicLootProgressionFix
         internal static bool Shown
         {
             get => shown ??= PlatformPrefs.GetInt(Preference, 0) == 1;
-            private set { shown = value; PlatformPrefs.SetInt(Preference, value ? 1 : 0); PlatformPrefs.Save(); }
+            private set
+            {
+                shown = value; PlatformPrefs.SetInt(Preference, value ? 1 : 0); PlatformPrefs.Save();
+                if (value && instance) instance.enabled = true;
+            }
         }
 
+        // While hidden the counter switches itself off, so it costs no update; showing it switches it back on.
         private void Update()
         {
             if (!Shown)
             {
                 if (label.enabled) { label.enabled = false; frames = 0; elapsed = 0f; }
+                enabled = false;
                 return;
             }
             frames++;
@@ -63,7 +70,8 @@ namespace EpicLootProgressionFix
                 label.outlineWidth = .25f;
                 label.outlineColor = Color.white;
                 label.enabled = false;
-                root.AddComponent<FpsCounter>().label = label;
+                instance = root.AddComponent<FpsCounter>();
+                instance.label = label;
             }
         }
 

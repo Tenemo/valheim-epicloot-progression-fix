@@ -45,8 +45,16 @@ namespace EpicLootProgressionFix
             nextCheck = Time.time + Interval;
             Light = Shader.GetGlobalColor(SunColour).r * Mathf.Max(0f, -__instance.GetSunDirection().y) + RenderSettings.ambientLight.r;
             Strength = Mathf.Round(Mathf.Clamp(1f + Gain * (ClearLight - Light), 1f, Strongest) / Step) * Step;
+            // Neighbouring volumes usually share one material, which the first write already brought up to date.
+            Material previous = null;
             foreach (var volume in WaterVolume.Instances)
-                if (volume.m_waterSurface) Write(volume.m_waterSurface.sharedMaterial);
+            {
+                if (!volume.m_waterSurface) continue;
+                var material = volume.m_waterSurface.sharedMaterial;
+                if ((object)material == previous) continue;
+                previous = material;
+                Write(material);
+            }
             // The sea beyond the loaded zones is one plane with its own material, loaded with the world.
             if (!distant && Time.time >= nextSearch)
             {

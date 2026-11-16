@@ -28,7 +28,7 @@ namespace EpicLootProgressionFix
         private static readonly AccessTools.FieldRef<Skills, Dictionary<Skills.SkillType, Skills.Skill>> SkillData = AccessTools.FieldRefAccess<Skills, Dictionary<Skills.SkillType, Skills.Skill>>("m_skillData");
         private static readonly Func<Player, float> DodgeCost = AccessTools.MethodDelegate<Func<Player, float>>(AccessTools.Method(typeof(Player), "GetDodgeStaminaUse"));
         private static readonly Func<Character, float> RunFactor = AccessTools.MethodDelegate<Func<Character, float>>(AccessTools.Method(typeof(Character), "GetRunSpeedFactor"));
-        private static readonly FieldInfo Current = AccessTools.Field(typeof(UITooltip), "m_current");
+        private static readonly AccessTools.FieldRef<UITooltip> Current = AccessTools.StaticFieldRefAccess<UITooltip>(AccessTools.Field(typeof(UITooltip), "m_current"));
         private static readonly Action<UITooltip> UpdateText = AccessTools.MethodDelegate<Action<UITooltip>>(AccessTools.Method(typeof(UITooltip), "UpdateTextElements"));
         private static readonly AccessTools.FieldRef<Humanoid, float> BlockTimer = AccessTools.FieldRefAccess<Humanoid, float>("m_blockTimer");
         private static readonly AccessTools.FieldRef<Humanoid, float> DrawTime = AccessTools.FieldRefAccess<Humanoid, float>("m_attackDrawTime");
@@ -57,7 +57,7 @@ namespace EpicLootProgressionFix
                     tooltip.m_tooltipPrefab = InventoryGui.instance.m_playerGrid.m_elementPrefab.GetComponent<UITooltip>().m_tooltipPrefab;
                 }
                 // A row whose tooltip opened during setup, in the window of the template it had then, opens again in its own.
-                if (ReferenceEquals(Current.GetValue(null), tooltip)) TooltipWindows.Replace(tooltip);
+                if (ReferenceEquals(Current(), tooltip)) TooltipWindows.Replace(tooltip);
                 if (supported) tooltip.Set(Localization.instance.Localize("$skill_" + skills[index].m_info.m_skill.ToString().ToLowerInvariant()), tooltip.m_text);
             }
         }
@@ -67,7 +67,7 @@ namespace EpicLootProgressionFix
         {
             if (Rows.TryGetValue(__instance, out var row) && row.Player)
             {
-                if (ReferenceEquals(Current.GetValue(null), __instance) && Time.unscaledTime < row.RefreshAt) return;
+                if (ReferenceEquals(Current(), __instance) && Time.unscaledTime < row.RefreshAt) return;
                 __instance.m_text = Text(row.Player, row.Skill); row.RefreshAt = Time.unscaledTime + .5f;
             }
         }
@@ -75,7 +75,7 @@ namespace EpicLootProgressionFix
         [HarmonyPatch(typeof(UITooltip), "LateUpdate"), HarmonyPostfix]
         private static void Refresh(UITooltip __instance)
         {
-            if (!ReferenceEquals(Current.GetValue(null), __instance) || !Rows.TryGetValue(__instance, out var row) || !row.Player || Time.unscaledTime < row.RefreshAt) return;
+            if (!ReferenceEquals(Current(), __instance) || !Rows.TryGetValue(__instance, out var row) || !row.Player || Time.unscaledTime < row.RefreshAt) return;
             row.RefreshAt = Time.unscaledTime + .5f;
             string text = Text(row.Player, row.Skill);
             if (__instance.m_text == text) return;

@@ -40,11 +40,14 @@ namespace EpicLootProgressionFix
             return -1;
         }
 
+        private static readonly string[] HotbarButtons = { "Hotbar1", "Hotbar2", "Hotbar3", "Hotbar4", "Hotbar5", "Hotbar6", "Hotbar7", "Hotbar8" };
+        private static readonly string[] HotbarAltButtons = { "Hotbar1Alt", "Hotbar2Alt", "Hotbar3Alt", "Hotbar4Alt", "Hotbar5Alt", "Hotbar6Alt", "Hotbar7Alt", "Hotbar8Alt" };
+
         // The hotbar slot whose key went down this frame, among the first eight, or -1.
         private static int PressedHotbar(Inventory inventory)
         {
             for (int slot = 0; slot < Math.Min(8, inventory.GetWidth()); slot++)
-                if (ZInput.GetButtonDown("Hotbar" + (slot + 1)) || ZInput.GetButtonDown("Hotbar" + (slot + 1) + "Alt")) return slot;
+                if (ZInput.GetButtonDown(HotbarButtons[slot]) || ZInput.GetButtonDown(HotbarAltButtons[slot])) return slot;
             return -1;
         }
 
