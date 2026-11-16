@@ -9,12 +9,17 @@ namespace EpicLootProgressionFix
     internal static class LegacyStarterGear
     {
         private static readonly Dictionary<int, int> MeadowsPrefabs = new Dictionary<int, int>();
+        // The same pairs as arrays: the prefab lookups run hundreds of times a frame, and a few comparisons beat a table.
+        private static int[] legacy = Array.Empty<int>(), meadows = Array.Empty<int>();
 
         internal static void Initialize(IntegrationPatches harmony)
         {
             foreach (ItemRarity rarity in Enum.GetValues(typeof(ItemRarity)))
                 MeadowsPrefabs.Add($"None_{rarity}_Unidentified".GetStableHashCode(),
                     $"Meadows_{rarity}_Unidentified".GetStableHashCode());
+
+            legacy = new int[MeadowsPrefabs.Count]; meadows = new int[MeadowsPrefabs.Count];
+            MeadowsPrefabs.Keys.CopyTo(legacy, 0); MeadowsPrefabs.Values.CopyTo(meadows, 0);
 
             // Resolve the saved identity before the game clones the prefab and restores item data.
             var resolve = new HarmonyMethod(typeof(LegacyStarterGear), nameof(ResolvePrefab));
@@ -31,7 +36,8 @@ namespace EpicLootProgressionFix
 
         private static void ResolvePrefab(ref int __0)
         {
-            if (MeadowsPrefabs.TryGetValue(__0, out int meadows)) __0 = meadows;
+            for (int index = 0; index < legacy.Length; index++)
+                if (__0 == legacy[index]) { __0 = meadows[index]; return; }
         }
 
         private static void LoadWorldItem(ref int ___m_prefab)

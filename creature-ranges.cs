@@ -11,8 +11,15 @@ namespace EpicLootProgressionFix
     internal static class CreaturePrefabs
     {
         private static readonly Dictionary<int, bool> Kinds = new Dictionary<int, bool>();
+        // A prefab's components never change, so each is looked through once.
+        private static readonly Dictionary<GameObject, bool> PrefabKinds = new Dictionary<GameObject, bool>();
 
-        internal static bool IsCreature(GameObject prefab) => IsCreature(prefab, new HashSet<GameObject>());
+        internal static bool IsCreature(GameObject prefab)
+        {
+            if (prefab == null) return false;
+            if (!PrefabKinds.TryGetValue(prefab, out bool creature)) PrefabKinds[prefab] = creature = IsCreature(prefab, new HashSet<GameObject>());
+            return creature;
+        }
 
         private static bool IsCreature(GameObject prefab, HashSet<GameObject> visited)
         {
@@ -89,8 +96,17 @@ namespace EpicLootProgressionFix
     internal static class FullLoading
     {
         internal static SimulationDistance Required => SimulationPresets.Distance(4);
-        internal static SimulationDistance DesiredDistance => SimulationPresets.AfterProjectiles(ZNet.instance != null && ZNet.instance.IsDedicated() ? Required :
-            SimulationPresets.Distance(GraphicsSettingsManager.Instance == null ? 4 : GraphicsSettingsManager.Instance.CurrentPlayerSettingsRaw.m_simulationDistance));
+        // A dedicated server's distance is fixed, which AfterProjectiles also returns unchanged there.
+        internal static SimulationDistance DesiredDistance
+        {
+            get
+            {
+                var network = ZNet.instance;
+                if (network != null && network.IsDedicated()) return Required;
+                return SimulationPresets.AfterProjectiles(
+                    SimulationPresets.Distance(GraphicsSettingsManager.Instance == null ? 4 : GraphicsSettingsManager.Instance.CurrentPlayerSettingsRaw.m_simulationDistance));
+            }
+        }
 
         [HarmonyPatch(typeof(ZNet), "GetDesiredSimulationDistance")]
         private static class Desired

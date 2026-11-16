@@ -45,7 +45,7 @@ namespace EpicLootProgressionFix
         private static bool stretchedSwing;
         private static Vector3 swingStart;
         private static readonly ConditionalWeakTable<Character, Body> Bodies = new ConditionalWeakTable<Character, Body>();
-        private static readonly Dictionary<string, float> PrefabScales = new Dictionary<string, float>();
+        private static readonly Dictionary<int, float> PrefabScales = new Dictionary<int, float>();
         private static readonly AccessTools.FieldRef<Attack, Humanoid> Attacker = AccessTools.FieldRefAccess<Attack, Humanoid>("m_character");
         private static readonly Func<Attack, Transform> AttackOrigin = AccessTools.MethodDelegate<Func<Attack, Transform>>(AccessTools.Method(typeof(Attack), "GetAttackOrigin"));
         private static readonly AccessTools.FieldRef<BaseAI, Character> AiCharacter = AccessTools.FieldRefAccess<BaseAI, Character>("m_character");
@@ -63,14 +63,17 @@ namespace EpicLootProgressionFix
         }
 
         // How much larger than its prefab the creature is drawn and collides.
+        // The game creates a networked creature from its record's prefab and names it after that prefab, so the record's
+        // prefab hash is the hash of the name, read without copying the name.
         private static float Enlargement(Character character)
         {
-            string name = Utils.GetPrefabName(character.gameObject);
-            if (!PrefabScales.TryGetValue(name, out float prefab))
+            var data = (object)character.m_nViewOverride == null ? GameFields.CharacterView(character)?.GetZDO() : null;
+            int hash = data != null ? data.GetPrefab() : Utils.GetPrefabName(character.gameObject).GetStableHashCode();
+            if (!PrefabScales.TryGetValue(hash, out float prefab))
             {
-                var original = ZNetScene.instance ? ZNetScene.instance.GetPrefab(name) : null;
+                var original = ZNetScene.instance ? ZNetScene.instance.GetPrefab(hash) : null;
                 prefab = original ? original.transform.localScale.x : 0f;
-                if (original) PrefabScales[name] = prefab;
+                if (original) PrefabScales[hash] = prefab;
             }
             return prefab > 0f ? character.transform.lossyScale.x / prefab : 1f;
         }

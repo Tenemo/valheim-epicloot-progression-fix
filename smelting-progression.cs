@@ -36,8 +36,14 @@ namespace EpicLootProgressionFix
         }
 
         private static readonly Func<Smelter, string> QueuedOre = AccessTools.MethodDelegate<Func<Smelter, string>>(AccessTools.Method(typeof(Smelter), "GetQueuedOre"));
-        private static readonly Func<Smelter, string, Smelter.ItemConversion> Conversion =
-            AccessTools.MethodDelegate<Func<Smelter, string, Smelter.ItemConversion>>(AccessTools.Method(typeof(Smelter), "GetItemConversion"));
+
+        // Smelter.GetItemConversion, which compares each conversion's ore by its prefab's name, read once per prefab.
+        private static Smelter.ItemConversion Conversion(Smelter smelter, string ore)
+        {
+            foreach (var conversion in smelter.m_conversion)
+                if (conversion.m_from == null || GameFields.PrefabName(conversion.m_from.gameObject) == ore) return conversion;
+            return null;
+        }
         // While a player's add-ore action runs: why the ore they carry cannot go in, shown instead of "no processable items".
         private static string carriedReason;
 
@@ -45,7 +51,7 @@ namespace EpicLootProgressionFix
         private static string Locked(Smelter.ItemConversion conversion)
         {
             if (!Plugin.SmeltingRequiresBosses.Value || conversion?.m_to == null || !ZoneSystem.instance) return null;
-            if (!Locks.TryGetValue(conversion.m_to.gameObject.name, out var gate)) return null;
+            if (!Locks.TryGetValue(GameFields.PrefabName(conversion.m_to.gameObject), out var gate)) return null;
             string key = gate.Key.Value.Trim();
             return key.Length > 0 && !ZoneSystem.instance.GetGlobalKey(key) ? Reason(gate.Metal, key) : null;
         }
@@ -57,7 +63,7 @@ namespace EpicLootProgressionFix
         private static string ProcessableOre(Smelter smelter)
         {
             string ore = QueuedOre(smelter);
-            return ore.Length > 0 && Locked(smelter, ore) != null ? "" : ore;
+            return ore.Length > 0 && Plugin.SmeltingRequiresBosses.Value && Locked(smelter, ore) != null ? "" : ore;
         }
 
         [HarmonyPatch(typeof(Smelter), "UpdateSmelter"), HarmonyTranspiler]

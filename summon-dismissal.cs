@@ -33,7 +33,11 @@ namespace EpicLootProgressionFix
 
         }
 
-        private static string EquippedStaff(Player player) => player.GetCurrentWeapon()?.m_dropPrefab?.name;
+        private static string EquippedStaff(Player player)
+        {
+            var prefab = player.GetCurrentWeapon()?.m_dropPrefab;
+            return prefab ? GameFields.PrefabName(prefab) : prefab?.name;
+        }
         private static int EquippedWeapon(ZDO actor)
         {
             int right = actor.GetInt(ZDOVars.s_rightItem);
