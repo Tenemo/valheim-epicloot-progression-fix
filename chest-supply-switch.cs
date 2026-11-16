@@ -1,5 +1,5 @@
 using System;
-using System.Linq;
+using System.Collections.Generic;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
@@ -16,6 +16,15 @@ namespace EpicLootProgressionFix
         private static ConfigEntry<KeyboardShortcut> toggleKey;
         private static readonly Func<KeyCode, bool, string> KeyCodeToPath =
             AccessTools.MethodDelegate<Func<KeyCode, bool, string>>(AccessTools.Method(typeof(ZInput), "KeyCodeToPath"));
+        // A key's input path comes from the game's fixed tables; the hotkey checks ask for it every frame.
+        private static readonly Dictionary<KeyCode, string> Paths = new Dictionary<KeyCode, string>();
+        private static readonly AccessTools.StructFieldRef<KeyboardShortcut, KeyCode[]> Keys = AccessTools.StructFieldRefAccess<KeyboardShortcut, KeyCode[]>("_allKeys");
+
+        private static string PathOf(KeyCode key)
+        {
+            if (!Paths.TryGetValue(key, out string path)) Paths[key] = path = KeyCodeToPath(key, false);
+            return path;
+        }
 
         internal static void Initialize(IntegrationPatches harmony, ManualLogSource log)
         {
@@ -35,7 +44,7 @@ namespace EpicLootProgressionFix
 
         private static bool NotOnToggleKey(KeyboardShortcut __0, ref bool __result)
         {
-            if (__0.MainKey == KeyCode.None || !HasPriority(KeyCodeToPath(__0.MainKey, false)))
+            if (__0.MainKey == KeyCode.None || !HasPriority(PathOf(__0.MainKey)))
                 return true;
             __result = false;
             return false;
@@ -46,17 +55,44 @@ namespace EpicLootProgressionFix
             if (toggleKey == null) return false;
             var toggle = toggleKey.Value;
             return toggle.MainKey != KeyCode.None &&
-                string.Equals(actionPath, KeyCodeToPath(toggle.MainKey, false), StringComparison.OrdinalIgnoreCase) &&
-                toggle.Modifiers.All(ModifierHeld);
+                string.Equals(actionPath, PathOf(toggle.MainKey), StringComparison.OrdinalIgnoreCase) &&
+                ModifiersHeld(toggle);
         }
 
         private static bool EitherShiftForToggle(KeyboardShortcut __0, ref bool __result)
         {
             var toggle = toggleKey.Value;
-            if (__0.MainKey != toggle.MainKey || !__0.Modifiers.SequenceEqual(toggle.Modifiers) ||
-                !toggle.Modifiers.Any(key => key == KeyCode.LeftShift || key == KeyCode.RightShift)) return true;
-            __result = toggle.MainKey != KeyCode.None && Input.GetKeyDown(toggle.MainKey) && toggle.Modifiers.All(ModifierHeld);
+            if (__0.MainKey != toggle.MainKey || !SameModifiers(__0, toggle) || !NamesShift(toggle)) return true;
+            __result = toggle.MainKey != KeyCode.None && Input.GetKeyDown(toggle.MainKey) && ModifiersHeld(toggle);
             return false;
+        }
+
+        // A shortcut's modifiers are its keys after the first, read without building an enumeration.
+        private static KeyCode[] AllKeys(KeyboardShortcut shortcut) => Keys(ref shortcut) ?? Array.Empty<KeyCode>();
+
+        private static bool SameModifiers(KeyboardShortcut first, KeyboardShortcut second)
+        {
+            var one = AllKeys(first); var other = AllKeys(second);
+            if (Math.Max(one.Length, 1) != Math.Max(other.Length, 1)) return false;
+            for (int index = 1; index < one.Length; index++)
+                if (one[index] != other[index]) return false;
+            return true;
+        }
+
+        private static bool NamesShift(KeyboardShortcut shortcut)
+        {
+            var keys = AllKeys(shortcut);
+            for (int index = 1; index < keys.Length; index++)
+                if (keys[index] == KeyCode.LeftShift || keys[index] == KeyCode.RightShift) return true;
+            return false;
+        }
+
+        private static bool ModifiersHeld(KeyboardShortcut shortcut)
+        {
+            var keys = AllKeys(shortcut);
+            for (int index = 1; index < keys.Length; index++)
+                if (!ModifierHeld(keys[index])) return false;
+            return true;
         }
 
         private static bool ModifierHeld(KeyCode key) => key == KeyCode.LeftShift || key == KeyCode.RightShift
