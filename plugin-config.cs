@@ -33,6 +33,7 @@ namespace EpicLootProgressionFix
         internal static ConfigEntry<float> BuffRefreshWindowPercent, DroppedItemLifetimeHours;
         internal static ConfigEntry<float> ShieldBlockArmorMultiplier, ShieldBlockForceMultiplier, RoundShieldParryIncrease, BucklerParryIncrease, CreatureBlockGrowth, StaggerHealthShare, BaseParryWindow;
         internal static ConfigEntry<bool> SmeltingRequiresBosses;
+        internal static ConfigEntry<string> FlametalWorldKey, BloodgoldWorldKey;
         internal static ConfigEntry<float> ShipZoomDistance, LandZoomMultiplier, DamageTextDistance, OwnDamageTextDistance, OffsetAttackVolume;
         internal static ConfigEntry<KeyCode> SpawnProtectionToggleKey, HexenFormKey, HexenFormGamepadButton;
         internal static ConfigEntry<Color> SpawnProtectionGroundColor, SpawnProtectionStripeColor, SpawnProtectionStripeShadowColor;
@@ -196,7 +197,12 @@ namespace EpicLootProgressionFix
                 Synced("Base seconds after raising a shield or parrying weapon during which a block counts as a parry.",
                     new AcceptableValueRange<float>(0.05f, 2f)));
             SmeltingRequiresBosses = Config.Bind("Smelting", "Require boss defeats", true,
-                Synced("Smelting flametal requires defeating Yagluth; smelting bloodgold requires defeating the Queen."));
+                Synced("Blast furnaces smelt flametal and bloodgold ore only once the world has the key set below for each."));
+            const string BossKeys = " Boss keys: defeated_eikthyr, defeated_gdking (the Elder), defeated_bonemass, defeated_dragon (Moder), defeated_goblinking (Yagluth), defeated_queen, defeated_fader. Empty needs no boss.";
+            FlametalWorldKey = Config.Bind("Smelting", "Flametal world key", "defeated_goblinking",
+                Synced("World key, set by a boss's defeat, that lets flametal ore smelt." + BossKeys));
+            BloodgoldWorldKey = Config.Bind("Smelting", "Bloodgold world key", "defeated_queen",
+                Synced("World key, set by a boss's defeat, that lets Petrified Tissue smelt into bloodgold." + BossKeys));
             DeathLeaderboardHour = Config.Bind("Death leaderboard", "Report hour", 6,
                 new ConfigDescription("Dedicated server only: daily report hour in Report time zone. Restart after changing.",
                     new AcceptableValueRange<int>(0, 23)));

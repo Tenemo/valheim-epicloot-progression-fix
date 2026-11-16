@@ -2,12 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Emit;
+using BepInEx.Configuration;
 using HarmonyLib;
 
 namespace EpicLootProgressionFix
 {
-    // With [Smelting] Require boss defeats, flametal smelts only once the world has defeated Yagluth and bloodgold only
-    // once it has defeated the Queen; the world's keys are read each time, so a defeat applies at once. Ore can still be
+    // With [Smelting] Require boss defeats, flametal and bloodgold smelt only once the world has the key its setting names,
+    // by default Yagluth's and the Queen's; the world's keys are read each time, so a defeat applies at once. Ore can still be
     // mined, carried and stored, and bars already made stay usable. A furnace takes no locked ore, whether added by hand,
     // from nearby chests or with pull all, and its owner refuses any that arrives. Ore queued before keeps its place and
     // partial progress: while it heads the queue the furnace burns no fuel, makes nothing and looks idle, and it carries
@@ -15,12 +16,24 @@ namespace EpicLootProgressionFix
     [HarmonyPatch]
     internal static class SmeltingProgression
     {
-        // The bar each lock holds back, the world key that releases it and the reason a player is told.
-        private static readonly Dictionary<string, (string Key, string Reason)> Locks = new Dictionary<string, (string, string)>
+        // The bar each lock holds back, the setting naming the world key that releases it and the metal a player is told about.
+        private static readonly Dictionary<string, (ConfigEntry<string> Key, string Metal)> Locks = new Dictionary<string, (ConfigEntry<string>, string)>
         {
-            ["FlametalNew"] = ("defeated_goblinking", "Flametal requires defeating Yagluth"),
-            ["Gold"] = ("defeated_queen", "Bloodgold requires defeating the Queen"),
+            ["FlametalNew"] = (Plugin.FlametalWorldKey, "Flametal"),
+            ["Gold"] = (Plugin.BloodgoldWorldKey, "Bloodgold"),
         };
+        // The reason a player is told for each metal and key, named after the creature whose defeat sets the key.
+        private static readonly Dictionary<(string Metal, string Key), string> Reasons = new Dictionary<(string, string), string>();
+
+        private static string Reason(string metal, string key)
+        {
+            if (Reasons.TryGetValue((metal, key), out var reason)) return reason;
+            var boss = ZNetScene.instance?.m_prefabs.Select(prefab => prefab ? prefab.GetComponent<Character>() : null)
+                .FirstOrDefault(character => character && character.m_defeatSetGlobalKey == key);
+            reason = boss ? $"{metal} requires defeating {Localization.instance.Localize(boss.m_name)}" : $"{metal} can't be smelted yet";
+            if (ZNetScene.instance) Reasons[(metal, key)] = reason;
+            return reason;
+        }
 
         private static readonly Func<Smelter, string> QueuedOre = AccessTools.MethodDelegate<Func<Smelter, string>>(AccessTools.Method(typeof(Smelter), "GetQueuedOre"));
         private static readonly Func<Smelter, string, Smelter.ItemConversion> Conversion =
@@ -32,7 +45,9 @@ namespace EpicLootProgressionFix
         private static string Locked(Smelter.ItemConversion conversion)
         {
             if (!Plugin.SmeltingRequiresBosses.Value || conversion?.m_to == null || !ZoneSystem.instance) return null;
-            return Locks.TryGetValue(conversion.m_to.gameObject.name, out var gate) && !ZoneSystem.instance.GetGlobalKey(gate.Key) ? gate.Reason : null;
+            if (!Locks.TryGetValue(conversion.m_to.gameObject.name, out var gate)) return null;
+            string key = gate.Key.Value.Trim();
+            return key.Length > 0 && !ZoneSystem.instance.GetGlobalKey(key) ? Reason(gate.Metal, key) : null;
         }
 
         internal static string Locked(Smelter smelter, string ore) => Locked(Conversion(smelter, ore));
