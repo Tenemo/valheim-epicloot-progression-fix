@@ -354,18 +354,40 @@ namespace EpicLootProgressionFix
                     IsItemFavorite(playerConfig, item))
                     favoriteSlots[slot] = true;
             }
+            // Only this method adds borders in these grids, Quick Stack only in the player's own, and nothing removes one, so
+            // each cell's border is looked up once until the grid rebuilds its cells.
+            var cells = BorderCells.GetOrCreateValue(__instance);
+            bool same = cells.Elements.Length == ___m_elements.Count;
+            for (int i = 0; same && i < ___m_elements.Count; i++) same = cells.Elements[i] == ___m_elements[i];
+            if (!same)
+            {
+                cells.Elements = ___m_elements.ToArray();
+                cells.Borders = new Image[___m_elements.Count];
+                for (int i = 0; i < ___m_elements.Count; i++)
+                {
+                    var found = ___m_elements[i].m_queued.transform.Find(BorderName);
+                    cells.Borders[i] = found != null ? found.GetComponent<Image>() : null;
+                }
+            }
             for (int i = 0; i < ___m_elements.Count; i++)
             {
                 bool favorite = favoriteSlots[i];
-                var queued = ___m_elements[i].m_queued;
-                var found = queued.transform.Find(BorderName);
-                if (found == null && !favorite) continue;
+                var border = cells.Borders[i];
+                if (border == null && !favorite) continue;
                 // Set each border once per frame; toggling it off and on again would rebuild the canvas every frame.
-                var border = found != null ? found.GetComponent<Image>() : createBorder(queued);
+                if (border == null) cells.Borders[i] = border = createBorder(___m_elements[i].m_queued);
                 border.color = favoriteColor().Value;
                 border.enabled = favorite;
             }
         }
+
+        private sealed class CellBorders
+        {
+            internal InventoryElement[] Elements = Array.Empty<InventoryElement>();
+            internal Image[] Borders = Array.Empty<Image>();
+        }
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<InventoryGrid, CellBorders> BorderCells =
+            new System.Runtime.CompilerServices.ConditionalWeakTable<InventoryGrid, CellBorders>();
 
         private static void WidenBorder(Image __result) => __result.gameObject.AddComponent<WiderBorder>();
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using EpicLoot;
 using EpicLoot.CraftingV2;
@@ -122,14 +123,21 @@ namespace EpicLootProgressionFix
             bool restoreNativeQuantity = true)
         {
             if (icon == null) return;
-            var badge = icon.GetComponent<RuneIconBadge>();
+            Draw(icon, icon.GetComponent<RuneIconBadge>(), item, template, quantity, displayedQuantity, restoreNativeQuantity);
+        }
+
+        // Draws with the icon's badge already known, or null when it has none; returns the badge it then has.
+        internal static RuneIconBadge Draw(Image icon, RuneIconBadge badge, ItemDrop.ItemData item, TMP_Text template, TMP_Text quantity,
+            int? displayedQuantity, bool restoreNativeQuantity)
+        {
             if (!RuneStacks.IsRune(item) || item.GetMagicItem()?.Effects.Count != 1)
             {
                 if (badge != null) badge.Hide();
-                return;
+                return badge;
             }
             if (badge == null) badge = icon.gameObject.AddComponent<RuneIconBadge>();
             badge.Draw(item.GetMagicItem().Effects[0], displayedQuantity ?? item.m_stack, template, quantity, restoreNativeQuantity);
+            return badge;
         }
         internal static void ClearCodes() { Codes.Clear(); Generation++; }
     }
@@ -225,15 +233,49 @@ namespace EpicLootProgressionFix
     internal static class RuneInventoryLabels
     {
         private static readonly AccessTools.FieldRef<InventoryGrid, List<InventoryElement>> Elements = AccessTools.FieldRefAccess<InventoryGrid, List<InventoryElement>>("m_elements");
+
+        // A grid's cells as last seen, with each icon's badge. Cells are replaced, never reused, when the grid is rebuilt, so
+        // a badge found once stays that icon's badge; the grid's items are placed in cells once per update.
+        private sealed class Cells
+        {
+            internal InventoryElement[] Elements = Array.Empty<InventoryElement>();
+            internal RuneIconBadge[] Badges = Array.Empty<RuneIconBadge>();
+            internal ItemDrop.ItemData[] Items = Array.Empty<ItemDrop.ItemData>();
+        }
+        private static readonly ConditionalWeakTable<InventoryGrid, Cells> Grids = new ConditionalWeakTable<InventoryGrid, Cells>();
+
         [HarmonyAfter(PluginIds.BetterUi)]
         private static void Postfix(InventoryGrid __instance)
         {
             var inventory = __instance.GetInventory();
-            foreach (var element in Elements(__instance))
+            var elements = Elements(__instance);
+            var cells = Grids.GetOrCreateValue(__instance);
+            bool same = cells.Elements.Length == elements.Count;
+            for (int index = 0; same && index < elements.Count; index++) same = cells.Elements[index] == elements[index];
+            if (!same)
             {
-                var item = element.m_used ? inventory.GetItemAt(element.Position.x, element.Position.y) : null;
+                cells.Elements = elements.ToArray();
+                cells.Badges = new RuneIconBadge[elements.Count];
+                for (int index = 0; index < elements.Count; index++)
+                    cells.Badges[index] = elements[index].m_icon != null ? elements[index].m_icon.GetComponent<RuneIconBadge>() : null;
+            }
+            // GetItemAt returns the first item listed at a position; so does this table.
+            int width = inventory.GetWidth(), height = inventory.GetHeight();
+            if (cells.Items.Length < width * height) cells.Items = new ItemDrop.ItemData[width * height];
+            Array.Clear(cells.Items, 0, cells.Items.Length);
+            foreach (var item in inventory.GetAllItems())
+            {
+                var at = item.m_gridPos;
+                if (at.x >= 0 && at.x < width && at.y >= 0 && at.y < height && cells.Items[at.y * width + at.x] == null) cells.Items[at.y * width + at.x] = item;
+            }
+            for (int index = 0; index < elements.Count; index++)
+            {
+                var element = elements[index];
+                var at = element.Position;
+                var item = !element.m_used ? null : at.x >= 0 && at.x < width && at.y >= 0 && at.y < height ? cells.Items[at.y * width + at.x] : inventory.GetItemAt(at.x, at.y);
                 // InventoryGrid sets quantity visibility for the current item on every update, including empty cells.
-                RuneIconLabels.Draw(element.m_icon, item, element.m_amount, element.m_amount, restoreNativeQuantity: false);
+                if (element.m_icon != null)
+                    cells.Badges[index] = RuneIconLabels.Draw(element.m_icon, cells.Badges[index], item, element.m_amount, element.m_amount, null, false);
             }
         }
     }
