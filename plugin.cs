@@ -286,6 +286,7 @@ namespace EpicLootProgressionFix
                 Run(typeof(StackLabels), patches => StackLabels.Initialize(patches));
                 Run(typeof(PlantHoverText), patches => PlantHoverText.Initialize());
                 Run(typeof(BowVolleySound), patches => BowVolleySound.Initialize(this, Logger));
+                Run(typeof(SameSoundLimit), patches => SameSoundLimit.Initialize(patches));
                 Run(typeof(TotalArmor), patches => TotalArmor.Initialize(patches));
                 Run(typeof(ShieldBalance), patches => ShieldBalance.Initialize());
                 Run(typeof(AffixDisplayValues), patches => AffixDisplayValues.Initialize());
