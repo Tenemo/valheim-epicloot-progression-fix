@@ -7,8 +7,9 @@ using UnityEngine;
 namespace EpicLootProgressionFix
 {
     // Player-built pieces take no damage from tames, which include most player summons, from the magic of a player's staff,
-    // Dundr or Jotun Witch form, or from the Trollstav's landing blast. The untamed troll's own attacks still hit them, and
-    // ruins and other world-generated buildings take every hit as before.
+    // Dundr or Jotun Witch form, or from the Trollstav's landing blast. Cinders such magic throws, the fires they light and
+    // the cinders those fires spread keep the same origin, so they neither set player-built pieces alight nor burn them.
+    // The untamed troll's own attacks still hit them, and ruins and other world-generated buildings take every hit as before.
     internal static class FriendlyBuildingDamage
     {
         private sealed class Origin
@@ -23,7 +24,7 @@ namespace EpicLootProgressionFix
 
         private static ZNetView EffectView(Component effect)
         {
-            var view = effect is Aoe area ? GameFields.AoeView(area) : effect.GetComponent<ZNetView>();
+            var view = effect is Aoe area ? GameFields.AoeView(area) : effect.GetComponentInParent<ZNetView>();
             // A built-in trampling effect shares its creature's view; its tame flag already supplies the origin there.
             return view && !view.GetComponent<Character>() ? view : null;
         }
@@ -114,12 +115,55 @@ namespace EpicLootProgressionFix
                 Remember(__instance, owner && Utils.GetPrefabName(__instance.transform.root.gameObject) == StaffQuality.TrollLanding ? Source(owner) : Capture(owner, item));
         }
 
-        [HarmonyPatch(typeof(Aoe), "Awake")]
-        private static class AreaAwake
+        private static bool PlayerBuilt(Collider collider)
         {
-            private static void Postfix(Aoe __instance)
+            var wear = collider ? collider.GetComponentInParent<WearNTear>() : null;
+            var piece = wear ? wear.GetComponent<Piece>() : null;
+            return piece && piece.GetCreator() != 0L;
+        }
+
+        [HarmonyPatch]
+        private static class EffectAwake
+        {
+            private static IEnumerable<MethodBase> TargetMethods()
+            {
+                yield return AccessTools.Method(typeof(Aoe), "Awake");
+                yield return AccessTools.Method(typeof(Cinder), "Awake");
+                yield return AccessTools.Method(typeof(Fire), "Awake");
+            }
+
+            private static void Postfix(Component __instance)
             {
                 if (current != null) Remember(__instance, current);
+            }
+        }
+
+        // Cinders and fires act from their own timers, outside the hit that made them.
+        [HarmonyPatch]
+        private static class FireSpread
+        {
+            private static IEnumerable<MethodBase> TargetMethods()
+            {
+                yield return AccessTools.Method(typeof(CinderSpawner), nameof(CinderSpawner.SpawnCinder));
+                yield return AccessTools.Method(typeof(Cinder), "OnHit");
+                yield return AccessTools.Method(typeof(Fire), "Dot");
+                yield return AccessTools.Method(typeof(Fire), "HitTerrain");
+            }
+
+            private static void Prefix(Component __instance, out Origin __state)
+            {
+                __state = current;
+                current = Read(__instance) ?? current;
+            }
+            private static void Finalizer(Origin __state) => current = __state;
+        }
+
+        [HarmonyPatch(typeof(Cinder), nameof(Cinder.CanBurn))]
+        private static class Ignition
+        {
+            private static void Postfix(Collider collider, ref bool __result)
+            {
+                if (__result && current != null && PlayerBuilt(collider)) __result = false;
             }
         }
 
