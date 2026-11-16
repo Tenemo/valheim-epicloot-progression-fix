@@ -66,9 +66,11 @@ namespace EpicLootProgressionFix
                 (typeof(EggHatch), "CheckSpawn"), (typeof(EggHatch), "Hatch"), (typeof(EggGrow), "GrowUpdate"), (typeof(Growup), "GrowUpdate"),
                 (typeof(OfferingBowl), "Interact"), (typeof(OfferingBowl), "UseItem"), (typeof(OfferingBowl), "RPC_SpawnBoss"), (typeof(OfferingBowl), "DelayedSpawnBoss"),
                 (typeof(DropProjectileOverDistance), "FixedUpdate"), (typeof(DropProjectileOverDistance), "SpawnProjectile"),
-                (typeof(TimedDestruction), "DestroyNow"),
-                (typeof(Tameable), "Update"), (typeof(Tameable), "TamingUpdate") })
+                (typeof(TimedDestruction), "DestroyNow"), (typeof(Tameable), "TamingUpdate") })
                 patches.Patch(AccessTools.Method(entry.Item1, entry.Item2), prefix: gate);
+            // Every tame runs Update every frame; its own hook names the method instead of asking Harmony for it.
+            patches.Patch(AccessTools.Method(typeof(Tameable), "Update"),
+                prefix: new HarmonyMethod(typeof(SleepEnemyPause), nameof(AllowSpawnUpdate)) { priority = Priority.First });
             patches.Patch(AccessTools.Method(typeof(CreatureSpawner.Group), nameof(CreatureSpawner.Group.SpawnWeighted)),
                 prefix: new HarmonyMethod(typeof(SleepEnemyPause), nameof(AllowSpawnGroup)) { priority = Priority.First });
             foreach (string method in new[] { "FixedUpdate", "StartRandomEvent" })
@@ -93,9 +95,11 @@ namespace EpicLootProgressionFix
                 patches.Patch(method, transpiler: new HarmonyMethod(typeof(SleepEnemyPause), nameof(TrackSpawnInvokes)));
         }
 
-        private static bool AllowSpawnProcedure(MonoBehaviour __instance, MethodBase __originalMethod)
+        private static bool AllowSpawnProcedure(MonoBehaviour __instance, MethodBase __originalMethod) => AllowSpawn(__instance, __originalMethod.Name);
+        private static bool AllowSpawnUpdate(MonoBehaviour __instance) => AllowSpawn(__instance, "Update");
+
+        private static bool AllowSpawn(MonoBehaviour __instance, string method)
         {
-            string method = __originalMethod.Name;
             if (Paused && EnemyProducer(__instance))
             {
                 var view = __instance.GetComponentInParent<ZNetView>();

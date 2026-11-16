@@ -65,10 +65,23 @@ namespace EpicLootProgressionFix
         // its route's end, so it stood and took hits from an enemy it could walk to. Where the built fitted route doesn't
         // bring the body to the destination and the native profile's route gets closer, a wild creature or tame takes that,
         // as it would without the fit. Summoned followers keep their own straight walk.
-        [HarmonyPriority(Priority.First)]
-        private static void Postfix(BaseAI __instance, Vector3 target, MethodBase __originalMethod, ref bool __result)
+        // One postfix for each method, so neither asks Harmony which method it follows.
+        [HarmonyPatch(typeof(BaseAI), "FindPath")]
+        private static class FoundPath
         {
-            bool find = __originalMethod.Name == "FindPath";
+            [HarmonyPriority(Priority.First)]
+            private static void Postfix(BaseAI __instance, Vector3 target, ref bool __result) => Reroute(__instance, target, true, ref __result);
+        }
+
+        [HarmonyPatch(typeof(BaseAI), "HavePath")]
+        private static class HadPath
+        {
+            [HarmonyPriority(Priority.First)]
+            private static void Postfix(BaseAI __instance, Vector3 target, ref bool __result) => Reroute(__instance, target, false, ref __result);
+        }
+
+        private static void Reroute(BaseAI __instance, Vector3 target, bool find, ref bool __result)
+        {
             // A reused route belongs to an earlier request; a native HavePath answers only whether a complete route exists.
             if (find ? LastPathTime(__instance) != Time.time : __result) return;
             if (!States.TryGetValue(__instance, out var state) || !state.Ground || state.Fitted == state.Original || __instance.m_pathAgentType != state.Fitted ||
@@ -99,9 +112,9 @@ namespace EpicLootProgressionFix
 
         internal static void Fit(BaseAI ai)
         {
-            var character = ai.GetComponent<Character>();
+            var character = GameFields.AiCharacter(ai);
             if (!character || character.IsPlayer() || !character.IsOwner() || !Pathfinding.instance) return;
-            var state = States.GetValue(ai, value => new State { Original = value.m_pathAgentType, Character = character });
+            if (!States.TryGetValue(ai, out var state)) States.Add(ai, state = new State { Original = ai.m_pathAgentType, Character = character });
             if (navigation != Pathfinding.instance)
             {
                 navigation = Pathfinding.instance; profiles = (IList)Agents.GetValue(navigation);

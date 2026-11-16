@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using EpicLoot.CraftingV2;
 using EpicLoot_UnityLib;
 using HarmonyLib;
@@ -48,5 +49,17 @@ namespace EpicLootProgressionFix
         // A creature's saved home: where a tame was told to stay, or a patrol spot.
         internal delegate bool ReadPatrolPoint(BaseAI ai, out Vector3 point);
         internal static readonly ReadPatrolPoint PatrolPoint = AccessTools.MethodDelegate<ReadPatrolPoint>(AccessTools.Method(typeof(BaseAI), "GetPatrolPoint"));
+        // What BaseAI.Awake found on the creature, read instead of searching its components again.
+        internal static readonly AccessTools.FieldRef<BaseAI, Character> AiCharacter = AccessTools.FieldRefAccess<BaseAI, Character>("m_character");
+        internal static readonly AccessTools.FieldRef<BaseAI, ZNetView> AiView = AccessTools.FieldRefAccess<BaseAI, ZNetView>("m_nview");
+        internal static readonly AccessTools.FieldRef<BaseAI, Tameable> AiTameable = AccessTools.FieldRefAccess<BaseAI, Tameable>("m_tamable");
+
+        // A prefab's name, which the engine copies into a new string on every read. Prefabs keep their names.
+        private static readonly Dictionary<GameObject, string> PrefabNames = new Dictionary<GameObject, string>();
+        internal static string PrefabName(GameObject prefab)
+        {
+            if (!PrefabNames.TryGetValue(prefab, out string name)) PrefabNames[prefab] = name = prefab.name;
+            return name;
+        }
     }
 }

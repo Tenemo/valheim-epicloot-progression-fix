@@ -56,22 +56,43 @@ namespace EpicLootProgressionFix
             float factor = 1f; effect.ModifyEitrRegen(ref factor); total += factor - 1f;
         }
 
-        [HarmonyPriority(Priority.Last), HarmonyAfter(PluginIds.EpicLoot)]
-        private static void Postfix(SEMan __instance, ref float __0, MethodBase __originalMethod)
+        // One postfix for each kind, so no call has to look up which method it follows.
+        [HarmonyPatch(typeof(SEMan), nameof(SEMan.ModifyHealthRegen))]
+        private static class HealthTotal
         {
-            if (!(GameFields.StatusCharacter(__instance) is Player player)) return;
-            if (__originalMethod.Name == nameof(SEMan.ModifyEitrRegen))
+            [HarmonyPriority(Priority.Last), HarmonyAfter(PluginIds.EpicLoot)]
+            private static void Postfix(SEMan __instance, ref float __0) => Adjust(__instance, ref __0, false, false);
+        }
+
+        [HarmonyPatch(typeof(SEMan), nameof(SEMan.ModifyStaminaRegen))]
+        private static class StaminaTotal
+        {
+            [HarmonyPriority(Priority.Last), HarmonyAfter(PluginIds.EpicLoot)]
+            private static void Postfix(SEMan __instance, ref float __0) => Adjust(__instance, ref __0, true, false);
+        }
+
+        [HarmonyPatch(typeof(SEMan), nameof(SEMan.ModifyEitrRegen))]
+        private static class EitrTotal
+        {
+            [HarmonyPriority(Priority.Last), HarmonyAfter(PluginIds.EpicLoot)]
+            private static void Postfix(SEMan __instance, ref float __0) => Adjust(__instance, ref __0, true, true);
+        }
+
+        private static void Adjust(SEMan manager, ref float total, bool blocking, bool eitr)
+        {
+            if (!(GameFields.StatusCharacter(manager) is Player player)) return;
+            if (eitr)
             {
-                __0 += player.GetEquipmentEitrRegenModifier();
+                total += player.GetEquipmentEitrRegenModifier();
                 if (player.HasActiveMagicEffect(MagicEffectType.DeepWell))
                 {
                     var config = MagicItemEffectDefinitions.GetEffectConfig(MagicEffectType.DeepWell);
                     float penalty = config != null && config.TryGetValue("EitrRegenReduction", out float configured) ? configured : 30f;
-                    __0 -= Mathf.Clamp(penalty, 0f, 100f) * .01f;
+                    total -= Mathf.Clamp(penalty, 0f, 100f) * .01f;
                 }
             }
-            if (__originalMethod.Name != nameof(SEMan.ModifyHealthRegen) && player.IsBlocking() && !blockReward) __0 -= .2f;
-            __0 = Mathf.Max(0f, __0);
+            if (blocking && player.IsBlocking() && !blockReward) total -= .2f;
+            total = Mathf.Max(0f, total);
         }
 
         internal static float Health(Player player) { float factor = 1f; player.GetSEMan().ModifyHealthRegen(ref factor); return factor; }
