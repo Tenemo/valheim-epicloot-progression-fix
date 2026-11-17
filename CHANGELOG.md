@@ -1,3 +1,8 @@
+# 1.31.0
+
+- A bow's crosshair circle shows exactly the power your arrow leaves with, in rapid fire too. The next draw starts once the previous shot's release ends, which now plays twice as fast, and draws are shorter to match, so you fire as many arrows a second as before at every Bows level and below Bows 85 the first arrow from rest is ready 0.3 s sooner. Letting go before the circle closes fires a weaker arrow, and a click let go while the bow is still recovering fires nothing; hold the button and the draw starts as soon as the bow is ready.
+- On bows, Fire rate and Attack speed speed up the draw as well as the shot, so +20% Fire rate fires 20% more arrows a second at any Bows level. Quick Draw now also adds arrows a second at high Bows skill: +24% fires 14% more at Bows 100.
+
 # 1.30.0
 
 - All set runes of one set stack, up to 10. Every set rune is now Legendary, whatever the item you extracted it from, and set runes you already have change as you carry them or open their chest. The item you etch still decides which piece of the set it becomes. Set runes from Mythic and Ancient items now sacrifice for 2 Legendary shards instead of 2 of their own rarity.

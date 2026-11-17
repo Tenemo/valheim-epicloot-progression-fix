@@ -7,9 +7,9 @@ namespace EpicLootProgressionFix
     // EpicLoot's Fire Rate only shortened the pause between the bursts of an attack that fires several, and every bow,
     // crossbow and staff fires one burst except the Staff of Frost's stream, so it did nothing on them. It now also speeds
     // up the attack animation of the weapon it suits, as Attack speed does for melee weapons: a bow's release and next
-    // nock, a crossbow's shot and every staff's cast, so the next draw, reload or cast starts sooner. Quick Draw's draw and
-    // reload times are separate, Dundr's reload is shortened in StaffReload, and the Staff of Frost keeps its shorter pause
-    // between shots.
+    // nock, a crossbow's shot and every staff's cast, so the next draw, reload or cast starts sooner. BowCycle speeds up a
+    // bow's draw as well, Quick Draw's draw and reload times are separate, Dundr's reload is shortened in StaffReload, and
+    // the Staff of Frost keeps its shorter pause between shots.
     [HarmonyPatch(typeof(ModifyAttackSpeed_ApplyAnimationHandler_Patch), nameof(ModifyAttackSpeed_ApplyAnimationHandler_Patch.ModifyAttackSpeed))]
     internal static class FireRate
     {

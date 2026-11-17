@@ -26,7 +26,9 @@ namespace EpicLootProgressionFix
         private static readonly AccessTools.FieldRef<Player, float> QueuedSecondAttack = AccessTools.FieldRefAccess<Player, float>("m_queuedSecondAttackTimer");
         private static readonly AccessTools.FieldRef<Attack, float> AttackTime = AccessTools.FieldRefAccess<Attack, float>("m_time");
         private static readonly ConditionalWeakTable<Attack, object> Landed = new ConditionalWeakTable<Attack, object>();
-        private static readonly object LandedMarker = new object();
+        // An abandoned attack may still receive a delayed animation callback after it stops being current.
+        private static readonly ConditionalWeakTable<Attack, object> Abandoned = new ConditionalWeakTable<Attack, object>();
+        private static readonly object Marker = new object();
         internal static float AttackAllowedAt;
         private static bool holdIgnored;
 
@@ -38,7 +40,7 @@ namespace EpicLootProgressionFix
         {
             var attack = GameFields.CurrentAttack(player);
             attack.Stop();
-            QueuedBowCancellation.Abandon(attack);
+            if (!Abandoned.TryGetValue(attack, out _)) Abandoned.Add(attack, Marker);
             PreviousAttack(player) = null;
             GameFields.CurrentAttack(player) = null;
             QueuedAttack(player) = 0f;
@@ -83,11 +85,27 @@ namespace EpicLootProgressionFix
         }
 
         [HarmonyPatch(typeof(Attack), nameof(Attack.OnAttackTrigger))]
+        private static class AbandonedHit
+        {
+            [HarmonyPriority(Priority.First)]
+            private static bool Prefix(Attack __instance) => !Abandoned.TryGetValue(__instance, out _);
+        }
+
+        // Harmony still runs void prefixes without ref arguments when an earlier prefix skips the original. Suppress Triple
+        // Shot's prefix itself, before it selects a volley or changes its global pending state.
+        [HarmonyPatch(typeof(EpicLoot.MagicItemEffects.MultiShot), nameof(EpicLoot.MagicItemEffects.MultiShot.Attack_OnAttackTrigger_Prefix))]
+        private static class AbandonedVolley
+        {
+            [HarmonyPriority(Priority.First)]
+            private static bool Prefix(Attack __0) => !Abandoned.TryGetValue(__0, out _);
+        }
+
+        [HarmonyPatch(typeof(Attack), nameof(Attack.OnAttackTrigger))]
         private static class Hit
         {
             private static void Postfix(Attack __instance, bool __runOriginal)
             {
-                if (__runOriginal && !Landed.TryGetValue(__instance, out _)) Landed.Add(__instance, LandedMarker);
+                if (__runOriginal && !Landed.TryGetValue(__instance, out _)) Landed.Add(__instance, Marker);
             }
         }
 
