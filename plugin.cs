@@ -348,6 +348,7 @@ namespace EpicLootProgressionFix
                 Run(typeof(HexenCollateralDamage), patches => HexenCollateralDamage.Initialize(patches));
                 Run(typeof(SummonedFollowers), patches => SummonedFollowers.Initialize(patches));
                 Run(typeof(SleepEnemyPause), patches => SleepEnemyPause.Initialize(patches, Logger, this));
+                Run(typeof(FastSleep), patches => FastSleep.Initialize(patches));
                 Run(typeof(SummonDismissal), patches => SummonDismissal.Initialize(patches));
                 Run(typeof(SummonDungeonTravel), patches => SummonDungeonTravel.Initialize(patches));
                 Run(typeof(ProtectionCasterExperience), patches => ProtectionCasterExperience.Initialize(patches));
