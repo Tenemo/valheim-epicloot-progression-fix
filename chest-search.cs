@@ -8,6 +8,7 @@ using EpicLoot;
 using HarmonyLib;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace EpicLootProgressionFix
@@ -29,6 +30,7 @@ namespace EpicLootProgressionFix
 
         private static TMP_InputField field;
         private static string[] words = Array.Empty<string>();
+        private static string query = "";
         // The frame in which Enter or Escape took the keyboard from the field; that key stays the field's in this frame
         // and the next, whichever order the field and the game read it in.
         private static int keyLeftFrame = -10;
@@ -51,6 +53,14 @@ namespace EpicLootProgressionFix
 
         private static void Create(InventoryGui gui)
         {
+            // A new login builds a new window, so a search from before logging out does not stay without its text.
+            words = Array.Empty<string>();
+            query = shownQuery = "";
+            shownInventory = null;
+            shownFirst = null;
+            shownRevision = -1;
+            keyLeftFrame = -10;
+            Cells.Clear();
             var panel = gui.m_container;
             // The buttons' body font; the window title's font has capitals only.
             var template = gui.m_takeAllButton.GetComponentInChildren<TMP_Text>(true);
@@ -119,12 +129,35 @@ namespace EpicLootProgressionFix
             field.restoreOriginalTextOnEscape = false;
             field.navigation = new Navigation { mode = Navigation.Mode.None };
             field.onValueChanged.AddListener(Search);
-            field.onSubmit.AddListener(_ => keyLeftFrame = Time.frameCount);
-            field.onEndEdit.AddListener(_ => { if (field.wasCanceled) keyLeftFrame = Time.frameCount; });
+            field.onSubmit.AddListener(_ => { keyLeftFrame = Time.frameCount; Unselect(); });
+            field.onEndEdit.AddListener(_ => { if (field.wasCanceled) { keyLeftFrame = Time.frameCount; Unselect(); } });
         }
 
-        private static void Search(string query) =>
-            words = Fold(query).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        // The field stays the interface's selected object after it gives up the keyboard, and the UI input module sends
+        // the next Enter or Escape to it, which would make it take the keyboard again, as when Escape then closes the chest.
+        private static void Unselect()
+        {
+            var events = EventSystem.current;
+            if (field && events && events.currentSelectedGameObject == field.gameObject) events.SetSelectedGameObject(null);
+        }
+
+        // Dying or anything else that closes the inventory while the player types gives the keyboard back to the game.
+        [HarmonyPatch(typeof(InventoryGui), nameof(InventoryGui.Hide))]
+        private static class LeaveOnClose
+        {
+            private static void Postfix()
+            {
+                if (!field) return;
+                if (field.isFocused) field.DeactivateInputField();
+                Unselect();
+            }
+        }
+
+        private static void Search(string typed)
+        {
+            words = Fold(typed).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            query = string.Join(" ", words);
+        }
 
         // Lowercase without accents; letters that are not an accented form of another, such as ł, become their nearest one.
         internal static string Fold(string text)
@@ -252,7 +285,6 @@ namespace EpicLootProgressionFix
                 var container = CurrentContainer(gui);
                 var inventory = container ? container.GetInventory() : null;
                 if (inventory == null || __instance.GetInventory() != inventory) inventory = null;
-                string query = words.Length == 0 ? "" : string.Join(" ", words);
                 var elements = Elements(__instance);
                 var first = elements.Count > 0 ? elements[0] : null;
                 if (inventory == shownInventory && query == shownQuery && HoverPreviews.Inventories == shownRevision &&
@@ -343,20 +375,12 @@ namespace EpicLootProgressionFix
         {
             var text = new StringBuilder();
             var localization = Localization.instance;
-            text.Append(localization.Localize(item.m_shared.m_name)).Append('\n');
             var magic = item.GetMagicItem();
-            if (magic != null)
-            {
-                // EpicLoot names some items after a rarity, such as "Legendary Hoe", which an upgrade keeps; rarity alone matches
-                // nothing.
-                string name = localization.Localize(item.GetDisplayName());
-                foreach (ItemRarity rarity in Enum.GetValues(typeof(ItemRarity)))
-                {
-                    string word = localization.Localize(EpicLoot.EpicLoot.GetRarityDisplayName(rarity));
-                    if (word.Length > 0 && name.StartsWith(word + " ", StringComparison.OrdinalIgnoreCase)) { name = name.Substring(word.Length + 1); break; }
-                }
-                text.Append(name).Append('\n');
-            }
+            string baseName = localization.Localize(item.m_shared.m_name);
+            // EpicLoot names some items after a rarity, such as "Legendary Hoe", which an upgrade keeps, and unidentified items
+            // such as "Legendary Bow"; rarity alone matches nothing.
+            text.Append(magic != null ? WithoutRarity(baseName) : baseName).Append('\n');
+            if (magic != null) text.Append(WithoutRarity(localization.Localize(item.GetDisplayName()))).Append('\n');
             if (magic?.IsUnidentified != true)
             {
                 if (magic != null)
@@ -376,6 +400,16 @@ namespace EpicLootProgressionFix
                     text.Append(localization.Localize(mundane.m_name)).Append('\n');
             }
             return Fold(Tags.Replace(text.ToString(), ""));
+        }
+
+        private static string WithoutRarity(string name)
+        {
+            foreach (ItemRarity rarity in Enum.GetValues(typeof(ItemRarity)))
+            {
+                string word = Localization.instance.Localize(EpicLoot.EpicLoot.GetRarityDisplayName(rarity));
+                if (word.Length > 0 && name.StartsWith(word + " ", StringComparison.OrdinalIgnoreCase)) return name.Substring(word.Length + 1);
+            }
+            return name;
         }
     }
 }
