@@ -7,14 +7,16 @@ namespace EpicLootProgressionFix
     // Unity plays at most 32 sounds at once and silences the rest. A Staff of Fracturing barrage starts hundreds of short
     // impact, weakness hit and lightning sounds in a few seconds, most of them repeats of the same sound in the same place,
     // so footsteps, swings and other combat sounds cut out while it lasts. The game itself limits a sound's repeats only for
-    // a few prefabs and only within 0.2 s. Here a one-shot sound doesn't start while three copies of it are still playing
-    // within the distance the game uses for that sound's limit, so a pile-up sounds like three of it instead of
-    // twenty, and the voices stay free for everything else.
+    // a few prefabs and only within 0.2 s. Here, when a one-shot sound starts while three copies of it are still playing
+    // within the distance the game uses for that sound's limit, the oldest of them fades out in 0.05 s. A pile-up sounds
+    // like three of it instead of twenty and the voices stay free for everything else, while every new copy still plays,
+    // so a steady stream such as items going into a windmill keeps its rhythm.
     internal static class SameSoundLimit
     {
         private const int Copies = 3;
-        // Each one-shot sound's playing copies and where they started, pruned as they finish.
-        private static readonly Dictionary<int, List<(AudioSource Source, Vector3 Position)>> playing = new Dictionary<int, List<(AudioSource, Vector3)>>();
+        private const float FadeSeconds = 0.05f;
+        // Each one-shot sound's playing copies, oldest first, and where they started, pruned as they finish or fade.
+        private static readonly Dictionary<int, List<(ZSFX Sound, Vector3 Position)>> playing = new Dictionary<int, List<(ZSFX, Vector3)>>();
         // A sound is known by its first clip. The game's sound hash can't tell sounds apart: dozens of different sounds share
         // one, such as lightning, blood and nature impacts and the player's catching-fire cue, and some have none.
         private static int Sound(ZSFX sfx)
@@ -29,9 +31,9 @@ namespace EpicLootProgressionFix
             patches.Patch(AccessTools.Method(typeof(AudioMan), nameof(AudioMan.RequestPlaySound)),
                 new HarmonyMethod(typeof(SameSoundLimit), nameof(Prefix)), new HarmonyMethod(typeof(SameSoundLimit), nameof(Postfix)));
 
-        private static bool Prefix(ZSFX sfx, ref bool __result)
+        private static void Prefix(ZSFX sfx)
         {
-            if (!Limiting || sfx.IsLooping() || !playing.TryGetValue(Sound(sfx), out var copies)) return true;
+            if (!Limiting || sfx.IsLooping() || !playing.TryGetValue(Sound(sfx), out var copies)) return;
             var position = sfx.transform.position;
             // Sounds the game limits world-wide, such as cinder rain hits and some boss attacks, are limited here only within
             // the radius every other sound uses, so three of them still play in each spot.
@@ -40,22 +42,26 @@ namespace EpicLootProgressionFix
             for (int i = copies.Count - 1; i >= 0; i--)
             {
                 var copy = copies[i];
-                if (!copy.Source || !copy.Source.isPlaying) copies.RemoveAt(i);
+                if (!copy.Sound || !copy.Sound.IsPlaying()) copies.RemoveAt(i);
                 else if (Vector3.Distance(copy.Position, position) < distance) near++;
             }
-            if (near < Copies) return true;
-            __result = false;
-            return false;
+            for (int i = 0; i < copies.Count && near >= Copies; i++)
+            {
+                var copy = copies[i];
+                if (Vector3.Distance(copy.Position, position) >= distance) continue;
+                if (copy.Sound.m_fadeOutDuration <= 0f || copy.Sound.m_fadeOutDuration > FadeSeconds) copy.Sound.m_fadeOutDuration = FadeSeconds;
+                copy.Sound.FadeOut();
+                copies.RemoveAt(i--);
+                near--;
+            }
         }
 
         private static void Postfix(ZSFX sfx, bool __result)
         {
             if (!__result || !Limiting || sfx.IsLooping()) return;
-            var source = sfx.GetComponent<AudioSource>();
-            if (!source) return;
             int sound = Sound(sfx);
-            if (!playing.TryGetValue(sound, out var copies)) playing.Add(sound, copies = new List<(AudioSource, Vector3)>());
-            copies.Add((source, sfx.transform.position));
+            if (!playing.TryGetValue(sound, out var copies)) playing.Add(sound, copies = new List<(ZSFX, Vector3)>());
+            copies.Add((sfx, sfx.transform.position));
         }
     }
 }
