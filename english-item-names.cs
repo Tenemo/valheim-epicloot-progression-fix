@@ -29,6 +29,7 @@ namespace EpicLootProgressionFix
         internal static void Initialize(IntegrationPatches harmony)
         {
             var self = typeof(EnglishItemNames);
+            EnglishText.Initialize(harmony);
             // EpicLoot saves these names as literal strings shared with other players, so the creator's language must not leak.
             foreach (string name in NameBuilders.Keys)
                 harmony.Patch(AccessTools.Method(typeof(MagicItemNames), name), transpiler: new HarmonyMethod(self, nameof(UseEnglish)));
