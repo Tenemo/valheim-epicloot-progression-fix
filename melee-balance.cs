@@ -89,6 +89,24 @@ namespace EpicLootProgressionFix
             }
         }
 
+        // EpicLoot's Duelist adds block power and knockback from the weapon's damage; they keep the game's damage, since the
+        // bonus is only for attacks.
+        [HarmonyPatch]
+        private static class DuelistBlock
+        {
+            private static IEnumerable<MethodBase> TargetMethods()
+            {
+                yield return AccessTools.Method(typeof(EpicLoot.MagicItemEffects.ModifyBlock), nameof(EpicLoot.MagicItemEffects.ModifyBlock.GetDuelistBlockBonus));
+                yield return AccessTools.Method(typeof(EpicLoot.MagicItemEffects.ModifyBlock), nameof(EpicLoot.MagicItemEffects.ModifyBlock.GetDuelistDeflectionBonus));
+            }
+
+            private static void Postfix(ItemDrop.ItemData item, ref float __result)
+            {
+                float multiplier = Plugin.MeleeDamageMultiplier.Value;
+                if (__result != 0f && multiplier != 1f && IsMelee(item)) __result /= multiplier;
+            }
+        }
+
         // The game checks and pays an attack's stamina with this one cost, and the tooltip's attack cost reads it too.
         [HarmonyPatch(typeof(Attack), "GetAttackStamina")]
         private static class Stamina
