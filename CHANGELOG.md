@@ -9,6 +9,7 @@
 - A catapult refuses favorited items and anything in a favorited slot, so pressing a hotbar key at its loading spot can't launch your favorite gear.
 - Night creatures, such as night serpents, are gone the moment day breaks, even beside you, so you no longer meet them by day and watch them vanish as you get closer.
 - A Staff of Protection bubble lasts through logging out and back in, with the time and strength it had left; it doesn't run down while you're away. Breaking a bubble restored this way doesn't train its caster's Blood Magic.
+- An open chest has a search field beside its title. Items whose name, enchantments, set or set bonuses hold every word you type are outlined and the rest dimmed, so "eitr regen" finds gear with Eitr regeneration. Rarity alone matches nothing and accents are optional. The search stays as you open other chests; empty the field to clear it. While you type, keys only type: Enter, Escape or a click elsewhere leaves the field.
 
 # 1.29.0
 
