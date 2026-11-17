@@ -8,9 +8,10 @@ namespace EpicLootProgressionFix
 {
     // The game refuses a consumable while its effect, or another effect of its category, is active. A lasting buff or
     // resistance can be drunk again once at most the refresh window of the active effect's lifetime is left, the lifetime
-    // with EpicLoot's potion duration bonus. The new bottle replaces the old effect with a fresh one, so leftover time is
-    // lost and a category keeps one effect, and EpicLoot sets its duration from the equipment worn now. Effects that
-    // restore health, stamina or eitr keep their cooldowns, and food and untimed effects keep the game's rules.
+    // with EpicLoot's potion duration bonus. The new bottle replaces the old effect with a fresh one that lasts the new
+    // bottle's duration, which EpicLoot sets from the equipment worn now, plus the old effect's leftover time; with a 10%
+    // window a top-up holds at most a bottle's duration / 0.9. A category keeps one effect. Effects that restore health,
+    // stamina or eitr keep their cooldowns, and food and untimed effects keep the game's rules.
     // The inventory, hotkeys, quick slots and tankards all drink through Player.CanConsumeItem and ConsumeItem;
     // MultiUserChest adds the effect of a drink from a chest another player holds open itself.
     internal static class PotionBuffRefresh
@@ -77,7 +78,8 @@ namespace EpicLootProgressionFix
         }
 
         // The drink's effect replaces the refreshable effects it conflicts with, instead of the game resetting the old
-        // effect's timer, which kept its lifetime and any other effect of the category.
+        // effect's timer, which kept its lifetime and any other effect of the category. Only the same effect's leftover
+        // time carries over; no installed mead shares a category with a different lasting effect.
         private static IEnumerable<CodeInstruction> ReplaceRefreshed(IEnumerable<CodeInstruction> instructions) =>
             Transpilers.CallInstead(instructions,
                 instruction => instruction.Calls(AccessTools.Method(typeof(SEMan), nameof(SEMan.AddStatusEffect),
@@ -86,10 +88,16 @@ namespace EpicLootProgressionFix
 
         private static StatusEffect AddFresh(SEMan effects, StatusEffect drink, bool resetTime, int itemLevel, float skillLevel, short variant)
         {
-            if (Lasting(drink))
-                foreach (var active in Conflicts(effects, drink).Where(Refreshable).ToList())
-                    effects.RemoveStatusEffect(active.NameHash(), true);
-            return effects.AddStatusEffect(drink, resetTime, itemLevel, skillLevel, variant);
+            if (!Lasting(drink)) return effects.AddStatusEffect(drink, resetTime, itemLevel, skillLevel, variant);
+            float leftover = 0f;
+            foreach (var active in Conflicts(effects, drink).Where(Refreshable).ToList())
+            {
+                if (active.NameHash() == drink.NameHash()) leftover = Math.Max(0f, active.GetRemaningTime());
+                effects.RemoveStatusEffect(active.NameHash(), true);
+            }
+            var added = effects.AddStatusEffect(drink, resetTime, itemLevel, skillLevel, variant);
+            if (added != null) added.m_ttl += leftover;
+            return added;
         }
     }
 }

@@ -173,7 +173,7 @@ namespace EpicLootProgressionFix
                 Synced("Maximum stack of etched runes with matching effects and power. Lowering it splits larger stacks when loaded or handled.",
                     new AcceptableValueRange<int>(1, 1000)));
             BuffRefreshWindowPercent = Config.Bind("Potions", "Buff refresh window percent", 10f,
-                Synced("A mead or other consumable whose effect lasts a set time and restores no health, stamina or eitr can be taken again once at most this percent of the active effect's lifetime is left. The new one replaces it with a fresh effect, and the leftover time is lost. 0 keeps the game's rule of waiting for the effect to end.",
+                Synced("A mead or other consumable whose effect lasts a set time and restores no health, stamina or eitr can be taken again once at most this percent of the active effect's lifetime is left. The new one adds its full duration to the time left. 0 keeps the game's rule of waiting for the effect to end.",
                     new AcceptableValueRange<float>(0f, 100f)));
             ShieldBlockArmorMultiplier = Config.Bind("Shields", "Block armor multiplier", 1.25f,
                 Synced("Block armor multiplier for craftable shields, including gains per quality.",

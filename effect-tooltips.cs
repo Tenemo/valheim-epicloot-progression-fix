@@ -426,7 +426,7 @@ namespace EpicLootProgressionFix
             }
         }
 
-        // A lasting mead's tooltip names the refresh window.
+        // A lasting mead's tooltip names the refresh window and that a refresh adds to the time left.
         [HarmonyPatch(typeof(ItemDrop.ItemData), nameof(ItemDrop.ItemData.GetTooltip), typeof(ItemDrop.ItemData), typeof(int), typeof(bool), typeof(float), typeof(int), typeof(bool))]
         private static class LastingMeads
         {
@@ -436,7 +436,7 @@ namespace EpicLootProgressionFix
                 float window = Plugin.BuffRefreshWindowPercent.Value;
                 if (effect == null || window <= 0f || item.m_shared.m_itemType != ItemDrop.ItemData.ItemType.Consumable || item.m_shared.m_food > 0f
                     || !PotionBuffRefresh.Lasting(effect)) return;
-                __result += $"\n\nRefresh window: last {Number(window)}% of duration.";
+                __result += $"\n\nDrink again in its last {Number(window)}% to add its full duration to the time left.";
             }
         }
     }
