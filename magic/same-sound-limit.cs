@@ -29,12 +29,21 @@ namespace EpicLootProgressionFix
 
         internal static void Initialize(IntegrationPatches patches) =>
             patches.Patch(AccessTools.Method(typeof(AudioMan), nameof(AudioMan.RequestPlaySound)),
-                new HarmonyMethod(typeof(SameSoundLimit), nameof(Prefix)), new HarmonyMethod(typeof(SameSoundLimit), nameof(Postfix)));
+                postfix: new HarmonyMethod(typeof(SameSoundLimit), nameof(Postfix)));
 
-        private static void Prefix(ZSFX sfx)
+        // Runs after the game's own repeat limit has let the new copy play, so a copy the game refuses never fades another.
+        private static void Postfix(ZSFX sfx, bool __result)
         {
-            if (!Limiting || sfx.IsLooping() || !playing.TryGetValue(Sound(sfx), out var copies)) return;
+            if (!__result || !Limiting || sfx.IsLooping()) return;
+            int sound = Sound(sfx);
             var position = sfx.transform.position;
+            if (!playing.TryGetValue(sound, out var copies)) playing.Add(sound, copies = new List<(ZSFX, Vector3)>());
+            else FadeOldest(sfx, copies, position);
+            copies.Add((sfx, position));
+        }
+
+        private static void FadeOldest(ZSFX sfx, List<(ZSFX Sound, Vector3 Position)> copies, Vector3 position)
+        {
             // Sounds the game limits world-wide, such as cinder rain hits and some boss attacks, are limited here only within
             // the radius every other sound uses, so three of them still play in each spot.
             float distance = sfx.m_ignoreConcurrencyDistance ? Mathf.Max(1f, sfx.GetComponent<AudioSource>().minDistance) : sfx.GetConcurrencyDistance();
@@ -54,14 +63,6 @@ namespace EpicLootProgressionFix
                 copies.RemoveAt(i--);
                 near--;
             }
-        }
-
-        private static void Postfix(ZSFX sfx, bool __result)
-        {
-            if (!__result || !Limiting || sfx.IsLooping()) return;
-            int sound = Sound(sfx);
-            if (!playing.TryGetValue(sound, out var copies)) playing.Add(sound, copies = new List<(ZSFX, Vector3)>());
-            copies.Add((sfx, sfx.transform.position));
         }
     }
 }
