@@ -101,7 +101,7 @@ namespace EpicLootProgressionFix
 
         // EquipmentAndQuickSlots fills its quick slots, including when the visible rows are full, through this check.
         [HarmonyPatch]
-        private static class QuickSlots
+        internal static class QuickSlots
         {
             private static bool Prepare() => PluginIds.TryGet(PluginIds.EquipmentAndQuickSlots, out _);
 

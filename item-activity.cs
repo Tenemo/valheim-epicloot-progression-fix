@@ -346,7 +346,7 @@ namespace EpicLootProgressionFix
         // MultiUserChest settles chest transfers in responses. A withdrawal or swap counts only when the chest granted
         // it; a refused transfer returns the player's own item, and the request itself moves nothing yet.
         [HarmonyPatch]
-        private static class ChestResponses
+        internal static class ChestResponses
         {
             private static MethodInfo getRequest;
             private static bool Prepare()
@@ -411,7 +411,7 @@ namespace EpicLootProgressionFix
         }
 
         [HarmonyPatch]
-        private static class ChestRequests
+        internal static class ChestRequests
         {
             private static bool Prepare() => PluginIds.TryGet(PluginIds.MultiUserChest, out _);
             private static IEnumerable<MethodBase> TargetMethods()
@@ -430,7 +430,7 @@ namespace EpicLootProgressionFix
         }
 
         [HarmonyPatch]
-        private static class Restocking
+        internal static class Restocking
         {
             private static bool Prepare() => PluginIds.TryGet(PluginIds.QuickStack, out _);
             private static IEnumerable<MethodBase> TargetMethods()
@@ -483,7 +483,7 @@ namespace EpicLootProgressionFix
         // StarLevelSystem spawns creature and resource loot a few items per tick in a coroutine, after the source may be
         // gone, so the coroutine carries the origin described when the loot was created.
         [HarmonyPatch]
-        private static class SpreadLoot
+        internal static class SpreadLoot
         {
             private static bool Prepare() => PluginIds.TryGet(PluginIds.StarLevelSystem, out _);
             private static MethodBase TargetMethod()

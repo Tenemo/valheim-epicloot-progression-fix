@@ -18,7 +18,7 @@ namespace EpicLootProgressionFix
             internal IntegrationPatches Patches;
             internal readonly HashSet<Type> Snapshots = new HashSet<Type>();
         }
-        private readonly Dictionary<string, Group> owners = new Dictionary<string, Group>(StringComparer.Ordinal);
+        private readonly Dictionary<Type, Group> owners = new Dictionary<Type, Group>();
         private readonly List<Group> groups = new List<Group>();
         private readonly List<Group> applicationOrder = new List<Group>();
         private readonly ManualLogSource logger;
@@ -30,76 +30,74 @@ namespace EpicLootProgressionFix
         {
             current = this; logger = log;
             Add("quick-stack", "Quick Stack sorting, restocking and controls", true, new[] { PluginIds.QuickStack },
-                "QuickStackSorting", "QuickStackKey", "QuickStackSingleItems", "ItemActivity+Restocking");
-            Add("favorite-storage", "Personal favorites and inventory borders", true, new[] { PluginIds.QuickStack, PluginIds.ItemStacks }, "PersistentFavorites", "SocketFavorites");
+                typeof(QuickStackSorting), typeof(QuickStackKey), typeof(QuickStackSingleItems), typeof(ItemActivity.Restocking));
+            Add("favorite-storage", "Personal favorites and inventory borders", true, new[] { PluginIds.QuickStack, PluginIds.ItemStacks }, typeof(PersistentFavorites), typeof(SocketFavorites));
             Add("equipment-slots", "Equipment slots, grave recovery and slot shortcuts", true, new[] { PluginIds.EquipmentAndQuickSlots },
-                "EquipmentAndQuickSlots", "EquipmentSlotDrops", "AutoPickupKey", "GraveCarryWeight", "GraveSlotRecovery", "InventorySlotKeys", "RecallSlots+QuickSlots");
-            Add("quick-stack-equipment", "Quick Stack equipment-slot protection", true, new[] { PluginIds.QuickStack, PluginIds.EquipmentAndQuickSlots }, "QuickStackEquipmentSlots");
+                typeof(EquipmentAndQuickSlots), typeof(EquipmentSlotDrops), typeof(AutoPickupKey), typeof(GraveCarryWeight), typeof(GraveSlotRecovery), typeof(InventorySlotKeys), typeof(RecallSlots.QuickSlots));
+            Add("quick-stack-equipment", "Quick Stack equipment-slot protection", true, new[] { PluginIds.QuickStack, PluginIds.EquipmentAndQuickSlots }, typeof(QuickStackEquipmentSlots));
             Add("chest-storage", "Nearby chest supply, cooking and station capacity", true, new[] { PluginIds.AzuCraftyBoxes },
-                "AttachedCartMaterials", "BuildMaterialPull", "StationCapacity", "BulkCooking", "BulkProcessing", "BulkFermenting", "StationInputPreviews", "ChestPullingDefaults", "ChestSupplyEligibility", "HelmSimulation+StorageSupply");
-            Add("quick-stack-pulling", "Shared chest pulling modes and exclusions", true, new[] { PluginIds.AzuCraftyBoxes, PluginIds.QuickStack }, "ChestSupplySwitch", "QuickStackPullingMode");
+                typeof(AttachedCartMaterials), typeof(BuildMaterialPull), typeof(StationCapacity), typeof(BulkCooking), typeof(BulkProcessing), typeof(BulkFermenting), typeof(StationInputPreviews), typeof(ChestPullingDefaults), typeof(ChestSupplyEligibility), typeof(HelmSimulation.StorageSupply));
+            Add("quick-stack-pulling", "Shared chest pulling modes and exclusions", true, new[] { PluginIds.AzuCraftyBoxes, PluginIds.QuickStack }, typeof(ChestSupplySwitch), typeof(QuickStackPullingMode));
             Add("crafting", "Batch crafting, recipe filters and controls", true, new[] { PluginIds.AaaCrafting },
-                "CraftingAmountReset", "CraftingBonus", "CraftingFavoritesIndicator", "CraftingUncraftedFilter", "CraftingTutorialOverlay", "CraftingRecipeTooltips");
-            Add("crafting-supply", "Batch crafting maximum from nearby supply", true, new[] { PluginIds.AaaCrafting, PluginIds.AzuCraftyBoxes }, "CraftingMaxAmount");
+                typeof(CraftingAmountReset), typeof(CraftingBonus), typeof(CraftingFavoritesIndicator), typeof(CraftingUncraftedFilter), typeof(CraftingTutorialOverlay), typeof(CraftingRecipeTooltips));
+            Add("crafting-supply", "Batch crafting maximum from nearby supply", true, new[] { PluginIds.AaaCrafting, PluginIds.AzuCraftyBoxes }, typeof(CraftingMaxAmount));
             Add("multi-user-storage", "Shared-chest transfers, consumables and labels", true, new[] { PluginIds.MultiUserChest },
-                "PotionBuffRefresh", "StackLabels", "ChestRequestLifetime", "ChestRequestRoom", "ItemActivity+ChestResponses", "ItemActivity+ChestRequests", "HelmSimulation+StorageRequests");
-            Add("chest-hotbar", "Chest-to-hotbar transfers", true, new[] { PluginIds.MultiUserChest, PluginIds.EquipmentAndQuickSlots }, "ChestHotbarTransfer");
-            Add("item-stacks", "Reward, trader, serving tray and mead-base stacks", true, new[] { PluginIds.ItemStacks }, "BossRewardStacks", "ServingTrayStacks", "TraderStacking");
-            Add("rune-stacks", "Rune stack limits and matching", true, new[] { PluginIds.ItemStacks, PluginIds.QuickStack }, "RuneStacks");
+                typeof(PotionBuffRefresh), typeof(StackLabels), typeof(ChestRequestLifetime), typeof(ChestRequestRoom), typeof(ItemActivity.ChestResponses), typeof(ItemActivity.ChestRequests), typeof(HelmSimulation.StorageRequests));
+            Add("chest-hotbar", "Chest-to-hotbar transfers", true, new[] { PluginIds.MultiUserChest, PluginIds.EquipmentAndQuickSlots }, typeof(ChestHotbarTransfer));
+            Add("item-stacks", "Reward, trader, serving tray and mead-base stacks", true, new[] { PluginIds.ItemStacks }, typeof(BossRewardStacks), typeof(ServingTrayStacks), typeof(TraderStacking));
+            Add("rune-stacks", "Rune stack limits and matching", true, new[] { PluginIds.ItemStacks, PluginIds.QuickStack }, typeof(RuneStacks));
             Add("server-characters", "Character enrollment, verified saves and private journals", true, new[] { PluginIds.ServerCharacters },
-                "CharacterCheckpoints", "FirstJoinEnrollment", "ServerCharacterTemplate", "CoinIncomeChannel", "ItemActivityChannel", "ItemActivity", "TreasureDiscoveries");
+                typeof(CharacterCheckpoints), typeof(FirstJoinEnrollment), typeof(ServerCharacterTemplate), typeof(CoinIncomeChannel), typeof(ItemActivityChannel), typeof(ItemActivity), typeof(TreasureDiscoveries));
             // Spawn placement holds a new creature, unhurt, until FreshCreatureSpawns releases it, so the two turn on and off together.
             Add("star-level-system", "Creature scaling, boss rewards, Nemesis and dungeon resets", true, new[] { PluginIds.StarLevelSystem },
-                "StarLevelSystem", "StarLevelModifierIcons", "StarLevelWorldBalance", "StarLevelAuthority", "BossStars", "BountyTargetStrength",
-                "CreatureAreaDamage", "CreatureSizeCompatibility", "CreatureSpawnPlacement", "DungeonInteriors", "DungeonOccupancy", "EpicLootStarRewards", "FreshCreatureSpawns", "LateBiomePressure",
-                "MiningScaledDropPosition", "ModSettingsCaption", "NemesisFactions", "NemesisHuntingPacks", "NemesisMinibosses", "NemesisScore", "NemesisOverheadHealthBars", "PheromoneLevels", "PoisonConversion",
-                "SealColors", "MooseAntlers", "SoulEaterCap", "StarLootScaling", "SummonHealth", "ItemActivity+SpreadLoot");
-            Add("drop-tables", "Star drop-roll compatibility", true, new[] { PluginIds.DropThat }, "StarDropRolls");
+                typeof(StarLevelSystem), typeof(StarLevelModifierIcons), typeof(StarLevelWorldBalance), typeof(StarLevelAuthority), typeof(BossStars), typeof(BountyTargetStrength),
+                typeof(CreatureAreaDamage), typeof(CreatureSizeCompatibility), typeof(CreatureSpawnPlacement), typeof(DungeonInteriors), typeof(DungeonOccupancy), typeof(EpicLootStarRewards), typeof(FreshCreatureSpawns), typeof(LateBiomePressure),
+                typeof(MiningScaledDropPosition), typeof(ModSettingsCaption), typeof(NemesisFactions), typeof(NemesisHuntingPacks), typeof(NemesisMinibosses), typeof(NemesisScore), typeof(NemesisOverheadHealthBars), typeof(PheromoneLevels), typeof(PoisonConversion),
+                typeof(SealColors), typeof(MooseAntlers), typeof(SoulEaterCap), typeof(StarLootScaling), typeof(SummonHealth), typeof(ItemActivity.SpreadLoot));
+            Add("drop-tables", "Star drop-roll compatibility", true, new[] { PluginIds.DropThat }, typeof(StarDropRolls));
             Add("discord", "Discord chat, death messages, achievements and startup behavior", true, new[] { PluginIds.DiscordBot },
-                "DiscordBot", "AchievementAnnouncements", "DeathFeedWithoutEmbed", "DiscordOnlyNotifications", "DiscordMentions", "DiscordPlayerStatus", "DiscordScreenshotHud", "DiscordStartupHelp", "DiscordGatewayMessages");
-            Add("discord-file-log", "Discord records durability", false, new[] { PluginIds.DiscordConnector }, "DiscordConnectorRecords");
-            Add("discord-records", "Discord death reports", false, new[] { PluginIds.DiscordConnector }, "DeathLeaderboard");
-            Add("discord-presentation", "Discord system-message formatting", false, new[] { PluginIds.DiscordBot, PluginIds.DiscordConnector }, "DiscordSystemMessages");
-            Add("death-presentation", "Death-message names and star formatting", false, new[] { PluginIds.DiscordBot, PluginIds.StarLevelSystem }, "DeathMessageFormatting");
-            Add("plant-harvest", "Planting controls and area harvesting", false, new[] { PluginIds.PlantEasily }, "BulkPickup", "PlantingGridModifier", "PlantingGridSafety");
-            Add("plant-hover", "Plant growth hover text", false, new[] { PluginIds.BetterUi, PluginIds.PlantEverything }, "PlantHoverText");
-            Add("better-ui", "Armor, cooking and progress display compatibility", false, new[] { PluginIds.BetterUi }, "ArmorDisplay", "BetterUiProgressLog", "CookingTooltips", "BetterUiCharacterLayout");
-            Add("skill-notices", "Skill progress notifications", false, new[] { PluginIds.BetterUi, PluginIds.FortifySkills }, "SkillNotifications");
-            Add("fedo-hud", "Personal FedoHud preferences and overlays", false, new[] { PluginIds.FedoHud }, "FedoHudDeaths", "FedoHudPosition", "FedoHudSkills", "FedoHudPreferences", "FedoHudCooking", "StationInputFedo");
-            Add("comfort", "Comfort room panel, chips and build actions", false, new[] { PluginIds.ComfortMe }, "ComfortBuildActions", "ComfortChipGain", "ComfortRoomPanel");
-            Add("ammo-count", "Ammunition counter placement", false, new[] { PluginIds.AmmoCount }, "AmmoCountBadge");
-            Add("ship-stats", "Ship Stats panel while steering", false, new[] { PluginIds.ShipStats }, "ShipStatsHelm");
-            Add("logout-effects", "Logout status snapshots and Rested comfort", false, new[] { PluginIds.LogoutTweaks }, "DeadLogoutEffects", "LogoutRestedComfort");
-            Add("sailing", "Sailing ship health and death penalty", true, new[] { PluginIds.Sailing }, "SailingShipHealth", "SailingDeathPenalty");
-            Add("carry-weight", "Effective skills in carry weight", true, new[] { PluginIds.SkilledCarryWeight }, "EpicLootSkillLevels");
-            Add("fortify-experience", "Inspiration experience compatibility", true, new[] { PluginIds.FortifySkills }, "InspirationAwards");
-            Add("kept-fires", "Kept-lit fire compatibility", true, new[] { PluginIds.NoSmokeStayLit }, "KeepLitFires");
-            Add("weapon-mist", "Held-weapon mist clearing", true, new[] { PluginIds.BetterWisps }, "WeaponMistRange");
-            Add("quick-cart", "Quick cart controls", true, new[] { PluginIds.QuickCart }, "QuickCartKey");
-            Add("dyrr-bindings", "Durable world bindings and refusal reasons", true, new[] { PluginIds.Dyrr }, "DyrrBindingStorage", "DyrrRefusalReason");
-            Add("tame-riding", "Tame riding stamina, controls, speeds, clearing and Sit", true, new[] { PluginIds.TameRiding }, "TameRiding");
-            Add("server-password", "Password box after a refused saved password", false, new[] { PluginIds.FastLink }, "ServerPasswordReset", "FastLinkMenuReload", "FastLinkNameCasing");
-            Add("store-and-craft", "StoreAndCraft inventory supply", true, new[] { PluginIds.StoreAndCraft }, "StoreAndCraftInventory");
+                typeof(DiscordBot), typeof(AchievementAnnouncements), typeof(DeathFeedWithoutEmbed), typeof(DiscordOnlyNotifications), typeof(DiscordMentions), typeof(DiscordPlayerStatus), typeof(DiscordScreenshotHud), typeof(DiscordStartupHelp), typeof(DiscordGatewayMessages));
+            Add("discord-file-log", "Discord records durability", false, new[] { PluginIds.DiscordConnector }, typeof(DiscordConnectorRecords));
+            Add("discord-records", "Discord death reports", false, new[] { PluginIds.DiscordConnector }, typeof(DeathLeaderboard));
+            Add("discord-presentation", "Discord system-message formatting", false, new[] { PluginIds.DiscordBot, PluginIds.DiscordConnector }, typeof(DiscordSystemMessages));
+            Add("death-presentation", "Death-message names and star formatting", false, new[] { PluginIds.DiscordBot, PluginIds.StarLevelSystem }, typeof(DeathMessageFormatting));
+            Add("plant-harvest", "Planting controls and area harvesting", false, new[] { PluginIds.PlantEasily }, typeof(BulkPickup), typeof(PlantingGridModifier), typeof(PlantingGridSafety));
+            Add("plant-hover", "Plant growth hover text", false, new[] { PluginIds.BetterUi, PluginIds.PlantEverything }, typeof(PlantHoverText));
+            Add("better-ui", "Armor, cooking and progress display compatibility", false, new[] { PluginIds.BetterUi }, typeof(ArmorDisplay), typeof(BetterUiProgressLog), typeof(CookingTooltips), typeof(BetterUiCharacterLayout));
+            Add("skill-notices", "Skill progress notifications", false, new[] { PluginIds.BetterUi, PluginIds.FortifySkills }, typeof(SkillNotifications));
+            Add("fedo-hud", "Personal FedoHud preferences and overlays", false, new[] { PluginIds.FedoHud }, typeof(FedoHudDeaths), typeof(FedoHudPosition), typeof(FedoHudSkills), typeof(FedoHudPreferences), typeof(FedoHudCooking), typeof(StationInputFedo));
+            Add("comfort", "Comfort room panel, chips and build actions", false, new[] { PluginIds.ComfortMe }, typeof(ComfortBuildActions), typeof(ComfortChipGain), typeof(ComfortRoomPanel));
+            Add("ammo-count", "Ammunition counter placement", false, new[] { PluginIds.AmmoCount }, typeof(AmmoCountBadge));
+            Add("ship-stats", "Ship Stats panel while steering", false, new[] { PluginIds.ShipStats }, typeof(ShipStatsHelm));
+            Add("logout-effects", "Logout status snapshots and Rested comfort", false, new[] { PluginIds.LogoutTweaks }, typeof(DeadLogoutEffects), typeof(LogoutRestedComfort));
+            Add("sailing", "Sailing ship health and death penalty", true, new[] { PluginIds.Sailing }, typeof(SailingShipHealth), typeof(SailingDeathPenalty));
+            Add("carry-weight", "Effective skills in carry weight", true, new[] { PluginIds.SkilledCarryWeight }, typeof(EpicLootSkillLevels));
+            Add("fortify-experience", "Inspiration experience compatibility", true, new[] { PluginIds.FortifySkills }, typeof(InspirationAwards));
+            Add("kept-fires", "Kept-lit fire compatibility", true, new[] { PluginIds.NoSmokeStayLit }, typeof(KeepLitFires));
+            Add("weapon-mist", "Held-weapon mist clearing", true, new[] { PluginIds.BetterWisps }, typeof(WeaponMistRange));
+            Add("quick-cart", "Quick cart controls", true, new[] { PluginIds.QuickCart }, typeof(QuickCartKey));
+            Add("dyrr-bindings", "Durable world bindings and refusal reasons", true, new[] { PluginIds.Dyrr }, typeof(DyrrBindingStorage), typeof(DyrrRefusalReason));
+            Add("tame-riding", "Tame riding stamina, controls, speeds, clearing and Sit", true, new[] { PluginIds.TameRiding }, typeof(TameRiding));
+            Add("server-password", "Password box after a refused saved password", false, new[] { PluginIds.FastLink }, typeof(ServerPasswordReset), typeof(FastLinkMenuReload), typeof(FastLinkNameCasing));
+            Add("store-and-craft", "StoreAndCraft inventory supply", true, new[] { PluginIds.StoreAndCraft }, typeof(StoreAndCraftInventory));
             foreach (var group in groups) group.Durable = group.Name == "dyrr-bindings" || group.Name == "discord-file-log";
-            foreach (string type in owners.Keys)
-                if (typeof(Plugin).Assembly.GetType(type) == null) throw new InvalidOperationException("Integration type was not found: " + type);
         }
 
-        private void Add(string name, string title, bool shared, string[] plugins, params string[] types)
+        private void Add(string name, string title, bool shared, string[] plugins, params Type[] types)
         {
             var group = new Group { Name = name, Title = title, Shared = shared, Plugins = plugins,
                 Patches = new IntegrationPatches(Plugin.Id + ".integration." + name) };
             groups.Add(group);
-            foreach (string type in types) owners.Add("EpicLootProgressionFix." + type, group);
+            foreach (var type in types) owners.Add(type, group);
         }
         // Owners are fixed once constructed, and hooks of integrations ask for theirs on every update, so each type's owner
-        // is looked up by name once.
+        // is found once, through its declaring types.
         private readonly Dictionary<Type, Group> typeOwners = new Dictionary<Type, Group>();
         private Group Owner(Type type)
         {
             if (typeOwners.TryGetValue(type, out var known)) return known;
             Group found = null;
-            for (var declaring = type; declaring != null && found == null; declaring = declaring.DeclaringType) owners.TryGetValue(declaring.FullName, out found);
+            for (var declaring = type; declaring != null && found == null; declaring = declaring.DeclaringType) owners.TryGetValue(declaring, out found);
             return typeOwners[type] = found;
         }
         internal static bool Enabled(Type type) => current?.Owner(type) is Group group ? group.Active && !group.Failed : true;

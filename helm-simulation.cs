@@ -233,7 +233,7 @@ namespace EpicLootProgressionFix
         // MultiUserChest makes whoever opens or stacks into a chest its owner unless someone else has it open, and
         // otherwise grants shared use with confirmed transfers. Ship storage always takes the shared path for other games.
         [HarmonyPatch]
-        private static class StorageRequests
+        internal static class StorageRequests
         {
             private static MethodInfo inUse;
             private static Func<Container, long, bool> sharedUse;
@@ -257,7 +257,7 @@ namespace EpicLootProgressionFix
         // AzuCraftyBoxes edits a nearby chest's inventory in place. Changes to ship storage another game simulates
         // would be overwritten by that game's next update, so crafting, building and station supply leave it out.
         [HarmonyPatch]
-        private static class StorageSupply
+        internal static class StorageSupply
         {
             private static MethodInfo openElsewhere;
             private static Func<Container, bool> usedElsewhere;
