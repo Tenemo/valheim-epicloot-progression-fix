@@ -4,6 +4,28 @@ These are the EpicLoot changes we use on our server: loot that follows your craf
 
 **We strongly recommend using all the companion mods listed below, with the same pack settings.** That is the setup we play with, and many of these features rely on those mods working together.
 
+## Performance
+
+**World Performance 0.11.3 or newer is recommended on the server and every client.** It provides the game performance fixes; Progression Fix handles loot, gameplay and its own interface. Without it on the server, creatures stay with a lagging player instead of moving to one whose connection keeps up.
+
+## What it doesn't change
+
+Progression Fix doesn't add new mobs, bosses, biomes or items. It isn't meant to introduce a whole new set of gameplay systems.
+
+The aim is to stay as close to **vanilla Valheim + EpicLoot** as possible: keep the game we enjoy, fix things that don't work properly, adjust some balance and cut down on repetitive chores. The changes should fit naturally into what's already there.
+
+## What it changes
+
+- **Loot follows your progress.** Craft equipment to unlock its enchanted drops from enemies, chests and unidentified rewards. Buying, finding or upgrading it does not count. Loot keeps its source’s progression limits.
+- **Rewards match the encounter.** Bosses and bounty targets guarantee enchanted equipment. Main bounty targets also drop coins and bounty tokens according to their contract's biome, shared between players, in addition to Haldor's reward. Nemesis minibosses drop the same amounts for their own biome. Star scaling, elite runestones, Luck, Riches and Hoarding receive corrections, including rewards above five stars and limits on multiplying rare crafting materials.
+- **Enchanting wastes less.** New enchantments must work on their equipment and incompatible sockets explain their restrictions. Enchant shows each effect's chance on the finished item; Augment shows its chance of appearing among your choices. Runes retain extraction power through etching, socketing and tempering; matching runes stack.
+- **Combat gives you more control.** Raise your guard to cancel a swing, block after armor and resistances, and benefit from melee weapons that hit 50% harder for a quarter less stamina, stronger shields, more forgiving parries, blocks that grow against starred creatures and on harder worlds, and a broken guard that still blocks. Fixes cover bows, crossbows, volleys, ammunition bonuses, recall and triggered attacks. Eligible targets and batch-crafted items each award skill experience.
+- **Character bonuses work together.** Health, stamina, eitr, armor, carrying capacity, regeneration and skill bonuses account for your equipment and active effects. Buff meads can be topped up near expiry without losing the time left, and automatic healing meads respond to actual health loss.
+- **Adventures stay worthwhile.** Repeat boss fights grow harder, Nemesis ambushes vary, and configured dungeons replenish enemies and original treasure while preserving your belongings and builds. Bounties spread out and complete when their main target dies; their creatures roll stars like the creatures around them before adding their bounty stars, and their extra health multiplies the health from those stars; old unclaimed contracts receive EpicLoot's increased coin and token rewards. Andvaranaut tracks accepted contracts and unopened treasure, and its finder extracts into a rune for a shardstone slot.
+- **Crafting and gathering take fewer clicks.** Craft in batches from chosen nearby storage, including your attached cart. Bulk actions load machines, cook, ferment, harvest and collect outputs. Material conversions support multiple selections, and Lucky Craft saves crafting and upgrade materials.
+- **Equipment and storage are easier to manage.** Swap outfits with armor stands, search a chest for an enchantment, equip from shared chests, and move socketed runes and shardstones with number keys. Faster wearable changes, improved sorting and stacking, protected favorites, and safer chest transfers reduce inventory chores.
+- **Useful information is easier to find.** Active effects collects your current bonuses in one place. Equipment previews account for your character, while skill descriptions, enchanting panels, cooking prompts, ammunition counts and health bars show clearer information. Hold Shift for extra detail.
+
 ## Screenshots
 
 Enchant shows each effect's chance on the finished item before you spend anything.
@@ -29,28 +51,6 @@ Active effects gathers your health, defenses, movement, attacks and every enchan
 In the Ashlands, the hammer menu marks the pieces that can't catch fire.
 
 ![The hammer's Walls tab in the Ashlands with flame badges on fireproof pieces and the Grausten Wall 2x2 described as fireproof](https://raw.githubusercontent.com/Tenemo/valheim-epicloot-progression-fix/main/screenshots/ashlands-fireproof-build-menu.webp)
-
-## Performance
-
-**World Performance 0.11.3 or newer is recommended on the server and every client.** It provides the game performance fixes; Progression Fix handles loot, gameplay and its own interface. Without it on the server, creatures stay with a lagging player instead of moving to one whose connection keeps up.
-
-## What it doesn't change
-
-Progression Fix doesn't add new mobs, bosses, biomes or items. It isn't meant to introduce a whole new set of gameplay systems.
-
-The aim is to stay as close to **vanilla Valheim + EpicLoot** as possible: keep the game we enjoy, fix things that don't work properly, adjust some balance and cut down on repetitive chores. The changes should fit naturally into what's already there.
-
-## What it changes
-
-- **Loot follows your progress.** Craft equipment to unlock its enchanted drops from enemies, chests and unidentified rewards. Buying, finding or upgrading it does not count. Loot keeps its source’s progression limits.
-- **Rewards match the encounter.** Bosses and bounty targets guarantee enchanted equipment. Main bounty targets also drop coins and bounty tokens according to their contract's biome, shared between players, in addition to Haldor's reward. Nemesis minibosses drop the same amounts for their own biome. Star scaling, elite runestones, Luck, Riches and Hoarding receive corrections, including rewards above five stars and limits on multiplying rare crafting materials.
-- **Enchanting wastes less.** New enchantments must work on their equipment and incompatible sockets explain their restrictions. Enchant shows each effect's chance on the finished item; Augment shows its chance of appearing among your choices. Runes retain extraction power through etching, socketing and tempering; matching runes stack.
-- **Combat gives you more control.** Raise your guard to cancel a swing, block after armor and resistances, and benefit from melee weapons that hit 50% harder for a quarter less stamina, stronger shields, more forgiving parries, blocks that grow against starred creatures and on harder worlds, and a broken guard that still blocks. Fixes cover bows, crossbows, volleys, ammunition bonuses, recall and triggered attacks. Eligible targets and batch-crafted items each award skill experience.
-- **Character bonuses work together.** Health, stamina, eitr, armor, carrying capacity, regeneration and skill bonuses account for your equipment and active effects. Buff meads can be topped up near expiry without losing the time left, and automatic healing meads respond to actual health loss.
-- **Adventures stay worthwhile.** Repeat boss fights grow harder, Nemesis ambushes vary, and configured dungeons replenish enemies and original treasure while preserving your belongings and builds. Bounties spread out and complete when their main target dies; their creatures roll stars like the creatures around them before adding their bounty stars, and their extra health multiplies the health from those stars; old unclaimed contracts receive EpicLoot's increased coin and token rewards. Andvaranaut tracks accepted contracts and unopened treasure, and its finder extracts into a rune for a shardstone slot.
-- **Crafting and gathering take fewer clicks.** Craft in batches from chosen nearby storage, including your attached cart. Bulk actions load machines, cook, ferment, harvest and collect outputs. Material conversions support multiple selections, and Lucky Craft saves crafting and upgrade materials.
-- **Equipment and storage are easier to manage.** Swap outfits with armor stands, search a chest for an enchantment, equip from shared chests, and move socketed runes and shardstones with number keys. Faster wearable changes, improved sorting and stacking, protected favorites, and safer chest transfers reduce inventory chores.
-- **Useful information is easier to find.** Active effects collects your current bonuses in one place. Equipment previews account for your character, while skill descriptions, enchanting panels, cooking prompts, ammunition counts and health bars show clearer information. Hold Shift for extra detail.
 
 ## Other improvements
 
