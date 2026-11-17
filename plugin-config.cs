@@ -31,6 +31,7 @@ namespace EpicLootProgressionFix
         internal static ConfigEntry<float> BatPursuitRange, AttackerHealthBarRange, BountySpacing, SnowLanternLightRadius, CartHealthBonus;
         internal static ConfigEntry<int> BountyExtraEquipmentCopies, RuneStackSize, DeathLeaderboardHour;
         internal static ConfigEntry<float> BuffRefreshWindowPercent, DroppedItemLifetimeHours;
+        internal static ConfigEntry<float> MeleeDamageMultiplier, MeleeAttackStaminaMultiplier;
         internal static ConfigEntry<float> ShieldBlockArmorMultiplier, ShieldBlockForceMultiplier, RoundShieldParryIncrease, BucklerParryIncrease, CreatureBlockGrowth, StaggerHealthShare, BaseParryWindow;
         internal static ConfigEntry<bool> SmeltingRequiresBosses;
         internal static ConfigEntry<string> FlametalWorldKey, BloodgoldWorldKey;
@@ -175,6 +176,12 @@ namespace EpicLootProgressionFix
             BuffRefreshWindowPercent = Config.Bind("Potions", "Buff refresh window percent", 10f,
                 Synced("A mead or other consumable whose effect lasts a set time and restores no health, stamina or eitr can be taken again once at most this percent of the active effect's lifetime is left. The new one adds its full duration to the time left. 0 keeps the game's rule of waiting for the effect to end.",
                     new AcceptableValueRange<float>(0f, 100f)));
+            MeleeDamageMultiplier = Config.Bind("Melee", "Damage multiplier", 1.5f,
+                Synced("Damage multiplier for players' craftable melee weapons and bare fists, including enchantment damage. Chop and mining damage are unchanged.",
+                    new AcceptableValueRange<float>(0.1f, 10f)));
+            MeleeAttackStaminaMultiplier = Config.Bind("Melee", "Attack stamina multiplier", 0.75f,
+                Synced("Stamina cost multiplier for attacks with players' craftable melee weapons and bare fists. 0.75 costs a quarter less.",
+                    new AcceptableValueRange<float>(0f, 10f)));
             ShieldBlockArmorMultiplier = Config.Bind("Shields", "Block armor multiplier", 1.25f,
                 Synced("Block armor multiplier for craftable shields, including gains per quality.",
                     new AcceptableValueRange<float>(0.1f, 10f)));
