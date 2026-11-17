@@ -6,6 +6,7 @@
 - A chest of about 40 runes loads about a quarter faster the first time you come near it and twice as fast when you return, so arriving at a base with such chests stutters less.
 - Bounty targets and Nemesis minibosses drop about 30% fewer coins when killed, from 18 in the Meadows to 490 in the Deep North. They drop the same bounty tokens as before.
 - Drinking a resistance, utility or lingering mead again in the last 10% of its effect adds the new bottle's full duration to the time left instead of restarting it, so a Strength mead with 20 s left lasts 320 s. Healing, stamina and eitr meads still wait for their cooldown.
+- A catapult refuses favorited items and anything in a favorited slot, so pressing a hotbar key at its loading spot can't launch your favorite gear.
 
 # 1.29.0
 
