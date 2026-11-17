@@ -1,3 +1,9 @@
+# 1.32.0
+
+- A night's sleep takes about two and a half seconds from lying down to a clear screen instead of about 22. Smelters, kilns, fermenters, beehives, plants, eggs and growing animals still get the whole night's work, and you wake Rested by your bed's comfort. Taming and food timers run about 18 seconds less over a night.
+- A set bonus that adds to an earlier bonus of the same set shows the total you get from that many pieces, in the item tooltip, the set rune and the Compendium: Coils of the World Serpent's four-piece Coiling Venom reads 50 / 60 / 70% by rarity instead of repeating the three-piece value, and Jotunn's Blood reads +5%, +15% and +30%.
+- Many copies of one sound in one spot still sound like at most three, but now every new copy plays and the oldest fades out, so a windmill's hopper filled with Shift + Use plays a steady stream instead of bursts.
+
 # 1.31.0
 
 - A bow's crosshair circle shows exactly the power your arrow leaves with, in rapid fire too. The next draw starts once the previous shot's release ends, which now plays twice as fast, and draws are shorter to match, so you fire as many arrows a second as before at every Bows level and below Bows 85 the first arrow from rest is ready 0.3 s sooner. Letting go before the circle closes fires a weaker arrow, and a click let go while the bow is still recovering fires nothing; hold the button and the draw starts as soon as the bow is ready.
