@@ -247,8 +247,8 @@ namespace EpicLootProgressionFix
         private static partial void SuspendSimulation()
         {
             foreach (var character in Character.GetAllCharacters()) if (Halted(character)) Freeze(character.gameObject);
-            foreach (var projectile in UnityEngine.Object.FindObjectsByType<Projectile>(FindObjectsSortMode.None)) if (EnemyAttack(projectile)) Freeze(projectile.gameObject);
-            foreach (var area in UnityEngine.Object.FindObjectsByType<Aoe>(FindObjectsSortMode.None)) if (EnemyAttack(area)) Freeze(area.gameObject);
+            foreach (var projectile in Loaded<Projectile>()) if (EnemyAttack(projectile)) Freeze(projectile.gameObject);
+            foreach (var area in Loaded<Aoe>()) if (EnemyAttack(area)) Freeze(area.gameObject);
         }
 
         private static partial void ResumeSimulation()

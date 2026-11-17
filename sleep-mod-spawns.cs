@@ -171,7 +171,7 @@ namespace EpicLootProgressionFix
         private static void CaptureModClocks()
         {
             modGameStarted = Time.time; unscaledStarted = Time.unscaledTime; ModClocks.Clear();
-            foreach (MonoBehaviour controller in UnityEngine.Object.FindObjectsByType(bountyControllerType, FindObjectsSortMode.None))
+            foreach (MonoBehaviour controller in Loaded(bountyControllerType))
                 if (IsBounty(controller)) foreach (string field in new[] { "nextSearchTime", "searchStartTime", "areaReadyTime" })
                     RememberNumber(controller, AccessTools.Field(bountyControllerType, field), false);
             if (!StarLevelSystem.Installed) return;
@@ -179,7 +179,7 @@ namespace EpicLootProgressionFix
                 (raidRunnerType, "Endtime", true), (raidRunnerType, "nextDefeatCheck", false) })
             {
                 if (spec.Item1 == raidRunnerType && useVanillaRaids.Value) continue;
-                foreach (var instance in UnityEngine.Object.FindObjectsByType(spec.Item1, FindObjectsSortMode.None))
+                foreach (var instance in Loaded(spec.Item1))
                     RememberNumber(instance, AccessTools.Field(spec.Item1, spec.Item2), spec.Item3);
             }
             if (!useVanillaRaids.Value) CaptureRaidClocks();

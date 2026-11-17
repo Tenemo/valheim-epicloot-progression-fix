@@ -225,12 +225,12 @@ namespace EpicLootProgressionFix
             storedLongs = (Dictionary<ZDOID, BinarySearchDictionary<int, long>>)StoredLongsField.GetValue(null);
             storedFloats = (Dictionary<ZDOID, BinarySearchDictionary<int, float>>)StoredFloatsField.GetValue(null);
             RememberWorldClocks();
-            foreach (var system in UnityEngine.Object.FindObjectsByType<SpawnSystem>(FindObjectsSortMode.None))
+            foreach (var system in Loaded<SpawnSystem>())
             {
                 foreach (var list in system.m_spawnLists) RememberClocks(system, list.m_spawners, "b_");
                 if (RandEventSystem.instance) RememberClocks(system, RandEventSystem.instance.GetCurrentSpawners(), "e_");
             }
-            foreach (var system in UnityEngine.Object.FindObjectsByType<PersistentEventSystem>(FindObjectsSortMode.None))
+            foreach (var system in Loaded<PersistentEventSystem>())
                 foreach (var active in system.m_activePersistentEvents.list)
                     if (active.Source.objectsToSpawn.Any(PersistentEnemies)) PersistentClocks.Add((system, active, active.startTime));
         }

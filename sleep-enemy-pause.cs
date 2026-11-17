@@ -48,6 +48,29 @@ namespace EpicLootProgressionFix
             InitializeSpawning(patches);
         }
 
+        // A scene search walks every loaded behaviour, over 10 ms each at a large base, and starting a pause looks for a dozen
+        // kinds; they share one search, sorted by type, which finds exactly the objects each kind's own search would.
+        private static Dictionary<Type, List<MonoBehaviour>> loadedBehaviours;
+
+        private static void Suspend()
+        {
+            loadedBehaviours = new Dictionary<Type, List<MonoBehaviour>>();
+            foreach (var behaviour in UnityEngine.Object.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None))
+            {
+                var type = behaviour.GetType();
+                if (!loadedBehaviours.TryGetValue(type, out var list)) loadedBehaviours.Add(type, list = new List<MonoBehaviour>());
+                list.Add(behaviour);
+            }
+            try { SuspendSpawning(); SuspendSimulation(); }
+            finally { loadedBehaviours = null; }
+        }
+
+        private static IEnumerable<T> Loaded<T>() where T : MonoBehaviour => Loaded(typeof(T)).Cast<T>();
+
+        private static IEnumerable<UnityEngine.Object> Loaded(Type type) => loadedBehaviours == null || !typeof(MonoBehaviour).IsAssignableFrom(type)
+            ? UnityEngine.Object.FindObjectsByType(type, FindObjectsSortMode.None)
+            : loadedBehaviours.Where(entry => type.IsAssignableFrom(entry.Key)).SelectMany(entry => entry.Value).Where(behaviour => behaviour);
+
         private static bool AllowSleepPoll() => phase != Waking;
         private static bool AuthorizedTransition() => nativeTransition;
 
@@ -77,7 +100,7 @@ namespace EpicLootProgressionFix
             readySent = checkingFrame = false; renderedFrame = -1; noticeAt = Time.unscaledTime + 60f;
             Waiting.Clear();
             foreach (var peer in ZNet.instance.GetPeers()) if (peer.IsReady()) Waiting.Add(peer.m_rpc);
-            SuspendSpawning(); SuspendSimulation();
+            Suspend();
             foreach (var peer in ZNet.instance.GetPeers()) if (peer.IsReady()) SendState(peer, 0);
             environment.SkipToMorning();
         }
@@ -141,7 +164,7 @@ namespace EpicLootProgressionFix
             }
             bool wasActive = Active;
             phase = receivedPhase; worldStarted = started;
-            if (Active && !wasActive) { SuspendSpawning(); SuspendSimulation(); }
+            if (Active && !wasActive) Suspend();
             if (!Active)
             {
                 ResumeSpawning(cycle, worldStarted, now); ResumeSpawnRoutes(); ResumeSimulation();

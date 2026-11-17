@@ -107,9 +107,9 @@ namespace EpicLootProgressionFix
         private static void CaptureModifierClocks()
         {
             foreach (var spec in new[] { (earthCallerType, "nextCast"), (shieldType, "nextTick"), (spikeVisualType, "eruptAt"), (spikeRiseType, "start") })
-                foreach (MonoBehaviour instance in UnityEngine.Object.FindObjectsByType(spec.Item1, FindObjectsSortMode.None))
+                foreach (MonoBehaviour instance in Loaded(spec.Item1))
                     if (EnemyComponent(instance)) RememberNumber(instance, AccessTools.Field(spec.Item1, spec.Item2), false);
-            foreach (MonoBehaviour shield in UnityEngine.Object.FindObjectsByType(shieldType, FindObjectsSortMode.None))
+            foreach (MonoBehaviour shield in Loaded(shieldType))
             {
                 if (!EnemyComponent(shield)) continue;
                 var lastHit = AccessTools.Field(shieldType, "lastHit");

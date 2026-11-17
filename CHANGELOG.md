@@ -13,6 +13,7 @@
 - An open chest has a search field beside its title. Items whose name, enchantments, set or set bonuses hold every word you type are outlined and the rest dimmed, so "eitr regen" finds gear with Eitr regeneration. Rarity alone matches nothing and accents are optional. The search stays as you open other chests; empty the field to clear it. While you type, keys only type: Enter, Escape or a click elsewhere leaves the field.
 - Melee weapons and bare fists deal 50% more damage, enchantment damage included, and their attacks cost 25% less stamina. Their chop and mining damage stay the same, so trees, rocks and ore take as many hits as before, while chopping costs less stamina. Thrown spears and weapons with Throwable hit harder too. Bloodletting still costs the same health. Bows, crossbows, staffs, pickaxes, shields and creatures' attacks are unchanged. Servers set both with [Melee] Damage multiplier and Attack stamina multiplier.
 - Doors left open, such as the drawbridges inside Morkhalla, no longer play their opening sound each time you come near them; you hear it only when someone opens one.
+- The game no longer freezes for about a fifth of a second as everyone goes to bed and the screen starts to darken; the hitch is now about a quarter as long.
 
 # 1.29.0
 
