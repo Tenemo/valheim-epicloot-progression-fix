@@ -34,8 +34,10 @@ namespace EpicLootProgressionFix
             patches.Patch(update, postfix: new HarmonyMethod(typeof(NightSpawnCleanup), nameof(Step)));
         }
 
-        // Feeding a hungry creature to tame it clears the mark, so tames and creatures being tamed stay.
-        private static bool Marked(ZDO data) => data.Persistent && CreaturePrefabs.IsCreature(data) && data.GetBool(ZDOVars.s_despawnInDay);
+        // Feeding a hungry creature to tame it clears the mark, so tames and creatures being tamed stay; a creature tamed
+        // another way, such as with the tame command, keeps the mark and stays too.
+        private static bool Marked(ZDO data) => data.Persistent && CreaturePrefabs.IsCreature(data) && data.GetBool(ZDOVars.s_despawnInDay) &&
+            !data.GetBool(ZDOVars.s_tamed);
 
         private static void Step(ZDOMan __instance)
         {
