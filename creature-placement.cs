@@ -12,7 +12,6 @@ namespace EpicLootProgressionFix
         private static readonly int GroundMask = LayerMask.GetMask("terrain", "Default", "static_solid", "piece", "piece_nonsolid", "vehicle");
         private static readonly AccessTools.FieldRef<Character, float> MaximumAltitude = AccessTools.FieldRefAccess<Character, float>("m_maxAirAltitude");
         private static readonly AccessTools.FieldRef<Character, float> LastGroundTouch = AccessTools.FieldRefAccess<Character, float>("m_lastGroundTouch");
-        private static readonly AccessTools.FieldRef<Character, Vector3> Velocity = AccessTools.FieldRefAccess<Character, Vector3>("m_currentVel");
         private static readonly AccessTools.FieldRef<Character, Vector3> LastPosition = AccessTools.FieldRefAccess<Character, Vector3>("m_lastPos");
         private static readonly AccessTools.FieldRef<Character, Vector3> LazyPosition = AccessTools.FieldRefAccess<Character, Vector3>("m_lazyPos");
         private static readonly Action<Character> ResetGround = AccessTools.MethodDelegate<Action<Character>>(AccessTools.Method(typeof(Character), "ResetGroundContact"));
@@ -141,7 +140,7 @@ namespace EpicLootProgressionFix
             var body = character.GetComponent<Rigidbody>();
             character.transform.position = body.position = position; body.linearVelocity = Vector3.zero; body.angularVelocity = Vector3.zero;
             view.GetZDO().SetPosition(position);
-            MaximumAltitude(character) = position.y; Velocity(character) = Vector3.zero;
+            MaximumAltitude(character) = position.y; GameFields.CurrentVelocity(character) = Vector3.zero;
             LastPosition(character) = LazyPosition(character) = position;
             ResetGround(character); LastGroundTouch(character) = 1f;
         }

@@ -12,8 +12,6 @@ namespace EpicLootProgressionFix
     {
         private const float CheckInterval = 2f, StalledSeconds = 8f;
         private static readonly ConditionalWeakTable<MonsterAI, State> States = new ConditionalWeakTable<MonsterAI, State>();
-        private static readonly AccessTools.FieldRef<MonsterAI, Character> Target = AccessTools.FieldRefAccess<MonsterAI, Character>("m_targetCreature");
-        private static readonly AccessTools.FieldRef<MonsterAI, float> SinceAttacking = AccessTools.FieldRefAccess<MonsterAI, float>("m_timeSinceAttacking");
         private static readonly AccessTools.FieldRef<BaseAI, float> SinceHurt = AccessTools.FieldRefAccess<BaseAI, float>("m_timeSinceHurt");
         private static readonly Func<BaseAI, Vector3, float, float, bool> CanMove = AccessTools.MethodDelegate<Func<BaseAI, Vector3, float, float, bool>>(
             AccessTools.Method(typeof(BaseAI), "CanMove"));
@@ -74,8 +72,8 @@ namespace EpicLootProgressionFix
         internal static bool FleeWhenHurt(MonsterAI ai)
         {
             if (!ai.m_fleeIfHurtWhenTargetCantBeReached) return false;
-            var target = Target(ai);
-            if (!target || SinceAttacking(ai) <= 30f || SinceHurt(ai) >= 20f) return true;
+            var target = GameFields.TargetCreature(ai);
+            if (!target || GameFields.TimeSinceAttacking(ai) <= 30f || SinceHurt(ai) >= 20f) return true;
             return Unreachable(ai, target);
         }
 
@@ -165,7 +163,7 @@ namespace EpicLootProgressionFix
                 var character = ai.GetComponent<Humanoid>();
                 if (!character || !character.IsOwner()) return;
                 if (!character.IsFlying()) return;
-                var target = Target(ai);
+                var target = GameFields.TargetCreature(ai);
                 if (!target || Vector3.Distance(point, target.transform.position) > 2f) return;
                 var state = Current(ai, target);
                 if (character.InAttack() || ai.IsCharging() || TakingOff(ai)) { state.LastProgress = Time.time; return; }

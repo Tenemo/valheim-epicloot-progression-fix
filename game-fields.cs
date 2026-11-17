@@ -54,6 +54,19 @@ namespace EpicLootProgressionFix
         internal static readonly AccessTools.FieldRef<BaseAI, ZNetView> AiView = AccessTools.FieldRefAccess<BaseAI, ZNetView>("m_nview");
         internal static readonly AccessTools.FieldRef<BaseAI, Tameable> AiTameable = AccessTools.FieldRefAccess<BaseAI, Tameable>("m_tamable");
 
+        internal static readonly AccessTools.FieldRef<MonsterAI, Character> TargetCreature = AccessTools.FieldRefAccess<MonsterAI, Character>("m_targetCreature");
+        internal static readonly AccessTools.FieldRef<MonsterAI, float> TimeSinceAttacking = AccessTools.FieldRefAccess<MonsterAI, float>("m_timeSinceAttacking");
+        internal static readonly AccessTools.FieldRef<BaseAI, float> LastFindPathTime = AccessTools.FieldRefAccess<BaseAI, float>("m_lastFindPathTime");
+        internal static readonly AccessTools.FieldRef<Character, Vector3> CurrentVelocity = AccessTools.FieldRefAccess<Character, Vector3>("m_currentVel");
+        internal static readonly AccessTools.FieldRef<Character, Vector3> MoveDirection = AccessTools.FieldRefAccess<Character, Vector3>("m_moveDir");
+        internal static readonly AccessTools.FieldRef<Character, CapsuleCollider> CharacterCollider = AccessTools.FieldRefAccess<Character, CapsuleCollider>("m_collider");
+        internal static readonly AccessTools.FieldRef<StatusEffect, float> EffectTime = AccessTools.FieldRefAccess<StatusEffect, float>("m_time");
+        internal static readonly AccessTools.FieldRef<StatusEffect, Character> EffectCharacter = AccessTools.FieldRefAccess<StatusEffect, Character>("m_character");
+        internal static readonly AccessTools.FieldRef<SE_Shield, float> ShieldDamage = AccessTools.FieldRefAccess<SE_Shield, float>("m_damage");
+        internal static readonly AccessTools.FieldRef<SE_Shield, float> ShieldCapacity = AccessTools.FieldRefAccess<SE_Shield, float>("m_totalAbsorbDamage");
+        internal static readonly AccessTools.FieldRef<SE_Poison, float> PoisonLeft = AccessTools.FieldRefAccess<SE_Poison, float>("m_damageLeft");
+        internal static readonly AccessTools.FieldRef<InventoryGui, Container> CurrentContainer = AccessTools.FieldRefAccess<InventoryGui, Container>("m_currentContainer");
+
         // A prefab's name, which the engine copies into a new string on every read. Prefabs keep their names.
         private static readonly Dictionary<GameObject, string> PrefabNames = new Dictionary<GameObject, string>();
         internal static string PrefabName(GameObject prefab)

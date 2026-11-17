@@ -12,17 +12,14 @@ namespace EpicLootProgressionFix
     {
         private const string BubbleKey = Plugin.Id + ".protection-bubble";
         private static readonly int ShieldHash = "Staff_shield".GetStableHashCode();
-        private static readonly AccessTools.FieldRef<StatusEffect, float> Age = AccessTools.FieldRefAccess<StatusEffect, float>("m_time");
-        private static readonly AccessTools.FieldRef<SE_Shield, float> Damage = AccessTools.FieldRefAccess<SE_Shield, float>("m_damage");
-        private static readonly AccessTools.FieldRef<SE_Shield, float> Capacity = AccessTools.FieldRefAccess<SE_Shield, float>("m_totalAbsorbDamage");
 
         [HarmonyPrefix, HarmonyPatch(typeof(Player), nameof(Player.Save))]
         private static void Remember(Player __instance)
         {
             var shield = __instance.IsDead() ? null : __instance.GetSEMan().GetStatusEffect(ShieldHash) as SE_Shield;
             // SE_Shield.IsDone plays the break effects, so test its two end conditions directly.
-            if (shield && Damage(shield) <= Capacity(shield) && (shield.m_ttl <= 0f || Age(shield) < shield.m_ttl))
-                __instance.m_customData[BubbleKey] = string.Join(":", Text(shield.m_ttl), Text(Age(shield)), Text(Capacity(shield)), Text(Damage(shield)));
+            if (shield && GameFields.ShieldDamage(shield) <= GameFields.ShieldCapacity(shield) && (shield.m_ttl <= 0f || GameFields.EffectTime(shield) < shield.m_ttl))
+                __instance.m_customData[BubbleKey] = string.Join(":", Text(shield.m_ttl), Text(GameFields.EffectTime(shield)), Text(GameFields.ShieldCapacity(shield)), Text(GameFields.ShieldDamage(shield)));
             else __instance.m_customData.Remove(BubbleKey);
         }
 
@@ -38,9 +35,9 @@ namespace EpicLootProgressionFix
             // Adding the bubble sets its strength and duration for level 0; the saved values replace both.
             if (!(__instance.GetSEMan().AddStatusEffect(ShieldHash) is SE_Shield shield)) return;
             shield.m_ttl = duration;
-            Age(shield) = age;
-            Capacity(shield) = capacity;
-            Damage(shield) = damage;
+            GameFields.EffectTime(shield) = age;
+            GameFields.ShieldCapacity(shield) = capacity;
+            GameFields.ShieldDamage(shield) = damage;
         }
 
         private static string Text(float value) => value.ToString("R", CultureInfo.InvariantCulture);

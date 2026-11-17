@@ -12,10 +12,8 @@ namespace EpicLootProgressionFix
     {
         private const int Ticks = 3;
 
-        private static readonly AccessTools.FieldRef<SE_Poison, float> DamageLeft = AccessTools.FieldRefAccess<SE_Poison, float>("m_damageLeft");
         private static readonly AccessTools.FieldRef<SE_Poison, float> DamagePerHit = AccessTools.FieldRefAccess<SE_Poison, float>("m_damagePerHit");
         private static readonly AccessTools.FieldRef<SE_Poison, float> Timer = AccessTools.FieldRefAccess<SE_Poison, float>("m_timer");
-        private static readonly AccessTools.FieldRef<StatusEffect, float> Time = AccessTools.FieldRefAccess<StatusEffect, float>("m_time");
         private static Type venom;
         private static FieldInfo armed;
 
@@ -37,12 +35,12 @@ namespace EpicLootProgressionFix
 
         private static void Pace(Character __instance, bool __state)
         {
-            if (!__state || !(__instance.GetSEMan().GetStatusEffect(SEMan.s_statusEffectPoison) is SE_Poison poison) || Time(poison) != 0f) return;
+            if (!__state || !(__instance.GetSEMan().GetStatusEffect(SEMan.s_statusEffectPoison) is SE_Poison poison) || GameFields.EffectTime(poison) != 0f) return;
             // The next tick keeps its time, so hits that come faster than ticks never hold them back. Ticks fall one interval
             // apart from it and the poison ends half an interval after the last, so exactly Ticks land.
             float next = Mathf.Clamp(Timer(poison), 0f, poison.m_damageInterval);
             poison.m_ttl = next + (Ticks - .5f) * poison.m_damageInterval;
-            DamagePerHit(poison) = DamageLeft(poison) / Ticks;
+            DamagePerHit(poison) = GameFields.PoisonLeft(poison) / Ticks;
             Timer(poison) = next;
         }
     }

@@ -32,8 +32,6 @@ namespace EpicLootProgressionFix
         private static readonly HashSet<ZDOID> Consumed = new HashSet<ZDOID>();
         private static readonly HashSet<ZDOID> Forwarded = new HashSet<ZDOID>();
         private static readonly Dictionary<ZDOID, (long Owner, float Removed)> Destroyed = new Dictionary<ZDOID, (long, float)>();
-        private static readonly AccessTools.FieldRef<SE_Poison, float> PoisonRemaining = AccessTools.FieldRefAccess<SE_Poison, float>("m_damageLeft");
-        private static readonly AccessTools.FieldRef<StatusEffect, Character> EffectCharacter = AccessTools.FieldRefAccess<StatusEffect, Character>("m_character");
         private static readonly Action<Vector3> Explosion = AccessTools.MethodDelegate<Action<Vector3>>(AccessTools.Method(typeof(BonemassCorpseRot), "SpawnExplosionFx"));
         private static readonly Action<Player> ShowCooldown = AccessTools.MethodDelegate<Action<Player>>(AccessTools.Method(typeof(BonemassCorpseRot), "ShowCooldown"));
         [ThreadStatic] private static Character ReceivingCharacter, TickCharacter;
@@ -86,10 +84,10 @@ namespace EpicLootProgressionFix
         [HarmonyPatch(typeof(SE_Poison), nameof(SE_Poison.AddDamage))]
         private static class AcceptedPoison
         {
-            private static void Prefix(SE_Poison __instance, float damage, out bool __state) => __state = damage >= PoisonRemaining(__instance);
+            private static void Prefix(SE_Poison __instance, float damage, out bool __state) => __state = damage >= GameFields.PoisonLeft(__instance);
             private static void Postfix(SE_Poison __instance, bool __state)
             {
-                var character = EffectCharacter(__instance);
+                var character = GameFields.EffectCharacter(__instance);
                 var view = character ? GameFields.CharacterView(character) : null;
                 if (!__state || !view || !view.IsValid() || !view.IsOwner() || character.IsPlayer()) return;
                 long player = character == ReceivingCharacter ? Credit(ReceivingHit?.GetAttacker()) : 0;
@@ -112,7 +110,7 @@ namespace EpicLootProgressionFix
             }
             private static void Postfix(SE_Burning __instance, bool __result)
             {
-                var character = EffectCharacter(__instance);
+                var character = GameFields.EffectCharacter(__instance);
                 var view = character ? GameFields.CharacterView(character) : null;
                 if (!__result || !view || !view.IsValid() || !view.IsOwner() || character.IsPlayer()) return;
                 var (playerKey, expiryKey) = Keys(__instance);
@@ -141,7 +139,7 @@ namespace EpicLootProgressionFix
             private static void Prefix(StatusEffect __instance, out (Character Character, long Player) __state)
             {
                 __state = (TickCharacter, TickingPlayer);
-                TickCharacter = EffectCharacter(__instance);
+                TickCharacter = GameFields.EffectCharacter(__instance);
                 var data = TickCharacter ? GameFields.CharacterView(TickCharacter)?.GetZDO() : null;
                 var (playerKey, expiryKey) = Keys(__instance);
                 TickingPlayer = data != null && data.GetLong(expiryKey) >= ZNet.instance.GetTime().Ticks ? data.GetLong(playerKey) : 0;
@@ -156,7 +154,7 @@ namespace EpicLootProgressionFix
             private static void Prefix(StatusEffect __instance)
             {
                 if (!(__instance is SE_Poison) && !(__instance is SE_Burning)) return;
-                var character = EffectCharacter(__instance);
+                var character = GameFields.EffectCharacter(__instance);
                 var view = character ? GameFields.CharacterView(character) : null;
                 if (!view || !view.IsValid() || !view.IsOwner() || character.IsPlayer()) return;
                 var (playerKey, expiryKey) = Keys(__instance);

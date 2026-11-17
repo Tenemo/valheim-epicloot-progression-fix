@@ -84,8 +84,6 @@ namespace EpicLootProgressionFix
         private static readonly ConditionalWeakTable<TimedDestruction, Timer> BatTimers = new ConditionalWeakTable<TimedDestruction, Timer>();
         private static readonly Func<ZoneSystem, int, ZoneSystem.ZoneLocation> LocationPrefab = AccessTools.MethodDelegate<Func<ZoneSystem, int, ZoneSystem.ZoneLocation>>(AccessTools.Method(typeof(ZoneSystem), "GetLocation", new[] { typeof(int) }));
         private static readonly AccessTools.FieldRef<BaseAI, List<Vector3>> Path = AccessTools.FieldRefAccess<BaseAI, List<Vector3>>("m_path");
-        private static readonly AccessTools.FieldRef<BaseAI, float> LastPath = AccessTools.FieldRefAccess<BaseAI, float>("m_lastFindPathTime");
-        private static readonly AccessTools.FieldRef<MonsterAI, Character> CombatTarget = AccessTools.FieldRefAccess<MonsterAI, Character>("m_targetCreature");
         private static readonly AccessTools.FieldRef<Player, float> TeleportCooldown = AccessTools.FieldRefAccess<Player, float>("m_teleportCooldown");
         private static readonly Action<BaseAI> ResetPatrol = AccessTools.MethodDelegate<Action<BaseAI>>(AccessTools.Method(typeof(BaseAI), "ResetPatrolPoint"));
         private static readonly Action<BaseAI> SetPatrol = AccessTools.MethodDelegate<Action<BaseAI>>(AccessTools.Method(typeof(BaseAI), "SetPatrolPoint", Type.EmptyTypes));
@@ -666,7 +664,7 @@ namespace EpicLootProgressionFix
                 if (!Landing(creature, held, actor.GetPosition(), out var position))
                 { if (!held.NeedsGeometry) { held.NeedsGeometry = true; Reply(Request.NeedGeometry, held); } continue; }
                 CreaturePlacement.Move(creature, position);
-                var ai = creature.GetComponent<MonsterAI>(); Path(ai).Clear(); LastPath(ai) = float.NegativeInfinity; ResetPatrol(ai); CombatTarget(ai) = null;
+                var ai = creature.GetComponent<MonsterAI>(); Path(ai).Clear(); GameFields.LastFindPathTime(ai) = float.NegativeInfinity; ResetPatrol(ai); GameFields.TargetCreature(ai) = null;
                 if (SummonedBats.IsBat(creature)) SummonedBats.ResetAfterDungeon(creature, player);
                 else SummonedFollowers.ResetAfterDungeon(creature, player);
                 data.Set(MovedKey, Completion(held));

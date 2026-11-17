@@ -12,8 +12,6 @@ namespace EpicLootProgressionFix
     internal static class ProtectionHealthBar
     {
         private static readonly int ShieldHash = "Staff_shield".GetStableHashCode();
-        private static readonly AccessTools.FieldRef<SE_Shield, float> Capacity = AccessTools.FieldRefAccess<SE_Shield, float>("m_totalAbsorbDamage");
-        private static readonly AccessTools.FieldRef<SE_Shield, float> Damage = AccessTools.FieldRefAccess<SE_Shield, float>("m_damage");
         private static readonly AccessTools.FieldRef<GuiBar, RectTransform> Bar = AccessTools.FieldRefAccess<GuiBar, RectTransform>("m_bar");
         private static readonly AccessTools.FieldRef<GuiBar, float> Width = AccessTools.FieldRefAccess<GuiBar, float>("m_width");
         private static readonly Color Cracks = new Color(.45f, .7f, .9f, .56f), ShieldBlue = new Color(.55f, .85f, 1f);
@@ -43,7 +41,7 @@ namespace EpicLootProgressionFix
             private static void Postfix(Hud __instance, Player player)
             {
                 var shield = player ? player.GetSEMan().GetStatusEffect(ShieldHash) as SE_Shield : null;
-                float remaining = shield ? Mathf.Max(0f, Capacity(shield) - Damage(shield)) : 0f;
+                float remaining = shield ? Mathf.Max(0f, GameFields.ShieldCapacity(shield) - GameFields.ShieldDamage(shield)) : 0f;
                 bool shown = remaining > 0f;
                 var bar = Bar(__instance.m_healthBarFast);
                 if (shown && (inner == null || !inner.Root || !shieldText)) Build(__instance, bar);

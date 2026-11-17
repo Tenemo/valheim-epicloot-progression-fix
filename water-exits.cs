@@ -26,8 +26,6 @@ namespace EpicLootProgressionFix
         }
 
         private static readonly ConditionalWeakTable<Character, State> States = new ConditionalWeakTable<Character, State>();
-        private static readonly AccessTools.FieldRef<Character, Vector3> MoveDirection = AccessTools.FieldRefAccess<Character, Vector3>("m_moveDir");
-        private static readonly AccessTools.FieldRef<Character, CapsuleCollider> Capsule = AccessTools.FieldRefAccess<Character, CapsuleCollider>("m_collider");
         // Natural ground and ice only: never onto a dock, a floor built over the water or a ship.
         private static readonly int Solid = LayerMask.GetMask("Default", "static_solid", "Default_small", "terrain");
         private static readonly int Blocking = LayerMask.GetMask("Default", "static_solid", "Default_small", "terrain", "piece", "vehicle", "character", "character_net");
@@ -51,7 +49,7 @@ namespace EpicLootProgressionFix
             // Most characters are out of water, which the eligibility check tests first.
             if (__instance.IsPlayer() || !__instance.InWater() || !States.TryGetValue(__instance, out var state) || state.HeadingUntil < Time.time ||
                 !Eligible(__instance)) return;
-            MoveDirection(__instance) = state.Heading;
+            GameFields.MoveDirection(__instance) = state.Heading;
             __instance.SetLookDir(state.Heading);
         }
 
@@ -64,7 +62,7 @@ namespace EpicLootProgressionFix
             if (position.y > surface - .3f) { state.Since = state.UnderSince = -1f; state.HeadingUntil = 0f; return; }
             if (now < state.NextProbe) return;
             state.NextProbe = now + Interval;
-            var capsule = Capsule(__instance);
+            var capsule = GameFields.CharacterCollider(__instance);
             float radius = capsule ? capsule.radius * Mathf.Max(capsule.transform.lossyScale.x, capsule.transform.lossyScale.z) : .5f;
 
             // A sheet's underside doesn't stop a ray from below, so look for a climbable top over the creature from above.
@@ -76,7 +74,7 @@ namespace EpicLootProgressionFix
             }
             state.UnderSince = -1f;
 
-            var move = MoveDirection(__instance); move.y = 0f;
+            var move = GameFields.MoveDirection(__instance); move.y = 0f;
             if (state.HeadingUntil >= now)
             {
                 if (TryAhead(__instance, capsule, radius, position, state.Heading, surface)) Reset(state);

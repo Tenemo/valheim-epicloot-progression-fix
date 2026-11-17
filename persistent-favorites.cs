@@ -34,10 +34,6 @@ namespace EpicLootProgressionFix
         private static readonly Action<Inventory, bool, bool> InventoryChanged =
             AccessTools.MethodDelegate<Action<Inventory, bool, bool>>(
                 AccessTools.Method(typeof(Inventory), "Changed", new[] { typeof(bool), typeof(bool) }));
-        private static readonly AccessTools.FieldRef<InventoryGui, InventoryGrid> ContainerGridOf =
-            AccessTools.FieldRefAccess<InventoryGui, InventoryGrid>("m_containerGrid");
-        private static readonly AccessTools.FieldRef<InventoryGui, Container> ContainerOf =
-            AccessTools.FieldRefAccess<InventoryGui, Container>("m_currentContainer");
         private static readonly Func<InventoryGrid, GameObject, Vector2i> ButtonPosition =
             AccessTools.MethodDelegate<Func<InventoryGrid, GameObject, Vector2i>>(AccessTools.Method(typeof(InventoryGrid), "GetButtonPos"));
         private static Func<InventoryGrid, bool> ignoreClick;
@@ -343,7 +339,7 @@ namespace EpicLootProgressionFix
         // stay on the player's grid. The grid's items are read once a frame, not searched again for each slot.
         private static void ContainerBorders(InventoryGrid __instance, Inventory ___m_inventory, List<InventoryElement> ___m_elements)
         {
-            if (InventoryGui.instance == null || __instance != ContainerGridOf(InventoryGui.instance) && !SocketFavorites.Showing(__instance)) return;
+            if (InventoryGui.instance == null || __instance != GameFields.ContainerGrid(InventoryGui.instance) && !SocketFavorites.Showing(__instance)) return;
             int width = ___m_inventory.GetWidth();
             if (favoriteSlots.Length < ___m_elements.Count) favoriteSlots = new bool[___m_elements.Count];
             Array.Clear(favoriteSlots, 0, ___m_elements.Count);
@@ -400,7 +396,7 @@ namespace EpicLootProgressionFix
             var gui = InventoryGui.instance;
             if (!__2 || gui == null) return true;
             bool sockets = SocketFavorites.Showing(__0);
-            if (!sockets && (__0 != ContainerGridOf(gui) || ContainerOf(gui) == null)) return true;
+            if (!sockets && (__0 != GameFields.ContainerGrid(gui) || GameFields.CurrentContainer(gui) == null)) return true;
             // Quick Stack's other checks, asked for the player's grid: teleporting, dragging an item, no favoriting key.
             if (ignoreClick(gui.m_playerGrid)) { __result = true; return false; }
             var position = ButtonPosition(__0, __1.gameObject);
@@ -414,7 +410,7 @@ namespace EpicLootProgressionFix
                 return false;
             }
             // Only the game that owns a chest saves it, and MultiUserChest opens a chest in use without handing it over.
-            if (marker && !ContainerOf(gui).IsOwner())
+            if (marker && !GameFields.CurrentContainer(gui).IsOwner())
             {
                 Player.m_localPlayer?.Message(MessageHud.MessageType.Center,
                     "Another player is using this chest. Reopen it after they close it to mark its equipment.");

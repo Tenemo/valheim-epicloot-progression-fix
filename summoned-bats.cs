@@ -20,9 +20,7 @@ namespace EpicLootProgressionFix
         private static readonly int ContactSequenceKey = "elpf_bat_contact_sequence".GetStableHashCode();
         private static float PursuitRange => Plugin.BatPursuitRange.Value;
         private const double ContactLifetime = 2.5;
-        private static readonly AccessTools.FieldRef<MonsterAI, Character> Target = AccessTools.FieldRefAccess<MonsterAI, Character>("m_targetCreature");
         private static readonly AccessTools.FieldRef<MonsterAI, float> UnseenTime = AccessTools.FieldRefAccess<MonsterAI, float>("m_timeSinceSensedTargetCreature");
-        private static readonly AccessTools.FieldRef<MonsterAI, float> InactiveTime = AccessTools.FieldRefAccess<MonsterAI, float>("m_timeSinceAttacking");
         private static readonly AccessTools.FieldRef<MonsterAI, float> TargetUpdateTime = AccessTools.FieldRefAccess<MonsterAI, float>("m_updateTargetTimer");
         private static readonly Action<MonsterAI, Character> SetTarget = AccessTools.MethodDelegate<Action<MonsterAI, Character>>(AccessTools.Method(typeof(MonsterAI), "SetTarget"));
         private static readonly Action<MonsterAI, bool> Alert = AccessTools.MethodDelegate<Action<MonsterAI, bool>>(AccessTools.Method(typeof(MonsterAI), "SetAlerted"));
@@ -80,8 +78,8 @@ namespace EpicLootProgressionFix
             var ai = bat.GetComponent<MonsterAI>(); var data = GameFields.CharacterView(bat).GetZDO();
             data.Set(TargetKey, ZDOID.None);
             data.Set(ContactSequenceKey, GameFields.CharacterView(summoner).GetZDO().GetLong(ContactSequenceKey));
-            Target(ai) = null; SetTarget(ai, null); Alert(ai, false);
-            UnseenTime(ai) = InactiveTime(ai) = TargetUpdateTime(ai) = 0f;
+            GameFields.TargetCreature(ai) = null; SetTarget(ai, null); Alert(ai, false);
+            UnseenTime(ai) = GameFields.TimeSinceAttacking(ai) = TargetUpdateTime(ai) = 0f;
             ai.SetFollowTarget(summoner.gameObject);
         }
 
@@ -156,7 +154,7 @@ namespace EpicLootProgressionFix
             var ai = target.GetBaseAI();
             if (target.GetFaction() != Character.Faction.AnimalsVeg && !(ai is AnimalAI) && !target.GetComponent<Tameable>()) return true;
             var monster = ai as MonsterAI;
-            var opponent = monster ? Target(monster) : null;
+            var opponent = monster ? GameFields.TargetCreature(monster) : null;
             return monster && monster.IsAlerted() && opponent && !opponent.IsDead() && (opponent.IsPlayer() || opponent.IsTamed());
         }
 
@@ -189,10 +187,10 @@ namespace EpicLootProgressionFix
             var creature = GameFields.HeldCreature ? ___m_character : __instance.GetComponent<Character>();
             if (!IsBat(creature))
             {
-                var previous = Target(__instance);
+                var previous = GameFields.TargetCreature(__instance);
                 if (IsBat(previous))
                 {
-                    Target(__instance) = null;
+                    GameFields.TargetCreature(__instance) = null;
                     RetaliateAgainstSummoner(__instance, ref previous);
                     SetTarget(__instance, previous);
                     TargetUpdateTime(__instance) = 0f;
@@ -213,9 +211,9 @@ namespace EpicLootProgressionFix
                     {
                         batData.Set(ContactSequenceKey, sequence);
                         batData.Set(TargetKey, target.GetZDOID());
-                        if (Target(__instance) != target) Target(__instance) = null;
+                        if (GameFields.TargetCreature(__instance) != target) GameFields.TargetCreature(__instance) = null;
                         SetTarget(__instance, target);
-                        InactiveTime(__instance) = 0f;
+                        GameFields.TimeSinceAttacking(__instance) = 0f;
                         Alert(__instance, true);
                     }
                 }
@@ -226,9 +224,9 @@ namespace EpicLootProgressionFix
             {
                 // The contact survives ownership transfer. Native attack reach and sight remain unchanged;
                 // only the follow leash and knowledge of the designated target's position are extended.
-                if (Target(__instance) != commanded)
+                if (GameFields.TargetCreature(__instance) != commanded)
                 {
-                    Target(__instance) = null;
+                    GameFields.TargetCreature(__instance) = null;
                     SetTarget(__instance, commanded);
                 }
                 __instance.m_alertRange = Mathf.Max(PursuitRange, Vector3.Distance(summoner.transform.position, commanded.transform.position) + 1f);
@@ -238,15 +236,15 @@ namespace EpicLootProgressionFix
             if (!batData.GetZDOID(TargetKey).IsNone())
             {
                 batData.Set(TargetKey, ZDOID.None);
-                Target(__instance) = null;
+                GameFields.TargetCreature(__instance) = null;
             }
-            if (!ValidTarget(creature, summoner, Target(__instance))) Target(__instance) = null;
+            if (!ValidTarget(creature, summoner, GameFields.TargetCreature(__instance))) GameFields.TargetCreature(__instance) = null;
         }
 
         private static void FollowCommand(MonsterAI __instance, Character ___m_character, ref bool canHearTarget)
         {
             var creature = GameFields.HeldCreature ? ___m_character : __instance.GetComponent<Character>();
-            var target = Target(__instance);
+            var target = GameFields.TargetCreature(__instance);
             if (!IsBat(creature) || !creature.IsOwner() || !target) return;
             var data = GameFields.OwnView(creature).GetZDO();
             if (data.GetZDOID(TargetKey) != target.GetZDOID() || !ValidTarget(creature, Summoner(creature), target, true)) return;
@@ -258,10 +256,10 @@ namespace EpicLootProgressionFix
         private static bool KeepTarget(BaseAI __instance, Character ___m_character, ref Character __result)
         {
             var ai = __instance as MonsterAI;
-            if (!ai || !IsBat(GameFields.HeldCreature ? ___m_character : ai.GetComponent<Character>()) || !Target(ai) || UnseenTime(ai) >= 30f) return true;
+            if (!ai || !IsBat(GameFields.HeldCreature ? ___m_character : ai.GetComponent<Character>()) || !GameFields.TargetCreature(ai) || UnseenTime(ai) >= 30f) return true;
             // UpdateTarget has already discarded dead, friendly or out-of-range targets. A new scan must not
             // replace a living one merely because another creature became closer while the bat was attacking.
-            __result = Target(ai);
+            __result = GameFields.TargetCreature(ai);
             return false;
         }
 

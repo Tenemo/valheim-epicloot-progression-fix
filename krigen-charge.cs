@@ -14,7 +14,6 @@ namespace EpicLootProgressionFix
         private const string Krigen = "JotunWarrior", Charge = "attack_charge";
         private static readonly AccessTools.FieldRef<Humanoid, Attack> CurrentAttack = AccessTools.FieldRefAccess<Humanoid, Attack>("m_currentAttack");
         private static readonly AccessTools.FieldRef<Character, Vector3> RootMotion = AccessTools.FieldRefAccess<Character, Vector3>("m_rootMotion");
-        private static readonly AccessTools.FieldRef<MonsterAI, Character> Target = AccessTools.FieldRefAccess<MonsterAI, Character>("m_targetCreature");
 
         internal static void Initialize(IntegrationPatches harmony)
         {
@@ -29,7 +28,7 @@ namespace EpicLootProgressionFix
             // Krigen carry a two-handed sword or axe; both charge the same way.
             if (attack == null || attack.m_attackAnimation != Charge) return;
             // The target before the name, which is copied into a new string on every read.
-            var target = humanoid.GetBaseAI() is MonsterAI ai ? Target(ai) : null;
+            var target = humanoid.GetBaseAI() is MonsterAI ai ? GameFields.TargetCreature(ai) : null;
             if (!target || Utils.GetPrefabName(humanoid.gameObject) != Krigen) return;
             // The slam is a sphere of the attack's width around a point the attack's range ahead of the creature.
             var slam = humanoid.transform.position + humanoid.transform.forward * attack.m_attackRange;

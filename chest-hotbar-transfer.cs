@@ -27,7 +27,6 @@ namespace EpicLootProgressionFix
 
         // An earlier withdrawal still waits for the chest's reply.
         internal static bool Waiting => pending != null && Time.time < pending.Deadline;
-        private static readonly AccessTools.FieldRef<InventoryGui, Container> OpenContainer = AccessTools.FieldRefAccess<InventoryGui, Container>("m_currentContainer");
         private static readonly Action<Inventory, bool, bool> Changed = AccessTools.MethodDelegate<Action<Inventory, bool, bool>>(AccessTools.Method(typeof(Inventory), "Changed"));
         private static MethodInfo removeFromChest, blockGet, slotBlocked;
 
@@ -62,7 +61,7 @@ namespace EpicLootProgressionFix
 
         internal static void Start(InventoryGui gui, ItemDrop.ItemData item, Vector2i target)
         {
-            var player = Player.m_localPlayer; var container = OpenContainer(gui);
+            var player = Player.m_localPlayer; var container = GameFields.CurrentContainer(gui);
             if (removeFromChest == null || !container || container.GetComponent<TombStone>() ||
                 !gui.IsContainerOpen() || !GameFields.ContainerGrid(gui).gameObject.activeInHierarchy || GameFields.ContainerGrid(gui).GetInventory() != container.GetInventory()) return;
             var view = GameFields.ContainerView(container);
@@ -80,7 +79,7 @@ namespace EpicLootProgressionFix
 
         private static bool EquipFromChest(InventoryGui __instance, InventoryGrid grid, ItemDrop.ItemData item, bool __runOriginal)
         {
-            var player = Player.m_localPlayer; var container = OpenContainer(__instance);
+            var player = Player.m_localPlayer; var container = GameFields.CurrentContainer(__instance);
             if (!__runOriginal || item == null || !player || !item.IsEquipable() || !container || container.GetComponent<TombStone>() ||
                 grid.GetInventory() != container.GetInventory() || grid.GetInventory() == player.GetInventory()) return true;
             if (Waiting) return false;
@@ -97,7 +96,7 @@ namespace EpicLootProgressionFix
         // sockets are still open.
         internal static bool Socket(InventoryGui gui, ItemDrop.ItemData item, int slot)
         {
-            var player = Player.m_localPlayer; var container = OpenContainer(gui);
+            var player = Player.m_localPlayer; var container = GameFields.CurrentContainer(gui);
             if (removeFromChest == null || !player || Waiting || !container || container.GetComponent<TombStone>() || !gui.IsContainerOpen() ||
                 GameFields.ContainerGrid(gui).GetInventory() != container.GetInventory()) return false;
             pending = null;

@@ -26,7 +26,6 @@ namespace EpicLootProgressionFix
     {
         internal const string TrackingKey = Plugin.Id + ".item-activity";
         internal static readonly int OriginKey = (Plugin.Id + ".item-activity.origin").GetStableHashCode();
-        private static readonly AccessTools.FieldRef<InventoryGui, Container> OpenContainer = AccessTools.FieldRefAccess<InventoryGui, Container>("m_currentContainer");
         private static readonly AccessTools.FieldRef<InventoryGui, Recipe> CraftRecipe = AccessTools.FieldRefAccess<InventoryGui, Recipe>("m_craftRecipe");
         private static readonly AccessTools.FieldRef<InventoryGui, ItemDrop.ItemData> CraftUpgrade = AccessTools.FieldRefAccess<InventoryGui, ItemDrop.ItemData>("m_craftUpgradeItem");
         private static readonly AccessTools.FieldRef<InventoryGui, bool> MultiCrafting = AccessTools.FieldRefAccess<InventoryGui, bool>("m_multiCrafting");
@@ -222,7 +221,7 @@ namespace EpicLootProgressionFix
                     var changes = Diff(implicitBefore, Snapshot(player.GetInventory()));
                     if (changes.Count == 0) return exception;
                     var gui = InventoryGui.instance;
-                    var container = gui && gui.IsContainerOpen() ? OpenContainer(gui) : null;
+                    var container = gui && gui.IsContainerOpen() ? GameFields.CurrentContainer(gui) : null;
                     string source = container ? Describe(container) : null;
                     foreach (var change in changes)
                     {

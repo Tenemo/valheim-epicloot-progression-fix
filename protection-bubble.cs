@@ -11,7 +11,6 @@ namespace EpicLootProgressionFix
     internal static class ProtectionBubble
     {
         private static readonly int ShieldHash = "Staff_shield".GetStableHashCode();
-        private static readonly AccessTools.FieldRef<SE_Shield, float> Damage = AccessTools.FieldRefAccess<SE_Shield, float>("m_damage");
         private static readonly Func<Character, short, WeakSpot> WeakSpotOf =
             AccessTools.MethodDelegate<Func<Character, short, WeakSpot>>(AccessTools.Method(typeof(Character), "GetWeakSpot"));
         private static readonly ConditionalWeakTable<HitData, object> ButcherHits = new ConditionalWeakTable<HitData, object>();
@@ -79,7 +78,7 @@ namespace EpicLootProgressionFix
         private static void AbsorbGeneric(SE_Shield __instance, HitData hit, float __state)
         {
             if (__instance.NameHash() != ShieldHash) return;
-            Damage(__instance) -= __state;
+            GameFields.ShieldDamage(__instance) -= __state;
             // Native accounting has already counted generic damage alongside every ordinary type.
             if (hit.m_damage.m_damage != 0f && Eligible(hit)) hit.m_damage.m_damage = 0f;
         }
@@ -135,7 +134,7 @@ namespace EpicLootProgressionFix
             bool protection = shield && shield.NameHash() == ShieldHash;
             if (protection) ProtectionCasterExperience.Reapplying(shield);
             effect.SetLevel(itemLevel, skillLevel);
-            if (protection) Damage(shield) = 0f;
+            if (protection) GameFields.ShieldDamage(shield) = 0f;
         }
 
         internal static void MarkWeaponSource(HitData hit, ItemDrop.ItemData weapon)

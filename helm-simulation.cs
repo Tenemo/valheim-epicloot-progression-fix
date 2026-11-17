@@ -22,7 +22,6 @@ namespace EpicLootProgressionFix
         private static readonly AccessTools.FieldRef<Player, IDoodadController> Controlled =
             AccessTools.FieldRefAccess<Player, IDoodadController>("m_doodadController");
         private static readonly AccessTools.FieldRef<Container, bool> InUse = AccessTools.FieldRefAccess<Container, bool>("m_inUse");
-        private static readonly AccessTools.FieldRef<InventoryGui, Container> OpenContainer = AccessTools.FieldRefAccess<InventoryGui, Container>("m_currentContainer");
         private static readonly Func<Container, bool> LoadContainer = AccessTools.MethodDelegate<Func<Container, bool>>(AccessTools.Method(typeof(Container), "Load"));
         private static readonly Dictionary<int, bool> ShipPrefabs = new Dictionary<int, bool>();
         private static readonly Dictionary<ZDOID, (float Time, int Skipped)> Reports = new Dictionary<ZDOID, (float, int)>();
@@ -117,7 +116,7 @@ namespace EpicLootProgressionFix
             var hold = ship.GetComponentInChildren<Container>();
             if (!hold) return;
             var inventory = InventoryGui.instance;
-            bool open = inventory && InventoryGui.IsVisible() && OpenContainer(inventory) == hold;
+            bool open = inventory && InventoryGui.IsVisible() && GameFields.CurrentContainer(inventory) == hold;
             InUse(hold) = false;
             LoadContainer(hold);
             InUse(hold) = open;

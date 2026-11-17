@@ -12,8 +12,6 @@ namespace EpicLootProgressionFix
     internal static class SummonFollowDistance
     {
         private const float BodyLengths = 2f, ResumeMargin = 2f, RunMargin = 7f;
-        private static readonly AccessTools.FieldRef<BaseAI, Character> Body = AccessTools.FieldRefAccess<BaseAI, Character>("m_character");
-        private static readonly AccessTools.FieldRef<Character, Vector3> Velocity = AccessTools.FieldRefAccess<Character, Vector3>("m_currentVel");
         private static readonly ConditionalWeakTable<BaseAI, State> States = new ConditionalWeakTable<BaseAI, State>();
 
         private sealed class State
@@ -39,13 +37,13 @@ namespace EpicLootProgressionFix
 
         private static bool Prefix(BaseAI __instance, GameObject go, float dt)
         {
-            var creature = Body(__instance);
+            var creature = GameFields.AiCharacter(__instance);
             var player = go ? go.GetComponent<Player>() : null;
             if (!player || !SummonOwnership.IsFollower(creature)) return true;
             if (!States.TryGetValue(__instance, out var state)) States.Add(__instance, state = new State { Capsule = creature.GetComponent<CapsuleCollider>() });
             if (!state.Capsule) return true;
             float gap = Gap(state.Capsule, player), target = TargetGap(state.Capsule);
-            var velocity = Velocity(creature); velocity.y = 0f;
+            var velocity = GameFields.CurrentVelocity(creature); velocity.y = 0f;
             float speed = velocity.magnitude;
             if (creature.IsRunning()) state.RunSpeed = speed;
             // The AI decides only once per update, so it stops at the update whose slide ends nearest the gap.

@@ -117,7 +117,7 @@ namespace EpicLootProgressionFix
 
         private static bool AllowSpawnGroup(CreatureSpawner.Group __instance) => !Paused || !__instance.Any(spawner => EnemyProduct(spawner.m_creaturePrefab));
         private static bool AllowEnemyEvent() => !Paused;
-        private static bool AllowSpawnEffect(SE_Spawn __instance) => !Paused || !Hostile(EffectOwner(__instance)) && !EnemyProduct(__instance.m_prefab);
+        private static bool AllowSpawnEffect(SE_Spawn __instance) => !Paused || !Hostile(GameFields.EffectCharacter(__instance)) && !EnemyProduct(__instance.m_prefab);
         private static bool AllowSpawnAttack(Attack __instance, Humanoid character) => !Paused || !Hostile(character) && !EnemyProduct(__instance.m_attackProjectile);
         private static bool PersistentEnemies(PersistentEventSystem.ObjectSpawnSettings settings) => ((List<GameObject>)EventPrefabs.GetValue(settings)).Any(EnemyProduct);
         private static bool AllowPersistentObjects(PersistentEventSystem.ObjectSpawnSettings __instance) => !Paused || !PersistentEnemies(__instance);

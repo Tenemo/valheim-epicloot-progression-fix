@@ -15,9 +15,7 @@ namespace EpicLootProgressionFix
         private const string Prefab = "piece_chest_warderobe";
         private const int Columns = 10, Rows = 5;
         private const float Margin = 8f;
-        private static readonly AccessTools.FieldRef<InventoryGui, InventoryGrid> ContainerGrid = AccessTools.FieldRefAccess<InventoryGui, InventoryGrid>("m_containerGrid");
         private static readonly AccessTools.FieldRef<InventoryGui, InventoryGrid> PlayerGrid = AccessTools.FieldRefAccess<InventoryGui, InventoryGrid>("m_playerGrid");
-        private static readonly AccessTools.FieldRef<InventoryGui, Container> CurrentContainer = AccessTools.FieldRefAccess<InventoryGui, Container>("m_currentContainer");
         private static readonly AccessTools.FieldRef<InventoryGui, int> ActiveGroup = AccessTools.FieldRefAccess<InventoryGui, int>("m_activeGroup");
         private static readonly Action<InventoryGui, int, bool> SetActiveGroup = AccessTools.MethodDelegate<Action<InventoryGui, int, bool>>(
             AccessTools.Method(typeof(InventoryGui), "SetActiveGroup", new[] { typeof(int), typeof(bool) }));
@@ -34,7 +32,7 @@ namespace EpicLootProgressionFix
 
         private static bool IsWardrobe(InventoryGui gui, Inventory inventory)
         {
-            var container = CurrentContainer(gui);
+            var container = GameFields.CurrentContainer(gui);
             return container && inventory != null && container.GetInventory() == inventory && inventory.GetWidth() * inventory.GetHeight() == Columns * Rows &&
                 Utils.GetPrefabName(container.gameObject) == Prefab;
         }
@@ -45,7 +43,7 @@ namespace EpicLootProgressionFix
             private static void Postfix(InventoryGrid __instance)
             {
                 var gui = InventoryGui.instance;
-                if (!gui || __instance != ContainerGrid(gui)) return;
+                if (!gui || __instance != GameFields.ContainerGrid(gui)) return;
                 if (!IsWardrobe(gui, GridInventory(__instance)))
                 {
                     if (shaped == __instance) Restore();
@@ -199,7 +197,7 @@ namespace EpicLootProgressionFix
         {
             private static bool Prefix(InventoryGui __instance, Vector2i previousGridPosition)
             {
-                var grid = ContainerGrid(__instance);
+                var grid = GameFields.ContainerGrid(__instance);
                 if (grid != shaped || shaped == null) return true;
                 if (!__instance.m_inventoryGroup.IsActive || !__instance.IsContainerOpen()) return false;
                                 grid.SetGamepadSelection(Stored(new Vector2i(Mathf.Clamp(previousGridPosition.x, 0, Columns - 1), 0), GridInventory(grid).GetWidth()));
@@ -213,7 +211,7 @@ namespace EpicLootProgressionFix
         {
             private static bool Prefix(InventoryGui __instance, Vector2i previousGridPosition)
             {
-                if (ContainerGrid(__instance) != shaped || shaped == null) return true;
+                if (GameFields.ContainerGrid(__instance) != shaped || shaped == null) return true;
                 if (!__instance.m_inventoryGroup.IsActive) return false;
                 var player = PlayerGrid(__instance);
                 int width = GridInventory(player).GetWidth();

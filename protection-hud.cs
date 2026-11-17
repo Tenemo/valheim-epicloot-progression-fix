@@ -62,8 +62,6 @@ namespace EpicLootProgressionFix
     internal static class ProtectionHud
     {
         private static readonly int ShieldHash = "Staff_shield".GetStableHashCode();
-        private static readonly AccessTools.FieldRef<SE_Shield, float> Capacity = AccessTools.FieldRefAccess<SE_Shield, float>("m_totalAbsorbDamage");
-        private static readonly AccessTools.FieldRef<SE_Shield, float> Damage = AccessTools.FieldRefAccess<SE_Shield, float>("m_damage");
         private static readonly AccessTools.FieldRef<Hud, List<RectTransform>> Entries = AccessTools.FieldRefAccess<Hud, List<RectTransform>>("m_statusEffects");
         // The local player's shield while the HUD writes its status icons, so the game writes the remaining health with the
         // countdown once instead of this patch overwriting the countdown every frame.
@@ -75,7 +73,7 @@ namespace EpicLootProgressionFix
             private static void Postfix(StatusEffect __instance, ref string __result)
             {
                 if ((object)drawing == null || (object)__instance != drawing) return;
-                string remaining = Math.Ceiling(Math.Max(0f, Capacity(drawing) - Damage(drawing))).ToString("0") + " HP";
+                string remaining = Math.Ceiling(Math.Max(0f, GameFields.ShieldCapacity(drawing) - GameFields.ShieldDamage(drawing))).ToString("0") + " HP";
                 __result = string.IsNullOrEmpty(__result) ? remaining : __result + "\n" + remaining;
             }
         }

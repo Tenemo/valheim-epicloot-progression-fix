@@ -16,9 +16,6 @@ namespace EpicLootProgressionFix
         private const float TransitGrace = 10f, OwnershipWait = 5f;
         private const int Register = 0, Break = 1, Forget = 2;
         private static readonly int ShieldHash = "Staff_shield".GetStableHashCode();
-        private static readonly AccessTools.FieldRef<StatusEffect, float> Age = AccessTools.FieldRefAccess<StatusEffect, float>("m_time");
-        private static readonly AccessTools.FieldRef<SE_Shield, float> Damage = AccessTools.FieldRefAccess<SE_Shield, float>("m_damage");
-        private static readonly AccessTools.FieldRef<SE_Shield, float> Capacity = AccessTools.FieldRefAccess<SE_Shield, float>("m_totalAbsorbDamage");
         private static ConditionalWeakTable<SE_Shield, Shield> Shields = new ConditionalWeakTable<SE_Shield, Shield>();
         private static ConditionalWeakTable<ZRpc, Connection> Connections = new ConditionalWeakTable<ZRpc, Connection>();
         private static readonly Dictionary<ZDOID, Dictionary<ZDOID, Application>> Applications = new Dictionary<ZDOID, Dictionary<ZDOID, Application>>();
@@ -70,7 +67,7 @@ namespace EpicLootProgressionFix
         {
             // A hit can exhaust the old cast before the status update removes it. Settle that cast before its capacity
             // and caster change; the following native SetAttacker starts a distinct award for the refreshed bubble.
-            if (Damage(shield) > Capacity(shield)) BreakReward(shield);
+            if (GameFields.ShieldDamage(shield) > GameFields.ShieldCapacity(shield)) BreakReward(shield);
             Ended(shield);
         }
 
@@ -92,7 +89,7 @@ namespace EpicLootProgressionFix
             state.Target = view.GetZDO().m_uid; state.Caster = caster.GetZDOID(); state.CasterPeer = casterView.GetZDO().GetOwner();
             if (state.Consumed || !ConnectedNow(state) || caster == Player.m_localPlayer) return;
             var package = Message(Register, state); package.Write(++nextRegistration);
-            package.Write(state.Caster); package.Write(state.CasterPeer); package.Write(Mathf.Max(0f, shield.m_ttl - Age(shield)));
+            package.Write(state.Caster); package.Write(state.CasterPeer); package.Write(Mathf.Max(0f, shield.m_ttl - GameFields.EffectTime(shield)));
             Submit(state, package); state.Registered = true;
         }
 

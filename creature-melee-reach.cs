@@ -48,9 +48,6 @@ namespace EpicLootProgressionFix
         private static readonly Dictionary<int, float> PrefabScales = new Dictionary<int, float>();
         private static readonly AccessTools.FieldRef<Attack, Humanoid> Attacker = AccessTools.FieldRefAccess<Attack, Humanoid>("m_character");
         private static readonly Func<Attack, Transform> AttackOrigin = AccessTools.MethodDelegate<Func<Attack, Transform>>(AccessTools.Method(typeof(Attack), "GetAttackOrigin"));
-        private static readonly AccessTools.FieldRef<BaseAI, Character> AiCharacter = AccessTools.FieldRefAccess<BaseAI, Character>("m_character");
-        private static readonly AccessTools.FieldRef<MonsterAI, Character> AiTarget = AccessTools.FieldRefAccess<MonsterAI, Character>("m_targetCreature");
-        private static readonly AccessTools.FieldRef<Character, CapsuleCollider> Capsule = AccessTools.FieldRefAccess<Character, CapsuleCollider>("m_collider");
 
         internal static void Initialize(IntegrationPatches harmony)
         {
@@ -231,11 +228,11 @@ namespace EpicLootProgressionFix
         }
 
         // UpdateAI reads the range of the weapon it just selected.
-        internal static float AttackRange(float range, MonsterAI ai) => AttackRange(range, ai, (AiCharacter(ai) as Humanoid)?.GetCurrentWeapon());
+        internal static float AttackRange(float range, MonsterAI ai) => AttackRange(range, ai, (GameFields.AiCharacter(ai) as Humanoid)?.GetCurrentWeapon());
 
         internal static float AttackRange(float range, MonsterAI ai, ItemDrop.ItemData item)
         {
-            var character = AiCharacter(ai);
+            var character = GameFields.AiCharacter(ai);
             if (!character) return range;
             float enlargement = Enlargement(character);
             if (enlargement <= 1.01f) return range;
@@ -255,8 +252,8 @@ namespace EpicLootProgressionFix
                 body.Swings[item.m_shared] = growth = SwingGrowth(character, body, attack, character.transform.position, enlargement);
             // The distance UpdateAI compares subtracts a radius that overstates non-player targets, which would stop the
             // creature short of them. Minimum ranges and gap closers rely on the native range, so it never shrinks.
-            var target = AiTarget(ai);
-            float excess = target ? Mathf.Max(0f, target.GetRadius() - Capsule(target).radius * target.transform.lossyScale.x) : 0f;
+            var target = GameFields.TargetCreature(ai);
+            float excess = target ? Mathf.Max(0f, target.GetRadius() - GameFields.CharacterCollider(target).radius * target.transform.lossyScale.x) : 0f;
             return Mathf.Max(range, range + growth - excess);
         }
     }

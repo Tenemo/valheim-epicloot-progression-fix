@@ -15,7 +15,6 @@ namespace EpicLootProgressionFix
         private static readonly AccessTools.FieldRef<Character, float> SinceGround = AccessTools.FieldRefAccess<Character, float>("m_lastGroundTouch");
         private static readonly AccessTools.FieldRef<Character, float> SinceJump = AccessTools.FieldRefAccess<Character, float>("m_jumpTimer");
         private static readonly AccessTools.FieldRef<Character, bool> Touching = AccessTools.FieldRefAccess<Character, bool>("m_groundContact");
-        private static readonly AccessTools.FieldRef<Character, CapsuleCollider> Body = AccessTools.FieldRefAccess<Character, CapsuleCollider>("m_collider");
         private static readonly FieldInfo GroundMask = AccessTools.Field(typeof(Character), "s_groundRayMask");
 
         // Runs before EpicLoot's prefix, which reads IsOnGround to choose between the ground and the air jump.
@@ -39,7 +38,7 @@ namespace EpicLootProgressionFix
 
         private static bool GroundBelow(Character character)
         {
-            float radius = Body(character).radius * 0.9f;
+            float radius = GameFields.CharacterCollider(character).radius * 0.9f;
             var from = character.transform.position + Vector3.up * (radius + 0.1f);
             return Physics.SphereCast(from, radius, Vector3.down, out _, GroundRange + 0.1f, (int)GroundMask.GetValue(null), QueryTriggerInteraction.Ignore);
         }

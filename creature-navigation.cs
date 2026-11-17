@@ -24,7 +24,6 @@ namespace EpicLootProgressionFix
             AvoidWater = AccessTools.FieldRefAccess<object, bool>(Rules[1]), CanSwim = AccessTools.FieldRefAccess<object, bool>(Rules[2]);
         private static readonly AccessTools.FieldRef<object, float> SwimDepth = AccessTools.FieldRefAccess<object, float>(Rules[3]);
         private static readonly MethodInfo AddAgent = AccessTools.Method(typeof(Pathfinding), "AddAgent");
-        private static readonly AccessTools.FieldRef<BaseAI, float> LastPathTime = AccessTools.FieldRefAccess<BaseAI, float>("m_lastFindPathTime");
         private static readonly AccessTools.FieldRef<BaseAI, bool> LastPathResult = AccessTools.FieldRefAccess<BaseAI, bool>("m_lastFindPathResult");
         private static readonly AccessTools.FieldRef<BaseAI, List<Vector3>> Path = AccessTools.FieldRefAccess<BaseAI, List<Vector3>>("m_path");
         private static readonly Dictionary<(Pathfinding.AgentType Source, int Radius, int Height, int SwimDepth), Pathfinding.AgentType> Profiles = new();
@@ -83,7 +82,7 @@ namespace EpicLootProgressionFix
         private static void Reroute(BaseAI __instance, Vector3 target, bool find, ref bool __result)
         {
             // A reused route belongs to an earlier request; a native HavePath answers only whether a complete route exists.
-            if (find ? LastPathTime(__instance) != Time.time : __result) return;
+            if (find ? GameFields.LastFindPathTime(__instance) != Time.time : __result) return;
             if (!States.TryGetValue(__instance, out var state) || !state.Ground || state.Fitted == state.Original || __instance.m_pathAgentType != state.Fitted ||
                 state.Navigation != Pathfinding.instance) return;
             var path = Path(__instance);
@@ -166,7 +165,7 @@ namespace EpicLootProgressionFix
             }
             if (ai.m_pathAgentType != selected || changedOwner || changedWorld)
             {
-                ai.m_pathAgentType = selected; Path(ai).Clear(); LastPathTime(ai) = float.NegativeInfinity;
+                ai.m_pathAgentType = selected; Path(ai).Clear(); GameFields.LastFindPathTime(ai) = float.NegativeInfinity;
             }
             state.Fitted = selected;
             state.Reach = reach;

@@ -14,9 +14,6 @@ namespace EpicLootProgressionFix
         private const int DamageMask = (1 << 12) - 1;
         private static readonly AccessTools.FieldRef<Character, HitData> LastHit =
             AccessTools.FieldRefAccess<Character, HitData>("m_lastHit");
-        private static readonly AccessTools.FieldRef<StatusEffect, Character> EffectCharacter =
-            AccessTools.FieldRefAccess<StatusEffect, Character>("m_character");
-        private static readonly AccessTools.FieldRef<SE_Poison, float> PoisonLeft = AccessTools.FieldRefAccess<SE_Poison, float>("m_damageLeft");
         // The creature behind each of the local player's fire, spirit and poison effects. Their ticks name no attacker,
         // and naming one would add world-level damage to every tick, so the creature is only kept here for the report.
         private static readonly Dictionary<StatusEffect, Culprit> culprits = new Dictionary<StatusEffect, Culprit>();
@@ -73,7 +70,7 @@ namespace EpicLootProgressionFix
             capturedCulprit = null;
             // A burn or poison tick names no attacker; the creature that started its effect stands in for it.
             if (captured.Prefab == 0 && __0.m_attacker == ZDOID.None && (__0.m_hitType == HitData.HitType.Burning || __0.m_hitType == HitData.HitType.Poisoned) &&
-                tickingEffect != null && EffectCharacter(tickingEffect) == __instance && culprits.TryGetValue(tickingEffect, out var culprit))
+                tickingEffect != null && GameFields.EffectCharacter(tickingEffect) == __instance && culprits.TryGetValue(tickingEffect, out var culprit))
             {
                 capturedCulprit = culprit;
                 captured.Prefab = culprit.Prefab;
@@ -87,13 +84,13 @@ namespace EpicLootProgressionFix
         // A creature's hit names that creature for the effect it adds to, another player's or the player's own hit
         // clears it, and a dose without an attacker, such as a campfire's, keeps it. Doses the effect refuses change nothing.
         private static void BurnAdded(SE_Burning __instance, bool __result) { if (__result) Remember(__instance); }
-        private static void PoisonOffered(SE_Poison __instance, float damage, out bool __state) => __state = damage >= PoisonLeft(__instance);
+        private static void PoisonOffered(SE_Poison __instance, float damage, out bool __state) => __state = damage >= GameFields.PoisonLeft(__instance);
         private static void PoisonAdded(SE_Poison __instance, bool __state) { if (__state) Remember(__instance); }
 
         private static void Remember(StatusEffect effect)
         {
             var player = Player.m_localPlayer;
-            if (player == null || EffectCharacter(effect) != player) return;
+            if (player == null || GameFields.EffectCharacter(effect) != player) return;
             var hit = CorpseRotKillCredit.HitReceivedBy(player);
             if (hit == null) return;
             // RPC_Damage drops a hit whose attacker is not loaded, so a named attacker is present here.

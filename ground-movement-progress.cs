@@ -12,9 +12,6 @@ namespace EpicLootProgressionFix
         private const float ObservationSeconds = 2f, StalledSeconds = 8f;
         private static readonly ConditionalWeakTable<BaseAI, State> States = new();
         private static readonly AccessTools.FieldRef<BaseAI, List<Vector3>> Path = AccessTools.FieldRefAccess<BaseAI, List<Vector3>>("m_path");
-        private static readonly AccessTools.FieldRef<BaseAI, float> PathTime = AccessTools.FieldRefAccess<BaseAI, float>("m_lastFindPathTime");
-        private static readonly AccessTools.FieldRef<Character, Vector3> MoveDirection = AccessTools.FieldRefAccess<Character, Vector3>("m_moveDir");
-        private static readonly AccessTools.FieldRef<Character, Vector3> DesiredVelocity = AccessTools.FieldRefAccess<Character, Vector3>("m_currentVel");
         [ThreadStatic] private static int fleeing;
 
         private sealed class State
@@ -38,7 +35,7 @@ namespace EpicLootProgressionFix
         [HarmonyPatch(typeof(BaseAI), "Flee"), HarmonyFinalizer]
         private static Exception EndFlee(Exception __exception, bool __state) { if (__state) fleeing--; return __exception; }
 
-        private static void Invalidate(BaseAI ai) { Path(ai).Clear(); PathTime(ai) = float.NegativeInfinity; }
+        private static void Invalidate(BaseAI ai) { Path(ai).Clear(); GameFields.LastFindPathTime(ai) = float.NegativeInfinity; }
 
         private static bool ObstacleChanged(State state) => !ReferenceEquals(state.Blocker, null) &&
             (!state.Blocker || !state.Blocker.enabled || !state.Blocker.gameObject.activeInHierarchy ||
@@ -94,7 +91,7 @@ namespace EpicLootProgressionFix
             if (__result || path.Count == 0 || flying || swimming || !character.IsOnGround() ||
                 character.IsDead() || character.HaveRider() || character.InAttack() || attack != null && !attack.IsDone() ||
                 character.IsStaggering() || __instance.IsSleeping() || (__instance is MonsterAI monster && monster.IsCharging()) ||
-                TameRiding.HoldingPosition(character) || FreshCreatureSpawns.Waiting(character) || MoveDirection(character).sqrMagnitude < .001f ||
+                TameRiding.HoldingPosition(character) || FreshCreatureSpawns.Waiting(character) || GameFields.MoveDirection(character).sqrMagnitude < .001f ||
                 CreatureRouteReadiness.Unbuilt(character.transform.position, __instance.m_pathAgentType) || CreatureRouteReadiness.Unbuilt(path[0], __instance.m_pathAgentType))
             {
                 state.Position = character.transform.position; state.ObservedAt = state.Attempted;
@@ -117,7 +114,7 @@ namespace EpicLootProgressionFix
             if (elapsed < ObservationSeconds) return;
             var direction = Vector3.ProjectOnPlane(waypoint - state.Position, Vector3.up).normalized;
             float progress = Vector3.Dot(character.transform.position - state.Position, direction);
-            float expected = Vector3.ProjectOnPlane(DesiredVelocity(character), Vector3.up).magnitude * elapsed;
+            float expected = Vector3.ProjectOnPlane(GameFields.CurrentVelocity(character), Vector3.up).magnitude * elapsed;
             if (progress > Mathf.Max(.002f, expected * .02f)) ClearFailure(state);
             else state.NoProgress += elapsed;
             state.Position = character.transform.position; state.ObservedAt = state.Attempted;

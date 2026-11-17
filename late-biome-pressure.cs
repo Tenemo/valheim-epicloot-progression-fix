@@ -41,7 +41,6 @@ namespace EpicLootProgressionFix
         }
 
         private static readonly ConditionalWeakTable<Character, State> States = new ConditionalWeakTable<Character, State>();
-        private static readonly AccessTools.FieldRef<BaseAI, Character> Owner = AccessTools.FieldRefAccess<BaseAI, Character>("m_character");
         private static readonly AccessTools.FieldRef<BaseAI, Vector3> SpawnPoint = AccessTools.FieldRefAccess<BaseAI, Vector3>("m_spawnPoint");
         private static string nemesisBoss;
         private static ObjectDB items;
@@ -83,7 +82,7 @@ namespace EpicLootProgressionFix
 
         private static void Setup(MonsterAI __instance)
         {
-            var character = Owner(__instance);
+            var character = GameFields.AiCharacter(__instance);
             if (character == null || !Eligible(character, __instance)) return;
             var state = States.GetValue(character, _ => new State());
             if (state.Active) return;
@@ -204,11 +203,11 @@ namespace EpicLootProgressionFix
             code.Insert(index + 1, new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(LateBiomePressure), method)));
         }
 
-        private static float Memory(MonsterAI ai) => Active(Owner(ai)) ? Plugin.LateBiomeTargetMemory.Value : NativeMemory;
+        private static float Memory(MonsterAI ai) => Active(GameFields.AiCharacter(ai)) ? Plugin.LateBiomeTargetMemory.Value : NativeMemory;
 
-        private static float Timeout(MonsterAI ai) => Active(Owner(ai)) ? Plugin.LateBiomeAttackTimeout.Value : NativeTimeout;
+        private static float Timeout(MonsterAI ai) => Active(GameFields.AiCharacter(ai)) ? Plugin.LateBiomeAttackTimeout.Value : NativeTimeout;
 
-        internal static float AttackRange(ItemDrop.ItemData item, MonsterAI ai) => Range(item, Owner(ai));
+        internal static float AttackRange(ItemDrop.ItemData item, MonsterAI ai) => Range(item, GameFields.AiCharacter(ai));
 
         private static float SelectionRange(ItemDrop.ItemData item, Humanoid owner) => Range(item, owner);
 

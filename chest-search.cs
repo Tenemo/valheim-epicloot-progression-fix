@@ -24,8 +24,6 @@ namespace EpicLootProgressionFix
         // White, since Quick Stack outlines favorites in yellow and EpicLoot colors items by rarity.
         private static readonly Color OutlineColor = Color.white;
         private static readonly Regex Tags = new Regex("<[^>]*>"), Placeholders = new Regex(@"\{[^}]*\}");
-        private static readonly AccessTools.FieldRef<InventoryGui, InventoryGrid> ContainerGrid = AccessTools.FieldRefAccess<InventoryGui, InventoryGrid>("m_containerGrid");
-        private static readonly AccessTools.FieldRef<InventoryGui, Container> CurrentContainer = AccessTools.FieldRefAccess<InventoryGui, Container>("m_currentContainer");
         private static readonly AccessTools.FieldRef<InventoryGrid, List<InventoryElement>> Elements = AccessTools.FieldRefAccess<InventoryGrid, List<InventoryElement>>("m_elements");
 
         private static TMP_InputField field;
@@ -281,8 +279,8 @@ namespace EpicLootProgressionFix
             private static void Postfix(InventoryGrid __instance)
             {
                 var gui = InventoryGui.instance;
-                if (!gui || __instance != ContainerGrid(gui)) return;
-                var container = CurrentContainer(gui);
+                if (!gui || __instance != GameFields.ContainerGrid(gui)) return;
+                var container = GameFields.CurrentContainer(gui);
                 var inventory = container ? container.GetInventory() : null;
                 if (inventory == null || __instance.GetInventory() != inventory) inventory = null;
                 var elements = Elements(__instance);

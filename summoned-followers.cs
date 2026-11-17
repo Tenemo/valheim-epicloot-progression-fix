@@ -15,9 +15,7 @@ namespace EpicLootProgressionFix
         private static readonly int ContactKey = (Plugin.Id + ".summon-contact").GetStableHashCode();
         private static readonly int ContactTimeKey = (Plugin.Id + ".summon-contact-time").GetStableHashCode();
         private static readonly int SessionKey = (Plugin.Id + ".summon-target-session").GetStableHashCode();
-        private static readonly AccessTools.FieldRef<MonsterAI, Character> Target = AccessTools.FieldRefAccess<MonsterAI, Character>("m_targetCreature");
         private static readonly AccessTools.FieldRef<MonsterAI, float> Unseen = AccessTools.FieldRefAccess<MonsterAI, float>("m_timeSinceSensedTargetCreature");
-        private static readonly AccessTools.FieldRef<MonsterAI, float> Inactive = AccessTools.FieldRefAccess<MonsterAI, float>("m_timeSinceAttacking");
         private static readonly Action<MonsterAI, Character> SetTarget = AccessTools.MethodDelegate<Action<MonsterAI, Character>>(AccessTools.Method(typeof(MonsterAI), "SetTarget"));
         private static readonly Action<MonsterAI, bool> Alert = AccessTools.MethodDelegate<Action<MonsterAI, bool>>(AccessTools.Method(typeof(MonsterAI), "SetAlerted"));
         internal static readonly Func<BaseAI, float, Vector3, float, bool, bool> MoveTo =
@@ -49,8 +47,8 @@ namespace EpicLootProgressionFix
             if (target != null && summoner && !summoner.IsDead() && target.GetFloat(ZDOVars.s_health) > 0f &&
                 !target.GetBool(ZDOVars.s_tamed) && CreatureOwnership.CanOwn(target, GameFields.CharacterView(summoner).GetZDO().GetOwner()))
             {
-                Inactive(__instance) += dt;
-                if (Inactive(__instance) <= 60f)
+                GameFields.TimeSinceAttacking(__instance) += dt;
+                if (GameFields.TimeSinceAttacking(__instance) <= 60f)
                 {
                     MoveTo(__instance, dt, target.GetPosition(), 0f, true);
                     __result = true;
@@ -67,8 +65,8 @@ namespace EpicLootProgressionFix
             data.Set(CommandKey, ZDOID.None); data.Set(SessionKey, Session);
             SummonedBats.RecentContact(summoner, out _, out long sequence, out long time);
             data.Set(ContactKey, sequence); data.Set(ContactTimeKey, time);
-            Target(ai) = null; SetTarget(ai, null); Alert(ai, false);
-            Unseen(ai) = Inactive(ai) = 0f;
+            GameFields.TargetCreature(ai) = null; SetTarget(ai, null); Alert(ai, false);
+            Unseen(ai) = GameFields.TimeSinceAttacking(ai) = 0f;
             ai.SetFollowTarget(summoner.gameObject);
         }
 
@@ -132,13 +130,13 @@ namespace EpicLootProgressionFix
                 if (!commandedId.IsNone())
                 {
                     data.Set(CommandKey, ZDOID.None);
-                    if (Target(__instance) && Target(__instance).GetZDOID() == commandedId) Target(__instance) = null;
+                    if (GameFields.TargetCreature(__instance) && GameFields.TargetCreature(__instance).GetZDOID() == commandedId) GameFields.TargetCreature(__instance) = null;
                 }
             }
-            else if (Target(__instance) != commanded)
+            else if (GameFields.TargetCreature(__instance) != commanded)
             {
                 // Restore the recorded command when this peer takes ownership of an already-existing summon.
-                Target(__instance) = null;
+                GameFields.TargetCreature(__instance) = null;
                 SetTarget(__instance, commanded);
                 Alert(__instance, true);
             }
@@ -151,7 +149,7 @@ namespace EpicLootProgressionFix
                     // Busy followers consume and ignore other targets; a later idle state cannot replay this hit.
                     data.Set(ContactKey, sequence);
                     data.Set(ContactTimeKey, contactTime);
-                    var current = Target(__instance);
+                    var current = GameFields.TargetCreature(__instance);
                     bool currentCommand = current && data.GetZDOID(CommandKey) == current.GetZDOID();
                     if (fresh && Valid(creature, summoner, contact, true) &&
                         (current == contact || !Valid(creature, summoner, current, currentCommand)))
@@ -159,20 +157,20 @@ namespace EpicLootProgressionFix
                         data.Set(CommandKey, contact.GetZDOID());
                         if (current != contact)
                         {
-                            Target(__instance) = null;
+                            GameFields.TargetCreature(__instance) = null;
                             SetTarget(__instance, contact);
-                            Inactive(__instance) = 0f;
+                            GameFields.TimeSinceAttacking(__instance) = 0f;
                         }
                         Alert(__instance, true);
                     }
                 }
             }
 
-            var target = Target(__instance);
+            var target = GameFields.TargetCreature(__instance);
             bool designated = target && data.GetZDOID(CommandKey) == target.GetZDOID();
             if (!Valid(creature, summoner, target, designated))
             {
-                Target(__instance) = null;
+                GameFields.TargetCreature(__instance) = null;
                 data.Set(CommandKey, ZDOID.None);
                 return;
             }
@@ -193,11 +191,11 @@ namespace EpicLootProgressionFix
             var creature = GameFields.HeldCreature ? ___m_character : __instance.GetComponent<Character>();
             if (!SummonOwnership.IsFollower(creature) || !creature.IsOwner()) return;
             // A held target the native update just dropped leaves the pick-up range for the next search.
-            if (!Target(__instance)) __instance.m_alertRange = CombatRange;
+            if (!GameFields.TargetCreature(__instance)) __instance.m_alertRange = CombatRange;
             var data = GameFields.CharacterView(creature).GetZDO();
             var command = data.GetZDOID(CommandKey);
             if (command.IsNone()) return;
-            var target = Target(__instance);
+            var target = GameFields.TargetCreature(__instance);
             if (!target || target.GetZDOID() != command)
             {
                 // The native failed-pursuit timeout must end the order, not re-arm it on the next update.
@@ -215,7 +213,7 @@ namespace EpicLootProgressionFix
             var ai = __instance as MonsterAI;
             var creature = ai ? (GameFields.HeldCreature ? ___m_character : ai.GetComponent<Character>()) : null;
             if (!SummonOwnership.IsFollower(creature) || !creature.IsOwner() || Unseen(ai) >= 30f) return true;
-            var target = Target(ai);
+            var target = GameFields.TargetCreature(ai);
             bool commanded = target && GameFields.CharacterView(creature).GetZDO().GetZDOID(CommandKey) == target.GetZDOID();
             if (!Valid(creature, SummonOwnership.Summoner(creature), target, commanded)) return true;
             __result = target;

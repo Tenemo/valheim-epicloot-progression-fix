@@ -12,8 +12,6 @@ namespace EpicLootProgressionFix
         private static readonly int EnemyAttackKey = (Plugin.Id + ".enemy-attack").GetStableHashCode();
         private static readonly AccessTools.FieldRef<Projectile, Character> ProjectileOwner = AccessTools.FieldRefAccess<Projectile, Character>("m_owner");
         private static readonly AccessTools.FieldRef<Aoe, Character> AreaOwner = AccessTools.FieldRefAccess<Aoe, Character>("m_owner");
-        private static readonly AccessTools.FieldRef<StatusEffect, Character> EffectOwner = AccessTools.FieldRefAccess<StatusEffect, Character>("m_character");
-        private static readonly AccessTools.FieldRef<SE_Poison, float> PoisonLeft = AccessTools.FieldRefAccess<SE_Poison, float>("m_damageLeft");
         private static readonly ConditionalWeakTable<Component, AttackSource> AttackSources = new();
         private static readonly ConditionalWeakTable<StatusEffect, AttackSource> PeriodicSources = new();
         private static readonly Dictionary<GameObject, SuspendedObject> Suspended = new();
@@ -228,19 +226,19 @@ namespace EpicLootProgressionFix
 
         private static void RememberPeriodic(StatusEffect effect)
         {
-            var hit = CorpseRotKillCredit.HitReceivedBy(EffectOwner(effect));
+            var hit = CorpseRotKillCredit.HitReceivedBy(GameFields.EffectCharacter(effect));
             if (hit == null || !hit.GetAttacker()) return;
             PeriodicSources.GetOrCreateValue(effect).Enemy = EnemyHit(hit);
         }
 
         private static bool BeforePoison(SE_Poison __instance, float damage, out bool __state)
         {
-            bool allowed = !Paused || !EnemyHit(CorpseRotKillCredit.HitReceivedBy(EffectOwner(__instance)));
-            __state = allowed && damage >= PoisonLeft(__instance);
+            bool allowed = !Paused || !EnemyHit(CorpseRotKillCredit.HitReceivedBy(GameFields.EffectCharacter(__instance)));
+            __state = allowed && damage >= GameFields.PoisonLeft(__instance);
             return allowed;
         }
         private static void AfterPoison(SE_Poison __instance, bool __state) { if (__state) RememberPeriodic(__instance); }
-        private static bool AllowBurn(SE_Burning __instance) => !Paused || !EnemyHit(CorpseRotKillCredit.HitReceivedBy(EffectOwner(__instance)));
+        private static bool AllowBurn(SE_Burning __instance) => !Paused || !EnemyHit(CorpseRotKillCredit.HitReceivedBy(GameFields.EffectCharacter(__instance)));
         private static void AfterBurn(SE_Burning __instance, bool __result) { if (__result) RememberPeriodic(__instance); }
         private static bool AllowPeriodic(StatusEffect __instance) => !Paused || !PeriodicSources.TryGetValue(__instance, out var source) || !source.Enemy;
 

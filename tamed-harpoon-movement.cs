@@ -9,8 +9,6 @@ namespace EpicLootProgressionFix
 {
     internal static class TamedHarpoonMovement
     {
-        private static readonly AccessTools.FieldRef<Character, Vector3> MoveDirection = AccessTools.FieldRefAccess<Character, Vector3>("m_moveDir");
-        private static readonly AccessTools.FieldRef<Character, Vector3> CurrentVelocity = AccessTools.FieldRefAccess<Character, Vector3>("m_currentVel");
         private static readonly AccessTools.FieldRef<Character, Vector3> RootMotion = AccessTools.FieldRefAccess<Character, Vector3>("m_rootMotion");
         // Where the harpoon last let go of a tame, or the home it had when TameRidingOverhaul's Sit took over, for
         // TameRiding to give back when Sit or a ride ends.
@@ -83,8 +81,8 @@ namespace EpicLootProgressionFix
             private static void Prefix(Character __instance)
             {
                 if (!Yielding(__instance)) return;
-                MoveDirection(__instance) = Vector3.zero;
-                CurrentVelocity(__instance) = Vector3.zero;
+                GameFields.MoveDirection(__instance) = Vector3.zero;
+                GameFields.CurrentVelocity(__instance) = Vector3.zero;
                 RootMotion(__instance) = Vector3.zero;
             }
         }
