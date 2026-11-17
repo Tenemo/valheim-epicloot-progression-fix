@@ -319,6 +319,7 @@ namespace EpicLootProgressionFix
                 Run(typeof(BossStars), patches => BossStars.Initialize(patches));
                 Run(typeof(StarLevelAuthority), patches => StarLevelAuthority.Initialize(patches));
                 Run(typeof(SharedWeather), patches => SharedWeather.Initialize(patches));
+                Run(typeof(WeatherParticles), patches => WeatherParticles.Initialize(patches));
                 Run(typeof(AshlandsSeaLight), patches => AshlandsSeaLight.Initialize(patches));
                 Run(typeof(ModerWindShift), patches => ModerWindShift.Initialize(patches));
                 Run(typeof(TableUpgradeSettlement), patches => TableUpgradeSettlement.Initialize(patches));
