@@ -5,9 +5,11 @@ using HarmonyLib;
 
 namespace EpicLootProgressionFix
 {
-    // Creatures from night-only spawn rules carry a mark that only their AI acts on, and AI runs only on a player's game. One
-    // nobody was simulating at sunrise stays frozen in the save until a player's game loads it by day and the AI deletes it in
-    // front of them. When day starts, the server deletes these in slices, so the walk over the world costs no noticeable frame.
+    // Creatures from night-only spawn rules carry a mark that only their AI acts on: by day the AI deletes one with no player
+    // within 40 m and leads one nearer off until it gets there, so a player meets night creatures by day that vanish in front of
+    // them. One nobody was simulating at sunrise stays frozen until a player's game loads it by day. When day starts, the server
+    // deletes every marked creature, whoever's game runs it, in slices, so the walk over the world costs no noticeable frame. A
+    // second pass catches creatures a player's game created just before its own sunrise that reached the server during the first.
     internal static class NightSpawnCleanup
     {
         private const string Feature = "Sunrise cleanup of night creatures";
@@ -15,7 +17,7 @@ namespace EpicLootProgressionFix
         private static ManualLogSource logger;
         private static AccessTools.FieldRef<ZDOMan, List<ZDO>[]> sectors;
         private static bool day, walking;
-        private static int next, removed, frames;
+        private static int next, pass, removed, frames;
         private static long started, worstFrame;
 
         internal static void Initialize(IntegrationPatches patches, ManualLogSource log)
@@ -32,14 +34,8 @@ namespace EpicLootProgressionFix
             patches.Patch(update, postfix: new HarmonyMethod(typeof(NightSpawnCleanup), nameof(Step)));
         }
 
-        // Only a connected player simulates a creature: a dedicated server runs no AI out in the world, and the game keeps a
-        // departed player as the owner of what they left behind until another player comes near it.
-        private static bool Leftover(ZDO data)
-        {
-            if (!data.Persistent || !CreaturePrefabs.IsCreature(data) || !data.GetBool(ZDOVars.s_despawnInDay)) return false;
-            long owner = data.GetOwner();
-            return owner == 0L || ZNet.instance.GetPeer(owner) == null;
-        }
+        // Feeding a hungry creature to tame it clears the mark, so tames and creatures being tamed stay.
+        private static bool Marked(ZDO data) => data.Persistent && CreaturePrefabs.IsCreature(data) && data.GetBool(ZDOVars.s_despawnInDay);
 
         private static void Step(ZDOMan __instance)
         {
@@ -49,7 +45,7 @@ namespace EpicLootProgressionFix
             if (!day) { walking = false; return; }
             if (!wasDay)
             {
-                walking = true;
+                walking = true; pass = 1;
                 next = removed = frames = 0; worstFrame = 0L;
                 started = Stopwatch.GetTimestamp();
             }
@@ -63,7 +59,7 @@ namespace EpicLootProgressionFix
                 if (list == null) continue;
                 foreach (var data in list)
                 {
-                    if (!Leftover(data)) continue;
+                    if (!Marked(data)) continue;
                     data.SetOwner(ZDOMan.GetSessionID());
                     __instance.DestroyZDO(data);
                     removed++;
@@ -73,9 +69,10 @@ namespace EpicLootProgressionFix
                 if (now - frameStart > worstFrame) worstFrame = now - frameStart;
                 return;
             }
-            walking = false;
             long end = Stopwatch.GetTimestamp();
             if (end - frameStart > worstFrame) worstFrame = end - frameStart;
+            if (pass++ == 1) { next = 0; return; }
+            walking = false;
             logger.LogInfo($"Sunrise cleanup removed {removed} night creatures in {Milliseconds(end - started):F0} ms over {frames} frames, worst frame {Milliseconds(worstFrame):F2} ms.");
         }
 
