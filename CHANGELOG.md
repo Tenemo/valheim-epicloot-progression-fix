@@ -1,3 +1,7 @@
+# 1.33.1
+
+- Accepting a bounty from Haldor takes a moment again instead of several seconds on a large world.
+
 # 1.33.0
 
 - Tames fight and follow like your summons. They take on enemies within 40 m of you, or of the spot they stay at, keep after them out to 80 m, attack what you hit and no longer run off to circle. Following you, they keep your pace, wait two of their own body lengths away and come through dungeon doors with you; tames told to stay remain outside. They still heal as before, hunt deer and other wildlife, and take a quarter of a Hexen's blast.
