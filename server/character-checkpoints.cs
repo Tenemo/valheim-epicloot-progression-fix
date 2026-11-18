@@ -503,8 +503,17 @@ namespace EpicLootProgressionFix
             draining = running && requested;
             running = false; phase = "failed"; error = reason;
             if (draining)
+            {
+                // A failure at the shared deadline would otherwise close the drain at once, before a save whose logout upload,
+                // up to 30 s, is still arriving. Players told to abort answer at once, so only uploads in flight hold it open.
+                float grace = Time.realtimeSinceStartup + 35f;
                 foreach (var entry in pending)
-                    if (entry.Value.Saved == null) entry.Key.Invoke(AbortRpc, operation.id);
+                    if (entry.Value.Saved == null)
+                    {
+                        entry.Value.Deadline = Mathf.Max(entry.Value.Deadline, grace);
+                        entry.Key.Invoke(AbortRpc, operation.id);
+                    }
+            }
             logger.LogError("Character checkpoint/shutdown failed; server remains running: " + reason);
             WriteStatus();
         }
