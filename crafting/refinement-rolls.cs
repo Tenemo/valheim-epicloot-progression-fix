@@ -201,7 +201,12 @@ namespace EpicLootProgressionFix
             if (File.Exists(path))
                 foreach (string line in File.ReadAllLines(path).Where(line => line.Length > 0))
                 {
-                    var entry = JsonConvert.DeserializeObject<Entry>(line);
+                    // A crash can leave half a line, and the next record is appended to it. Skip that line instead of refusing
+                    // every refinement on the world; its roll, if it was one, is drawn again.
+                    Entry entry;
+                    try { entry = JsonConvert.DeserializeObject<Entry>(line); }
+                    catch (JsonException error) { Debug.LogWarning("Progression Fix skipped a damaged line in " + path + ": " + error.Message); continue; }
+                    if (entry == null) continue;
                     string key = entry.Account + "|" + entry.Item + "|" + entry.Quality.ToString(CultureInfo.InvariantCulture);
                     if (entry.Event == "applied") unused.Remove(key);
                     else unused[key] = entry;
