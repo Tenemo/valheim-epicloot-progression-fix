@@ -42,10 +42,10 @@ namespace EpicLootProgressionFix
         private static bool Etched(ItemDrop.ItemData.SharedData shared) => shared != null &&
             shared.m_itemType == ItemDrop.ItemData.ItemType.Material && shared.m_ammoType?.EndsWith("|Runestone", StringComparison.Ordinal) == true &&
             (shared.m_name.StartsWith("$mod_epicloot_etched_rune ", StringComparison.Ordinal) || shared.m_name.StartsWith("Etched ", StringComparison.Ordinal));
-        // The item type comes before the prefab's name, which the engine copies into a new string on every read.
+        // The item type and magic data come before the prefab's name, which the engine copies into a new string on every read.
         internal static bool IsRune(ItemDrop.ItemData item) => item != null && (Etched(item.m_shared) ||
-            item.m_shared != null && item.m_shared.m_itemType == ItemDrop.ItemData.ItemType.Material && item.m_dropPrefab != null &&
-            item.m_dropPrefab.name.StartsWith("EtchedRunestone", StringComparison.Ordinal) && item.m_customData.ContainsKey(MagicKey));
+            item.m_shared != null && item.m_shared.m_itemType == ItemDrop.ItemData.ItemType.Material && item.m_customData.ContainsKey(MagicKey) &&
+            item.m_dropPrefab != null && item.m_dropPrefab.name.StartsWith("EtchedRunestone", StringComparison.Ordinal));
 
         internal static void Initialize(IntegrationPatches harmony)
         {
