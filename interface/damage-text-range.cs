@@ -30,11 +30,19 @@ namespace EpicLootProgressionFix
         // own numbers beyond it. The relay has to reach as far as either distance shows a number.
         internal static void Initialize(IntegrationPatches harmony)
         {
-            if (!PluginIds.TryGet(PluginIds.NetworkPerformance, out _)) return;
+            // Network Performance System has no tested-version entry, so it is found as the ownership integration finds it; a
+            // changed method is reported below.
+            if (!BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey(PluginIds.NetworkPerformance)) return;
             var numbers = AccessTools.TypeByName("NetworkPerformanceSystem.Runtime.DamageNumbers");
             var relay = numbers == null ? null : AccessTools.Method(numbers, "RelayDistanceSq");
             if (relay == null) { DisabledFeatures.Set("Damage number relay distance", "Network Performance System has no DamageNumbers.RelayDistanceSq"); return; }
             harmony.Patch(relay, postfix: new HarmonyMethod(typeof(DamageTextRange), nameof(WidenRelay)));
+            // With its damage numbers set to Attacker Only or Off, it sends or shows its own packet instead of the game's,
+            // which needs the source as well for the own-damage distance.
+            var route = AccessTools.Method(numbers, "OnShowText",
+                new[] { typeof(DamageText), typeof(DamageText.TextType), typeof(Vector3), typeof(string), typeof(bool) });
+            if (route == null) { DisabledFeatures.Set("Own damage text distance", "Network Performance System has no DamageNumbers.OnShowText"); return; }
+            harmony.Patch(route, transpiler: new HarmonyMethod(typeof(DamageTextRange), nameof(AppendSource)));
         }
 
         private static void WidenRelay(ref float __result)
@@ -50,6 +58,21 @@ namespace EpicLootProgressionFix
         {
             package.Write(player);
             package.Write(IsDamage(type) ? damagePlayer : 0L);
+        }
+
+        // The packet's player flag is its last field, written once; the text type is the method's second argument in both
+        // the game's instance method and Network Performance System's static one.
+        private static IEnumerable<CodeInstruction> AppendSource(IEnumerable<CodeInstruction> instructions)
+        {
+            var code = instructions.ToList();
+            var write = AccessTools.Method(typeof(ZPackage), nameof(ZPackage.Write), new[] { typeof(bool) });
+            int index = code.FindIndex(instruction => instruction.Calls(write));
+            if (index < 0 || code.FindLastIndex(instruction => instruction.Calls(write)) != index)
+                throw new InvalidOperationException("The damage text packet changed; expected one player flag.");
+            code[index].opcode = OpCodes.Call;
+            code[index].operand = AccessTools.Method(typeof(DamageTextRange), nameof(WriteSource));
+            code.Insert(index, new CodeInstruction(OpCodes.Ldarg_1).MoveLabelsFrom(code[index]));
+            return code;
         }
 
         [HarmonyPatch]
@@ -83,18 +106,7 @@ namespace EpicLootProgressionFix
             new[] { typeof(DamageText.TextType), typeof(Vector3), typeof(string), typeof(bool) })]
         private static class SendSource
         {
-            private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
-            {
-                var code = instructions.ToList();
-                var write = AccessTools.Method(typeof(ZPackage), nameof(ZPackage.Write), new[] { typeof(bool) });
-                int index = code.FindIndex(instruction => instruction.Calls(write));
-                if (index < 0 || code.FindLastIndex(instruction => instruction.Calls(write)) != index)
-                    throw new InvalidOperationException("Valheim's damage text packet changed; expected one player flag.");
-                code[index].opcode = OpCodes.Call;
-                code[index].operand = AccessTools.Method(typeof(DamageTextRange), nameof(WriteSource));
-                code.Insert(index, new CodeInstruction(OpCodes.Ldarg_1).MoveLabelsFrom(code[index]));
-                return code;
-            }
+            private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) => AppendSource(instructions);
         }
 
         [HarmonyPatch(typeof(DamageText), "RPC_DamageText")]
