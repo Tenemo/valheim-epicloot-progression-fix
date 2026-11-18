@@ -43,6 +43,21 @@ namespace EpicLootProgressionFix
         {
             // A root that may still be loading keeps the elapsed time for the next tick.
             if (collector.m_mustConnectTo && !root && !ZNetScene.instance.IsAreaReady(collector.transform.position)) return;
+            // Settle the extractor and the root on one owner in the same update. Leave the elapsed time for
+            // that owner when a sector handoff put the two pieces on different peers.
+            if (root && !RootView(root).IsOwner())
+            {
+                var rootView = RootView(root);
+                if (!rootView.IsValid()) return;
+                long owner = rootView.GetZDO().GetOwner();
+                if (owner == 0) rootView.ClaimOwnership();
+                else
+                {
+                    zdo.SetOwner(owner);
+                    ZDOMan.instance.ForceSendZDO(owner, zdo.m_uid);
+                }
+                return;
+            }
             var now = ZNet.instance.GetTime();
             double elapsed = Math.Max(0.0, (now - new DateTime(zdo.GetLong(ZDOVars.s_lastTime, now.Ticks))).TotalSeconds);
             zdo.Set(ZDOVars.s_lastTime, now.Ticks);
@@ -57,10 +72,12 @@ namespace EpicLootProgressionFix
                 int stored = Math.Min(Math.Min(produced, collector.m_maxLevel - level), (int)Math.Ceiling(supply) - 1);
                 if (stored > 0)
                 {
-                    zdo.Set(ZDOVars.s_level, level + stored);
-                    // Sent straight to the root's owner, which applies regeneration first; the native local check would
-                    // judge a level that is still missing it.
-                    RootView(root).InvokeRPC("RPC_Drain", (float)stored);
+                    ModifyLevel(root, (float)(root.m_regenPerSec * RootElapsed(root)));
+                    if (root.GetLevel() > stored)
+                    {
+                        ModifyLevel(root, -stored);
+                        zdo.Set(ZDOVars.s_level, level + stored);
+                    }
                 }
                 product = 0f;
             }
