@@ -27,12 +27,20 @@ namespace EpicLootProgressionFix
 
         internal static void Initialize(IntegrationPatches harmony)
         {
-            harmony.Patch(AccessTools.Method(typeof(EnchantingTable), nameof(EnchantingTable.RequestTableUpgrade)), postfix: new HarmonyMethod(typeof(TableUpgradeSettlement), nameof(NoteRequester)));
+            harmony.Patch(AccessTools.Method(typeof(EnchantingTable), nameof(EnchantingTable.RequestTableUpgrade)), transpiler: new HarmonyMethod(typeof(TableUpgradeSettlement), nameof(RegisterBeforeSending)));
             harmony.Patch(AccessTools.Method(typeof(EnchantingTable), "ExpireUpgradeRequests"), prefix: new HarmonyMethod(typeof(TableUpgradeSettlement), nameof(BeforeExpiry)));
             harmony.Patch(AccessTools.Method(typeof(EnchantingTable), "RPC_TableUpgradeResponse"), prefix: new HarmonyMethod(typeof(TableUpgradeSettlement), nameof(BeforeReply)));
         }
 
-        private static void NoteRequester() => PlayerIds.Add(Requests[Requests.Count - 1], Player.m_localPlayer.GetPlayerID());
+        private static IEnumerable<CodeInstruction> RegisterBeforeSending(IEnumerable<CodeInstruction> instructions) =>
+            Transpilers.CallInstead(instructions, instruction => instruction.Calls(AccessTools.Method(Requests.GetType(), "Add")),
+                AccessTools.Method(typeof(TableUpgradeSettlement), nameof(Register)), 1, "EpicLoot's table upgrade request registration changed.");
+
+        private static void Register(IList requests, object pending)
+        {
+            PlayerIds.Add(pending, Player.m_localPlayer.GetPlayerID());
+            requests.Add(pending);
+        }
 
         private static bool Present(object pending)
         {
