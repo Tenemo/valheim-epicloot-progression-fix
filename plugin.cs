@@ -458,6 +458,7 @@ namespace EpicLootProgressionFix
                 CharacterCheckpoints.Tick();
                 CoinIncomeChannel.Tick();
                 ItemActivityChannel.Tick();
+                RefinementRolls.Tick();
                 DungeonOccupancy.Tick();
                 SummonDungeonTravel.Tick();
                 DungeonInteriors.Tick();
