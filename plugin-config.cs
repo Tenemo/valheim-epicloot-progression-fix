@@ -160,7 +160,7 @@ namespace EpicLootProgressionFix
                 Synced("An alerted hostile creature targeting you within this many meters keeps its health bar through walls, rocks and terrain.",
                     new AcceptableValueRange<float>(0f, 100f)));
             BountySpacing = Config.Bind("Bounties", "Spacing", 300f,
-                Synced("A new bounty is placed at least this many meters from every open bounty and unopened treasure chest, or as far from them as possible when no suitable spot is that far.",
+                Synced("A new bounty or treasure map is placed at least this many meters from every open bounty and unopened treasure chest, or as far from them as possible when no suitable spot is that far.",
                     new AcceptableValueRange<float>(0f, 5000f)));
             BountyExtraEquipmentCopies = Config.Bind("Bounties", "Extra enchanted copies", 1,
                 Synced("Extra copies of each enchanted equipment drop from a bounty's main target, each with its own enchantments.",

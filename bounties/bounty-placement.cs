@@ -11,12 +11,13 @@ using UnityEngine;
 
 namespace EpicLootProgressionFix
 {
-    // EpicLoot places a new bounty by snapping a random point in the biome's distance band to the nearest suitable cell of
-    // its world biome index. A lone patch beside a wide stretch of sea or other biomes collects every point that lands in
-    // that stretch, and it keeps a new bounty 200 m only from its own last spot in that biome, separately on each player's
-    // game, so different players' bounties piled onto the same few spots. Choose
-    // evenly among the band's suitable cells instead, at least Spacing from every open bounty and treasure chest in the
-    // world, which the server reports. Bounties already placed keep their spots, and treasure maps keep EpicLoot's search.
+    // EpicLoot places a new bounty or treasure chest by snapping a random point in the biome's distance band to the nearest
+    // suitable cell of its world biome index. A lone patch beside a wide stretch of sea or other biomes collects every point
+    // that lands in that stretch, and it keeps a new spot 200 m only from its own last spot in that biome, separately on each
+    // player's game, so different players' bounties and treasure piled onto the same few spots. Choose evenly among the
+    // band's suitable cells instead, at least Spacing from every open bounty and treasure chest in the world, which the
+    // server reports. This picks only the circle's centre: EpicLoot's spawner still finds the chest's or target's ground spot
+    // inside the circle when a player arrives. Bounties and treasure already placed keep their spots.
     internal static class BountyPlacement
     {
         internal static float Spacing => Plugin.BountySpacing.Value;
@@ -53,6 +54,7 @@ namespace EpicLootProgressionFix
         private static BandLookup band;
         private static Func<Heightmap.Biome, AdventureSaveData, Action<bool, Vector3>, IEnumerator> epicLootSearch;
         private static Action<BountyInfo, Vector3, Vector3> spawn;
+        private static Func<TreasureMapsAdventureFeature, Heightmap.Biome, Vector3, AdventureSaveData, bool> createTreasure;
 
         internal static void Initialize(IntegrationPatches harmony, ManualLogSource logger)
         {
@@ -79,8 +81,13 @@ namespace EpicLootProgressionFix
                 AccessTools.Method(cache, "TryGetBiomePoint"));
             spawn = AccessTools.MethodDelegate<Action<BountyInfo, Vector3, Vector3>>(
                 AccessTools.Method(typeof(BountiesAdventureFeature), "SpawnBountyInitilizer"));
+            // Called through the method itself, so other patches on the purchase, such as the crafting-history check, still run.
+            createTreasure = AccessTools.MethodDelegate<Func<TreasureMapsAdventureFeature, Heightmap.Biome, Vector3, AdventureSaveData, bool>>(
+                AccessTools.Method(typeof(TreasureMapsAdventureFeature), "CreateTreasureSpawner"));
             harmony.Patch(AccessTools.Method(typeof(BountiesAdventureFeature), nameof(BountiesAdventureFeature.AcceptBounty)),
                 prefix: new HarmonyMethod(typeof(BountyPlacement), nameof(Accept)));
+            harmony.Patch(AccessTools.Method(typeof(TreasureMapsAdventureFeature), nameof(TreasureMapsAdventureFeature.SpawnTreasureChest)),
+                prefix: new HarmonyMethod(typeof(BountyPlacement), nameof(BuyTreasure)));
             harmony.Patch(AccessTools.Method(typeof(ZNet), "OnNewConnection"), postfix: new HarmonyMethod(typeof(BountyPlacement), nameof(Register)));
         }
 
@@ -90,16 +97,43 @@ namespace EpicLootProgressionFix
             return false;
         }
 
+        private static bool BuyTreasure(TreasureMapsAdventureFeature __instance, Heightmap.Biome biome, Player player, int price,
+            Action<int, bool, Vector3> callback, ref IEnumerator __result)
+        {
+            __result = PlaceTreasure(__instance, biome, player, price, callback);
+            return false;
+        }
+
+        // EpicLoot's SpawnTreasureChest with the spot chosen here. Haldor takes the coins only when the callback reports success.
+        private static IEnumerator PlaceTreasure(TreasureMapsAdventureFeature feature, Heightmap.Biome biome, Player player, int price,
+            Action<int, bool, Vector3> callback)
+        {
+            player.Message(MessageHud.MessageType.Center, "$mod_epicloot_treasuremap_locatingmsg");
+            var saveData = player.GetAdventureSaveData();
+            var spots = new List<Vector2>();
+            yield return CollectSpots(saveData, spots, "treasure chest");
+            bool found = false;
+            var point = Vector3.zero;
+            yield return Pick(biome, spots, "treasure chest", (success, chosen) => { found = success; point = chosen; });
+            if (!found)
+            {
+                log.LogWarning($"No suitable {biome} spot in its band; EpicLoot places this treasure chest without keeping it clear of others.");
+                yield return epicLootSearch(biome, saveData, (success, chosen) => { found = success; point = chosen; });
+            }
+            if (found && createTreasure(feature, biome, point, saveData)) callback?.Invoke(price, true, point);
+            else callback?.Invoke(0, false, Vector3.zero);
+        }
+
         // EpicLoot's AcceptBounty with the spot chosen here and without its locating message. EpicLoot's own search still widens
         // an empty band or explains a failure.
         private static IEnumerator Place(Player player, BountyInfo bounty, Action<bool, Vector3> callback)
         {
             var saveData = player.GetAdventureSaveData();
             var spots = new List<Vector2>();
-            yield return CollectSpots(saveData, spots);
+            yield return CollectSpots(saveData, spots, "bounty");
             bool found = false;
             var point = Vector3.zero;
-            yield return Pick(bounty.Biome, spots, (success, chosen) => { found = success; point = chosen; });
+            yield return Pick(bounty.Biome, spots, "bounty", (success, chosen) => { found = success; point = chosen; });
             if (!found)
             {
                 log.LogWarning($"No suitable {bounty.Biome} spot in its band; EpicLoot places this bounty without keeping it clear of others.");
@@ -121,7 +155,7 @@ namespace EpicLootProgressionFix
         }
 
         // This player's own open bounties and unfound treasure, which a slow reply cannot hide, then everyone's from the server.
-        private static IEnumerator CollectSpots(AdventureSaveData saveData, List<Vector2> spots)
+        private static IEnumerator CollectSpots(AdventureSaveData saveData, List<Vector2> spots, string what)
         {
             foreach (var known in saveData.Bounties)
                 if (known.State == BountyState.InProgress) spots.Add(Flat((Vector3)known.Position + (Vector3)known.MinimapCircleOffset));
@@ -137,7 +171,7 @@ namespace EpicLootProgressionFix
             var server = ZNet.instance.GetServerPeer();
             if (server == null)
             {
-                log.LogWarning("Not connected to a server; this bounty keeps clear of the player's own bounties and treasure only.");
+                log.LogWarning($"Not connected to a server; this {what} keeps clear of the player's own bounties and treasure only.");
                 yield break;
             }
             int id = ++lastRequest;
@@ -148,13 +182,13 @@ namespace EpicLootProgressionFix
             var reply = replies[id];
             replies.Remove(id);
             if (reply == null)
-                log.LogWarning($"The server did not report open bounties and treasure within {ReplySeconds:0} seconds; this bounty keeps clear of the player's own only.");
+                log.LogWarning($"The server did not report open bounties and treasure within {ReplySeconds:0} seconds; this {what} keeps clear of the player's own only.");
             else spots.AddRange(reply);
         }
 
         // Evenly among the band's suitable cells at least Spacing from every spot, or failing that the one farthest from them.
         // Reports no spot only when the band has no suitable cell at all.
-        private static IEnumerator Pick(Heightmap.Biome biome, List<Vector2> spots, Action<bool, Vector3> onComplete)
+        private static IEnumerator Pick(Heightmap.Biome biome, List<Vector2> spots, string what, Action<bool, Vector3> onComplete)
         {
             ensureBuilt();
             float deadline = Time.unscaledTime + IndexSeconds;
@@ -191,7 +225,7 @@ namespace EpicLootProgressionFix
                 if (Suitable(biome, cell, min, max, true, out var center))
                 {
                     var point = Refine(biome, cell, center, min, max, true, spots);
-                    log.LogInfo($"Placed a {biome} bounty at ({point.x:0}, {point.z:0}), {Flat(point).magnitude:0} m from the world center and " +
+                    log.LogInfo($"Placed a {biome} {what} at ({point.x:0}, {point.z:0}), {Flat(point).magnitude:0} m from the world center and " +
                         $"{Describe(Clearance(Flat(point), spots))} from the nearest of {spots.Count} open bounty and treasure spots; {clear.Count} of {count} band cells were clear.");
                     onComplete(true, point);
                     yield break;
@@ -204,7 +238,7 @@ namespace EpicLootProgressionFix
                 var cell = new Vector2(x[first + mixed], z[first + mixed]);
                 Suitable(biome, cell, min, max, false, out var center);
                 var point = Refine(biome, cell, center, min, max, false, spots);
-                log.LogInfo($"Placed a {biome} bounty at ({point.x:0}, {point.z:0}) in a mixed-biome zone, {Describe(Clearance(Flat(point), spots))} from the nearest open spot.");
+                log.LogInfo($"Placed a {biome} {what} at ({point.x:0}, {point.z:0}) in a mixed-biome zone, {Describe(Clearance(Flat(point), spots))} from the nearest open spot.");
                 onComplete(true, point);
                 yield break;
             }
@@ -215,7 +249,7 @@ namespace EpicLootProgressionFix
                 if (++checks % ChecksPerFrame == 0) yield return null;
                 if (!Suitable(biome, new Vector2(x[first + i], z[first + i]), min, max, false, out var point)) continue;
                 log.LogWarning($"No suitable {biome} cell in the {min:0}-{max:0} m band is {Spacing:0} m from all {spots.Count} open bounty and treasure spots; " +
-                    $"placed this bounty at ({point.x:0}, {point.z:0}), the farthest, {clearance[i]:0} m from the nearest.");
+                    $"placed this {what} at ({point.x:0}, {point.z:0}), the farthest, {clearance[i]:0} m from the nearest.");
                 onComplete(true, point);
                 yield break;
             }
