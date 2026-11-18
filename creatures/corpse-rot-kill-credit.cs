@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using EpicLoot;
 using EpicLoot.MagicItemEffects.Shards;
 using EpicLoot.src.Magic.MagicItemEffects.Helpers;
@@ -286,8 +285,8 @@ namespace EpicLootProgressionFix
         private static void Burst(ZDOID creature, long playerId, Vector3 center, Vector3 position)
         {
             var player = Player.m_localPlayer;
-            if (!player || player.GetPlayerID() != playerId || !Consumed.Add(creature) || player.IsDead() ||
-                !player.HasActiveMagicEffect(MagicEffectType.CorpseRot, out float strength) || strength <= 0f || player.GetSEMan().HaveStatusEffect(Cooldown)) return;
+            if (!player || player.GetPlayerID() != playerId || !player.HasActiveMagicEffect(MagicEffectType.CorpseRot, out float strength) || strength <= 0f ||
+                !Consumed.Add(creature) || player.IsDead() || player.GetSEMan().HaveStatusEffect(Cooldown)) return;
             // Consume the death and start the native cooldown before damage can cause another credited death.
             ShowCooldown(player);
             Explosion(position);
@@ -295,13 +294,24 @@ namespace EpicLootProgressionFix
                 new HitData.DamageTypes { m_poison = strength * EffectConfig.Get(MagicEffectType.CorpseRot, "PoisonPerTier", 20f) });
         }
 
+        // Every destroyed record passes here, arrows and pickups too. A death report for a creature gone longer than
+        // DestructionLifetime is refused anyway, so its forwarding is forgotten with it.
         [HarmonyPatch(typeof(ZDOMan), "HandleDestroyedZDO")]
         private static class RememberDestruction
         {
+            private static readonly List<ZDOID> Expired = new List<ZDOID>();
+
             private static void Prefix(ZDOID uid)
             {
                 if (!ZNet.instance.IsServer()) return;
-                foreach (var expired in Destroyed.Where(pair => Time.realtimeSinceStartup - pair.Value.Removed > DestructionLifetime).Select(pair => pair.Key).ToArray()) Destroyed.Remove(expired);
+                if (Destroyed.Count > 0)
+                {
+                    float now = Time.realtimeSinceStartup;
+                    foreach (var pair in Destroyed)
+                        if (now - pair.Value.Removed > DestructionLifetime) Expired.Add(pair.Key);
+                    foreach (var expired in Expired) { Destroyed.Remove(expired); Forwarded.Remove(expired); }
+                    Expired.Clear();
+                }
                 var data = ZDOMan.instance.GetZDO(uid);
                 if (data != null && IsCreature(data)) Destroyed[uid] = (data.GetOwner(), Time.realtimeSinceStartup);
             }
