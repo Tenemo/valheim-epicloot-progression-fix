@@ -95,8 +95,15 @@ namespace EpicLootProgressionFix
                         File.Replace(temporary, path, null);
                     }
                     foreach (var (data, key, value) in before.World) data.Set(key, value);
-                    if (before.World.Count > 0) ZNet.instance.Save(true);
-                    // The characters are read again from their files; the world as it was saved.
+                    if (before.World.Count > 0)
+                    {
+                        // The game advances the save number only when a world save finished writing; a failed or skipped
+                        // save keeps the request, and the next start repairs the world again from its unchanged files.
+                        uint saveNumber = SaveSystem.GetSaveNumber();
+                        ZNet.instance.Save(true);
+                        if (SaveSystem.GetSaveNumber() == saveNumber) throw new IOException("The world save did not complete.");
+                    }
+                    // The characters are read again from their files; the world from the records that save wrote.
                     var after = Plan();
                     Describe(report, after, "after");
                     var problems = new List<string>();
