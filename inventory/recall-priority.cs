@@ -170,7 +170,11 @@ namespace EpicLootProgressionFix
         private static bool AllowOwnershipTransfer(ItemDrop __instance, long uid)
         {
             var data = Reservation(__instance);
-            return data == null || uid == data.GetLong(PeerKey, 0);
+            if (data == null || uid == data.GetLong(PeerKey, 0)) return true;
+            // A thrower who logged in again since the throw has a new session; their character still owns the reservation.
+            var thrower = Player.GetPlayer(data.GetLong(PlayerKey, 0));
+            var view = thrower ? thrower.GetComponent<ZNetView>() : null;
+            return view && view.GetZDO()?.GetOwner() == uid;
         }
 
         private static bool RegisterRecall(Player __0)
