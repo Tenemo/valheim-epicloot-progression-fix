@@ -24,6 +24,9 @@ namespace EpicLootProgressionFix
         private const float IndexSeconds = 30f;
         private const int ChecksPerFrame = 64;
         private const int CellsPerFrame = 512;
+        // The campaign's scan takes 60-90 ms in all. A 1 ms share left it waiting on dozens of the server's frames, 3.5-4.4 s
+        // for every accepted bounty; this share finishes it in a few frames without one long stall.
+        private const long ScanMillisecondsPerFrame = 10;
         private const string RequestRpc = Plugin.Id + ".bounty-spots";
         private const string ReplyRpc = Plugin.Id + ".bounty-spots-reply";
         private static readonly int SpawnerPrefab = "EL_SpawnController".GetStableHashCode();
@@ -327,7 +330,7 @@ namespace EpicLootProgressionFix
             {
                 foreach (var sector in Sectors(ZDOMan.instance))
                 {
-                    if (frame.ElapsedMilliseconds >= 1) { yield return null; frame.Restart(); }
+                    if (frame.ElapsedMilliseconds >= ScanMillisecondsPerFrame) { yield return null; frame.Restart(); }
                     if (sector == null) continue;
                     foreach (var zdo in sector) AddSpot(zdo);
                 }
