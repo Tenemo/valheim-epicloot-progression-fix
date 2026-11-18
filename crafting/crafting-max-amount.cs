@@ -74,10 +74,11 @@ namespace EpicLootProgressionFix
 
         private static void RefreshDisplay()
         {
-            ChestSupplyEligibility.Refresh();
             // Separate from countedAt: an amount-control query can recount without refreshing the visible label.
+            // The chest walk waits for the same half second; every count still refreshes chest states first.
             if (Time.time - refreshedAt < RecountSeconds) return;
             refreshedAt = Time.time;
+            ChestSupplyEligibility.Refresh();
             Recount();
             displayChanged() = true;
         }
