@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using UnityEngine;
@@ -13,6 +14,19 @@ namespace EpicLootProgressionFix
     {
         private const float BodyLengths = 2f, ResumeMargin = 2f, RunMargin = 7f;
         private static readonly ConditionalWeakTable<BaseAI, State> States = new ConditionalWeakTable<BaseAI, State>();
+
+        private static bool followingAcrossFloors;
+
+        [HarmonyPatch(typeof(BaseAI), "MoveTo")]
+        private static class Arrival
+        {
+            private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+                Transpilers.CallInstead(instructions, instruction => instruction.Calls(AccessTools.Method(typeof(Utils), nameof(Utils.DistanceXZ))),
+                    AccessTools.Method(typeof(Arrival), nameof(Distance)), 2, "The navigation destination or waypoint arrival check changed.");
+
+            private static float Distance(Vector3 first, Vector3 second) => followingAcrossFloors && Mathf.Abs(first.y - second.y) > 1f
+                ? Vector3.Distance(first, second) : Utils.DistanceXZ(first, second);
+        }
 
         private sealed class State
         {
@@ -49,7 +63,9 @@ namespace EpicLootProgressionFix
             // The AI decides only once per update, so it stops at the update whose slide ends nearest the gap.
             float stop = Slide(creature, speed) + speed * dt / 2f;
             // A resting creature that is still sliding doesn't set off again.
-            if (gap <= target + (state.Resting ? Mathf.Max(ResumeMargin, stop) : stop))
+            // A floor or ledge can be directly above the creature. Keep pathfinding until it reaches the player's elevation.
+            bool sameElevation = Mathf.Abs(player.transform.position.y - creature.transform.position.y) <= 1f;
+            if (sameElevation && gap <= target + (state.Resting ? Mathf.Max(ResumeMargin, stop) : stop))
             {
                 state.Resting = true;
                 __instance.StopMoving();
@@ -57,7 +73,10 @@ namespace EpicLootProgressionFix
             }
             state.Resting = false;
             // It drops from a run to its usual pace in time to stop from that pace instead of sliding in from a sprint.
-            SummonedFollowers.MoveTo(__instance, dt, go.transform.position, 0f, gap > target + RunMargin + Slide(creature, state.RunSpeed));
+            bool previous = followingAcrossFloors;
+            followingAcrossFloors = !sameElevation;
+            try { SummonedFollowers.MoveTo(__instance, dt, go.transform.position, 0f, gap > target + RunMargin + Slide(creature, state.RunSpeed)); }
+            finally { followingAcrossFloors = previous; }
             return false;
         }
     }
