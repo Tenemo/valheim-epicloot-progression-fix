@@ -139,7 +139,7 @@ namespace EpicLootProgressionFix
                 var player = Player.m_localPlayer;
                 long playerId = player.GetPlayerID();
                 if (playerId == 0) return;
-                // Before the item backlog, which a damaged file can stop.
+                // Before the item backlog, which a failing file can stop.
                 float now = Time.realtimeSinceStartup;
                 var store = Treasures(network.GetWorldUID(), playerId);
                 if (store.Unsaved)
@@ -165,6 +165,11 @@ namespace EpicLootProgressionFix
                     outbox = new ItemActivityOutbox(path, Capacity);
                     outboxPath = path; character = playerId; world = network.GetWorldUID();
                     Record("session-start", null, 0, 0, null, false, null, null, null);
+                    if (outbox.Unreadable != null)
+                    {
+                        logger?.LogError("Private item activity: the unreadable unsent backlog was kept aside as " + outbox.Unreadable);
+                        Record("gap", null, 0, 0, null, false, null, null, "unsent events from an earlier session were lost because their saved backlog was unreadable");
+                    }
                     ItemActivity.BeginSession(player);
                 }
                 if (outbox.Lost > 0 && outbox.Pending.Count < Capacity)
@@ -206,7 +211,12 @@ namespace EpicLootProgressionFix
             try
             {
                 if (payload == null || payload.Length > 65536) throw new InvalidDataException("Invalid item activity batch size.");
-                if (!batchLimits.TryGetValue(rpc, out var limit)) batchLimits.Add(rpc, limit = new ItemActivityBatchLimit());
+                if (!batchLimits.TryGetValue(rpc, out var limit))
+                {
+                    // A new connection forgets closed ones, so the table holds only current peers.
+                    foreach (var closed in batchLimits.Keys.Where(other => !other.IsConnected()).ToList()) batchLimits.Remove(closed);
+                    batchLimits.Add(rpc, limit = new ItemActivityBatchLimit());
+                }
                 if (!limit.TryAccept(Time.realtimeSinceStartup))
                     throw new InvalidDataException("Item activity batches arrived too quickly.");
                 if (!CharacterCheckpoints.PrivatePeerIdentity(rpc, out string account, out string player, out long playerId))

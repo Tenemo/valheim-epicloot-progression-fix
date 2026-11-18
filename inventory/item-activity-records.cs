@@ -161,12 +161,24 @@ namespace EpicLootProgressionFix
         internal List<ItemActivityEvent> Pending { get; private set; }
         internal int Lost { get; private set; }
         internal bool Changed { get; private set; } = true;
+        // An unreadable file is kept aside here and the backlog starts empty.
+        internal string Unreadable { get; }
         internal ItemActivityOutbox(string path, int capacity)
         {
             Capacity = capacity;
-            Pending = File.Exists(path) ? JsonConvert.DeserializeObject<List<ItemActivityEvent>>(File.ReadAllText(path)) : new List<ItemActivityEvent>();
-            if (Pending == null) throw new InvalidDataException("Invalid item activity outbox.");
-            foreach (var item in Pending) ItemActivityRules.Validate(item);
+            Pending = new List<ItemActivityEvent>();
+            if (!File.Exists(path)) return;
+            try
+            {
+                var saved = JsonConvert.DeserializeObject<List<ItemActivityEvent>>(File.ReadAllText(path)) ?? throw new InvalidDataException("Empty item activity outbox.");
+                foreach (var item in saved) ItemActivityRules.Validate(item);
+                Pending.AddRange(saved);
+            }
+            catch (Exception error) when (error is InvalidDataException || error is JsonException)
+            {
+                Unreadable = path + ".unreadable-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+                File.Move(path, Unreadable);
+            }
         }
         internal bool Add(ItemActivityEvent item)
         {

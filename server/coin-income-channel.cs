@@ -73,7 +73,15 @@ namespace EpicLootProgressionFix
                 if (path != outboxPath)
                 {
                     bool first = !File.Exists(path);
-                    outbox = new CoinIncomeOutbox(path);
+                    try { outbox = new CoinIncomeOutbox(path); }
+                    catch (Exception error) when (error is InvalidDataException || error is JsonException)
+                    {
+                        // An unreadable outbox is kept aside and recording continues with an empty one.
+                        string aside = path + ".unreadable-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+                        File.Move(path, aside);
+                        logger?.LogError("Private coin income: the unreadable unsent receipts were kept aside as " + aside);
+                        outbox = new CoinIncomeOutbox(path);
+                    }
                     outboxPath = path; character = playerId; world = network.GetWorldUID();
                     foreach (var item in player.GetInventory().GetAllItems())
                         if (CoinIncome.IsCurrency(item)) CoinIncome.SetPending(item, 0);
