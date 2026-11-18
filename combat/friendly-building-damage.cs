@@ -18,7 +18,8 @@ namespace EpicLootProgressionFix
             internal Origin(ZDOID creature) { Creature = creature; }
         }
 
-        private const string OriginKey = Plugin.Id + ".friendly-origin";
+        // Hashed once: every projectile and area effect writes or reads it.
+        private static readonly KeyValuePair<int, int> OriginKey = ZDO.GetHashZDOID(Plugin.Id + ".friendly-origin");
         private static readonly ConditionalWeakTable<Component, Origin> Origins = new ConditionalWeakTable<Component, Origin>();
         private static Origin current;
 
@@ -49,7 +50,11 @@ namespace EpicLootProgressionFix
             Origins.Remove(effect);
             if (origin != null) Origins.Add(effect, origin);
             var view = EffectView(effect);
-            if (view && view.IsValid() && view.IsOwner()) view.GetZDO().Set(OriginKey, origin?.Creature ?? ZDOID.None);
+            if (!view || !view.IsValid() || !view.IsOwner()) return;
+            // A missing origin reads as none, so it is written only to give one or to clear an earlier one.
+            var data = view.GetZDO();
+            if (origin != null) data.Set(OriginKey, origin.Creature);
+            else if (data.GetZDOID(OriginKey) != ZDOID.None) data.Set(OriginKey, ZDOID.None);
         }
 
         private static Origin Read(Component effect)
