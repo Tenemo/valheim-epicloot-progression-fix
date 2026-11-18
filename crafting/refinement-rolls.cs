@@ -327,7 +327,7 @@ namespace EpicLootProgressionFix
                     string key = entry.Account + "|" + entry.Item + "|" + entry.Quality.ToString(CultureInfo.InvariantCulture);
                     if (entry.Event == "applied") recovered.Remove(key);
                     else if (entry.Event == "issued" || entry.Event == "reused") recovered[key] = entry;
-                    else throw new InvalidDataException("Unknown refinement journal event: " + entry.Event);
+                    else Debug.LogWarning("Progression Fix skipped a line with an unknown event in " + path + ": " + entry.Event);
                 }
             unused = recovered;
             journal = path;
