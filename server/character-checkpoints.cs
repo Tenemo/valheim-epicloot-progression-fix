@@ -22,6 +22,7 @@ namespace EpicLootProgressionFix
         private const string RequestRpc = Plugin.Id + ".checkpoint-request";
         private const string ReplyRpc = Plugin.Id + ".checkpoint-profile";
         private const string ErrorRpc = Plugin.Id + ".checkpoint-error";
+        private const string AbortRpc = Plugin.Id + ".checkpoint-abort";
         private const float RequestTimeout = 60f;
         private const int MaximumProfileBytes = 16 * 1024 * 1024;
         private static readonly Dictionary<ZRpc, Pending> pending = new();
@@ -38,14 +39,19 @@ namespace EpicLootProgressionFix
         private static MonoBehaviour runner;
         private static ManualLogSource logger;
         private static ZNet network;
-        private static string controlDirectory, phase = "idle", error = "";
+        private static string controlDirectory, phase = "idle", error = "", prepareFailure;
+        // The client's newest request from its server, until the server withdraws it.
+        private static string newestRequest;
         private static Request operation;
-        private static float nextPoll, nextStatus, nextCheckpoint;
+        private static float nextPoll, nextStatus, nextCheckpoint, nextPrepare;
         private static uint savedWorld;
-        private static bool running, quitting, acceptingCheckpoint, clientBusy;
+        // draining: a failed request still accepts the saves of clients that already sent theirs in place of the normal upload.
+        private static bool running, draining, requested, quitting, acceptingCheckpoint, clientBusy;
         private static Capture capture;
         private static readonly int ProcessId = Process.GetCurrentProcess().Id;
         private static readonly ConditionalWeakTable<ZRpc, Identity> Identities = new ConditionalWeakTable<ZRpc, Identity>();
+        // Connections whose character has spawned at least once.
+        private static readonly ConditionalWeakTable<ZRpc, object> Spawned = new ConditionalWeakTable<ZRpc, object>();
 
         private sealed class Identity
         {
@@ -112,6 +118,8 @@ namespace EpicLootProgressionFix
                 postfix: new HarmonyMethod(typeof(CharacterCheckpoints), nameof(Register)));
             harmony.Patch(AccessTools.Method(typeof(ZNet), "RPC_ServerHandshake"),
                 prefix: new HarmonyMethod(typeof(CharacterCheckpoints), nameof(AllowJoin)));
+            harmony.Patch(AccessTools.Method(typeof(ZNet), "RPC_CharacterID"),
+                postfix: new HarmonyMethod(typeof(CharacterCheckpoints), nameof(RecordSpawn)));
             var serializer = assembly.GetType("ServerCharacters.ClientSide+PatchPlayerProfileSave_Client", true);
             harmony.Patch(AccessTools.Method(serializer, "SaveCharacterToServer"),
                 prefix: new HarmonyMethod(typeof(CharacterCheckpoints), nameof(CaptureProfile)));
@@ -130,6 +138,9 @@ namespace EpicLootProgressionFix
                 "The ServerCharacters profile creation-time reader changed.");
 
         private static bool Stopping => running && operation.action == "stop";
+        private static bool Answering => running || draining;
+        // A stop's confirmed final saves stay protected while a failed stop still accepts late ones.
+        private static bool FinalSaves => Answering && operation.action == "stop";
 
         private static void Register(ZNet __instance, ZNetPeer peer)
         {
@@ -137,19 +148,33 @@ namespace EpicLootProgressionFix
             {
                 var handler = receive(ReceiveProfile);
                 peer.m_rpc.Register<ZPackage>(ReplyRpc, (rpc, package) => {
-                    if (!running || !pending.TryGetValue(rpc, out var item) || item.Saved != null) return;
+                    if (!Answering || !pending.TryGetValue(rpc, out var item) || item.Saved != null) return;
                     try { handler(rpc, package); }
                     catch (Exception exception) { item.Error = exception.GetBaseException().Message; }
                 });
                 peer.m_rpc.Register<string, string>(ErrorRpc, (rpc, id, message) => {
-                    if (running && id == operation.id && pending.TryGetValue(rpc, out var item)) item.Error = message;
+                    if (Answering && id == operation.id && pending.TryGetValue(rpc, out var item)) item.Error = message;
                 });
             }
             else if (peer.m_server)
+            {
                 peer.m_rpc.Register<string, bool>(RequestRpc, (rpc, id, logout) => {
-                    if (ZNet.instance?.GetServerPeer()?.m_rpc == rpc)
-                        runner.StartCoroutine(ClientCheckpoint(rpc, id, logout));
+                    if (ZNet.instance?.GetServerPeer()?.m_rpc != rpc)
+                    {
+                        rpc.Invoke(ErrorRpc, id, "The connection to the server is not ready.");
+                        return;
+                    }
+                    newestRequest = id;
+                    runner.StartCoroutine(ClientCheckpoint(rpc, id, logout));
                 });
+                peer.m_rpc.Register<string>(AbortRpc, (rpc, id) => { if (newestRequest == id) newestRequest = null; });
+            }
+        }
+
+        // A peer whose character has not spawned on this connection has nothing newer than its saved file.
+        private static void RecordSpawn(ZNet __instance, ZRpc __0, ZDOID __1)
+        {
+            if (__instance.IsServer() && !__1.IsNone()) Spawned.GetValue(__0, _ => new object());
         }
 
         private static bool AllowJoin(ZNet __instance, ZRpc rpc)
@@ -163,14 +188,24 @@ namespace EpicLootProgressionFix
         }
 
         // Once the final full profile arrived, older inventory packets and logout cleanup must not overwrite it.
-        private static bool AllowOrdinarySave(ZRpc __0) => acceptingCheckpoint || !Stopping ||
+        private static bool AllowOrdinarySave(ZRpc __0) => acceptingCheckpoint || !FinalSaves ||
             !pending.TryGetValue(__0, out var item) || item.Saved == null;
+
+        // Before it replaces the normal upload, a request must still be the server's newest on the same connection;
+        // a withdrawn one is answered so the server stops waiting for it, and the normal saves continue.
+        private static bool Withdrawn(ZRpc rpc, string id)
+        {
+            if (newestRequest == id && ZNet.instance?.GetServerPeer()?.m_rpc == rpc) return false;
+            rpc.Invoke(ErrorRpc, id, "The server withdrew the request.");
+            return true;
+        }
 
         private static IEnumerator ClientCheckpoint(ZRpc rpc, string id, bool logout)
         {
             float deadline = Time.realtimeSinceStartup + RequestTimeout - 5f;
             while (clientBusy || nativeSaving() || Player.m_localPlayer == null || Game.instance.WaitingForRespawn())
             {
+                if (Withdrawn(rpc, id)) yield break;
                 if (Time.realtimeSinceStartup > deadline)
                 {
                     rpc.Invoke(ErrorRpc, id, "Character is not ready to save.");
@@ -188,6 +223,7 @@ namespace EpicLootProgressionFix
             {
                 while (!CoinIncomeChannel.Drained)
                 {
+                    if (Withdrawn(rpc, id)) yield break;
                     if (Time.realtimeSinceStartup > deadline)
                     {
                         rpc.Invoke(ErrorRpc, id, "Private currency receipts are not yet saved on the server.");
@@ -200,9 +236,11 @@ namespace EpicLootProgressionFix
             finally { CoinIncomeChannel.Flushing = false; }
             while (clientBusy || nativeSaving())
             {
+                if (Withdrawn(rpc, id)) yield break;
                 if (Time.realtimeSinceStartup > deadline) { rpc.Invoke(ErrorRpc, id, "A character upload is still in progress."); yield break; }
                 yield return null;
             }
+            if (Withdrawn(rpc, id)) yield break;
             var request = new Capture { Rpc = rpc, Id = id, Logout = logout };
             clientBusy = true;
             try
@@ -275,14 +313,15 @@ namespace EpicLootProgressionFix
 
         private static void ReceiveProfile(ZRpc rpc, byte[] envelope)
         {
-            if (!running || !pending.TryGetValue(rpc, out var item) || item.Saved != null) return;
+            if (!Answering || !pending.TryGetValue(rpc, out var item) || item.Saved != null) return;
             var package = new ZPackage(envelope);
             if (package.ReadString() != operation.id) return;
             byte[] bytes = package.ReadByteArray();
             if (bytes.Length > MaximumProfileBytes || package.GetPos() != package.Size())
                 throw new InvalidDataException("Invalid checkpoint payload.");
             var profile = new PlayerProfile(null, FileHelpers.FileSource.Local);
-            if (!loadProfile(profile, bytes) || profile.GetName() != item.Name || profile.GetPlayerID() != item.PlayerId)
+            // A character without a saved file yet has no earlier player ID to match.
+            if (!loadProfile(profile, bytes) || profile.GetName() != item.Name || item.PlayerId != 0 && profile.GetPlayerID() != item.PlayerId)
                 throw new InvalidDataException("Checkpoint character identity does not match this connection.");
             acceptingCheckpoint = true;
             PlayerProfile saved;
@@ -291,7 +330,7 @@ namespace EpicLootProgressionFix
             if (saved == null || !ReadSavedPayload(item.Path).SequenceEqual(bytes))
                 throw new IOException("Character save was refused or did not match the requested snapshot.");
             item.Saved = bytes;
-            if (Stopping && peerNames.Contains(item.Peer)) inventories.Remove(peerNames[item.Peer]);
+            if (FinalSaves && peerNames.Contains(item.Peer)) inventories.Remove(peerNames[item.Peer]);
             logger.LogInfo("Character checkpoint saved: " + item.Name + ", request " + operation.id + ".");
             WriteStatus();
         }
@@ -335,21 +374,35 @@ namespace EpicLootProgressionFix
             float now = Time.realtimeSinceStartup;
             if (network != current)
             {
-                network = current;
-                pending.Clear(); operation = null; running = false; phase = "idle"; error = "";
-                controlDirectory = Path.Combine(Paths.BepInExRootPath, "server-control");
-                Directory.CreateDirectory(controlDirectory);
-                File.Delete(Path.Combine(controlDirectory, "request.json"));
+                if (now < nextPrepare) return;
+                pending.Clear(); operation = null; running = draining = false; phase = "idle"; error = "";
+                string folder = Path.Combine(Paths.BepInExRootPath, "server-control");
+                try
+                {
+                    Directory.CreateDirectory(folder);
+                    File.Delete(Path.Combine(folder, "request.json"));
+                }
+                catch (Exception exception)
+                {
+                    // The service starts once its folder is ready; the stop script finds no service until then.
+                    nextPrepare = now + 5f;
+                    string message = exception.GetBaseException().Message;
+                    if (message != prepareFailure) logger.LogError("Verified shutdown is waiting for its control folder: " + message);
+                    prepareFailure = message;
+                    return;
+                }
+                network = current; controlDirectory = folder; prepareFailure = null;
                 ControlFiles.Start(controlDirectory, logger);
                 nextCheckpoint = now + Plugin.CharacterCheckpointMinutes.Value * 60f;
                 WriteStatus();
             }
-            ControlFiles.AcceptRequests = !running;
+            ControlFiles.AcceptRequests = !Answering;
             if (now < nextPoll) return;
             nextPoll = now + 0.5f;
             try
             {
                 if (running) Advance(now);
+                else if (draining) Drain(now);
                 else
                 {
                     if (ControlFiles.TakeRequest(out string text))
@@ -370,26 +423,38 @@ namespace EpicLootProgressionFix
 
         private static void Begin(Request request, float now)
         {
-            operation = request; running = true; phase = "saving-characters"; error = ""; savedWorld = 0;
+            operation = request; running = true; draining = requested = false; phase = "saving-characters"; error = ""; savedWorld = 0;
             pending.Clear();
             nextCheckpoint = now + Plugin.CharacterCheckpointMinutes.Value * 60f;
             foreach (var peer in network.GetPeers().ToArray())
             {
-                if (!peer.IsReady())
+                // A peer still joining or loading, or one whose name ServerCharacters refuses, has nothing newer than its
+                // saved file, if it has one: a stop disconnects it and a checkpoint leaves it out.
+                if (!peer.IsReady() || forbiddenName(peer.m_playerName) || !Spawned.TryGetValue(peer.m_rpc, out _))
                 {
-                    if (Stopping) network.Disconnect(peer);
+                    if (Stopping)
+                    {
+                        if (peer.IsReady()) logger.LogInfo("Verified shutdown disconnected " + peer.m_playerName + ", who was not yet playing.");
+                        network.Disconnect(peer);
+                    }
                     continue;
                 }
                 string account = accountId(peer.m_socket.GetHostName());
-                if (forbiddenName(peer.m_playerName)) throw new InvalidDataException("Invalid character name on a connected peer.");
                 string path = CharacterPath(account, peer.m_playerName);
-                var previous = new PlayerProfile(null, FileHelpers.FileSource.Local);
-                if (!loadProfile(previous, ReadSavedPayload(path))) throw new InvalidDataException("Cannot read existing character " + peer.m_playerName);
+                long playerId = 0;
+                // ServerCharacters writes a new character's file with its first upload after spawning.
+                if (File.Exists(path))
+                {
+                    var previous = new PlayerProfile(null, FileHelpers.FileSource.Local);
+                    if (!loadProfile(previous, ReadSavedPayload(path))) throw new InvalidDataException("Cannot read existing character " + peer.m_playerName);
+                    playerId = previous.GetPlayerID();
+                }
                 pending.Add(peer.m_rpc, new Pending { Peer = peer, Name = peer.m_playerName, Account = account,
-                    Path = path, PlayerId = previous.GetPlayerID(), Deadline = now + RequestTimeout });
+                    Path = path, PlayerId = playerId, Deadline = now + RequestTimeout });
             }
             WriteStatus();
             foreach (var entry in pending) entry.Key.Invoke(RequestRpc, request.id, request.action == "stop");
+            requested = true;
             logger.LogInfo("Character checkpoint request " + request.id + ": " + request.action + ", " + pending.Count + " player(s).");
         }
 
@@ -431,10 +496,27 @@ namespace EpicLootProgressionFix
             Application.Quit();
         }
 
+        // Clients that already sent this request's save have skipped their normal upload, and a stop has logged them out,
+        // so their saves are still accepted and verified; the others are told to keep saving normally.
         private static void Fail(string reason)
         {
+            draining = running && requested;
             running = false; phase = "failed"; error = reason;
+            if (draining)
+                foreach (var entry in pending)
+                    if (entry.Value.Saved == null) entry.Key.Invoke(AbortRpc, operation.id);
             logger.LogError("Character checkpoint/shutdown failed; server remains running: " + reason);
+            WriteStatus();
+        }
+
+        // A failed request closes once each asked player's save arrived, failed or timed out, or the player left.
+        private static void Drain(float now)
+        {
+            if (pending.Values.Any(item => item.Saved == null && item.Error == null && now <= item.Deadline &&
+                network.GetPeers().Contains(item.Peer) && item.Peer.m_socket.IsConnected())) return;
+            draining = false;
+            logger.LogInfo("Character checkpoint request " + operation.id + " closed after its failure: " +
+                pending.Values.Count(item => item.Saved != null) + " of " + pending.Count + " character save(s) confirmed.");
             WriteStatus();
         }
 
