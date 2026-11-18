@@ -287,8 +287,9 @@ namespace EpicLootProgressionFix
 
         private static bool RestoreMovement(Character character)
         {
-            if (Rides.Count == 0) return false;
-            if (character && Rides.TryGetValue(character, out var ride))
+            // Every saddled animal nobody rides asks this each physics step.
+            if (Rides.Count == 0 || (object)character == null || !Rides.TryGetValue(character, out var ride)) return false;
+            if (character)
                 for (int field = 0; field < 6; field++)
                     if (Speed(character, field) == ride.Applied[field]) SetSpeed(character, field, ride.Original[field]);
             Rides.Remove(character);
