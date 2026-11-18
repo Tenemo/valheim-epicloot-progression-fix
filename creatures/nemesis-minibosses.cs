@@ -66,8 +66,12 @@ namespace EpicLootProgressionFix
             var manager = Named("StarLevelSystem.modules.NemesisSystem.NemesisMiniBossManager");
             var select = AccessTools.Method(manager, "RandomlySelectAppropriateMiniboss", new[] { typeof(Heightmap.Biome) });
             generateMinions = AccessTools.Method(manager, "GenerateMinionsForBiome", new[] { typeof(Heightmap.Biome), typeof(int), typeof(int) });
-            spawnOne = AccessTools.Method(Named("StarLevelSystem.modules.NemesisSystem.NemesisRemoteSpawnControl"), "SpawnNemesisSpawn");
-            if (creatureOps == null || action == null || spawner == null || isAspect == null || isSpawnManaged == null || spawnMultiplied == null || marker == null ||
+            var remote = Named("StarLevelSystem.modules.NemesisSystem.NemesisRemoteSpawnControl");
+            spawnOne = AccessTools.Method(remote, "SpawnNemesisSpawn");
+            var group = AccessTools.Method(remote, "SpawnMinibossGroup");
+            var groupParameters = group?.GetParameters();
+            if (groupParameters?.Length != 5 || groupParameters[0].ParameterType != miniboss || groupParameters[2].ParameterType != typeof(Heightmap.Biome) ||
+                creatureOps == null || action == null || spawner == null || isAspect == null || isSpawnManaged == null || spawnMultiplied == null || marker == null ||
                 influence?.GetParameters().FirstOrDefault()?.ParameterType != typeof(Character) || available == null || bossSpawn?.PropertyType != spawn ||
                 minions == null || killedPlayerName?.PropertyType != typeof(string) || recordedBiome?.PropertyType != typeof(Heightmap.Biome) ||
                 prefab?.PropertyType != typeof(string) || customName?.PropertyType != typeof(string) || select?.ReturnType != miniboss ||
@@ -79,6 +83,8 @@ namespace EpicLootProgressionFix
             harmony.Patch(select, prefix: new HarmonyMethod(typeof(NemesisMinibosses), nameof(PickNative)));
             harmony.Patch(spawnOne, prefix: new HarmonyMethod(typeof(NemesisMinibosses), nameof(SpawnPicked)),
                 finalizer: new HarmonyMethod(typeof(NemesisMinibosses), nameof(SpawnedPicked)));
+            harmony.Patch(group, prefix: new HarmonyMethod(typeof(NemesisMinibosses), nameof(PickRemote)),
+                finalizer: new HarmonyMethod(typeof(NemesisMinibosses), nameof(PlacedRemote)));
         }
 
         // The biomes where the world spawns a creature on its own: its enabled entries in the world's spawn lists that need
@@ -152,6 +158,20 @@ namespace EpicLootProgressionFix
             if (__exception == null && generateMinions.Invoke(null, new object[] { biome, 1, 4 }) is IList escorts)
                 foreach (var escort in escorts)
                     spawnOne.Invoke(null, new object[] { escort, __1, __2, __3, null, null, null });
+            return __exception;
+        }
+
+        // SLS's remote spawner places a pooled miniboss later, from a saved copy, for the biome it was picked for. The copy
+        // follows the same rules as the pool's own miniboss.
+        private static void PickRemote(object __0, Heightmap.Biome __2)
+        {
+            picked = __0;
+            pickedFor = __2;
+        }
+
+        private static Exception PlacedRemote(Exception __exception)
+        {
+            picked = null;
             return __exception;
         }
 
