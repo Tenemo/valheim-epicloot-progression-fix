@@ -1,3 +1,28 @@
+# 1.33.0
+
+- Tames fight and follow like your summons. They take on enemies within 40 m of you, or of the spot they stay at, keep after them out to 80 m, attack what you hit and no longer run off to circle. Following you, they keep your pace, wait two of their own body lengths away and come through dungeon doors with you; tames told to stay remain outside. They still heal as before, hunt deer and other wildlife, and take a quarter of a Hexen's blast.
+- Summons and tames set an enemy they can't reach aside for 15 seconds instead of 30, and a summon or tame following you to a floor above or below finds its way there instead of waiting underneath.
+- Large summons and tames, such as a high-level Spirit Caller wolf, bite Bonemass when pressed against his body instead of almost never.
+- Kills by a summon's or a following tame's poison, fire or Corpse Rot count for its player.
+- On a server, the server decides each Forge of Potential refinement, so the result can't be known in advance. Closing the forge or taking the idol out before the refinement finishes refines nothing and keeps that roll for your next try; if the server doesn't answer within 10 seconds, nothing is refined and you're asked to try again.
+- A melee Wager stake is refunded when your hit kills a creature another player's game runs.
+- A location chest rolls its enchanted loot for the player who opens it, also when another player's game holds the chest, and a chest whose roll fails still opens.
+- Fermenter filling, shared sap extractors, enchanting table upgrades and Dyrnwyn fragments hold up when a connection drops or a character save is restored: nothing is paid twice, lost or given twice, and an interrupted fragment delivery arrives on your next join.
+- Hurt creatures retreat, and summons give up, when a target keeps moving where they can't reach it, such as a player on a roof.
+- A bounty's escorts or a spawn group no longer stay invisible and frozen when one of them is removed before it appears.
+- Dungeons from older game versions now reset like the others, chests included.
+- An arrow fired with Quarry Mark marks its target when another player's game runs that creature, even after you've switched weapons.
+- A recalling weapon left behind when you logged out can be taken back after you log in again.
+- Characters who never set a Quick Stack favorite no longer have every item treated as a favorite, so Quick Stack, sorting and trash work for them.
+- Shift + E machine loading no longer stops at a one-item stack in a chest another player opened last.
+- Enchant still works when its chances can't be shown, instead of staying greyed out.
+- A building piece whose recorded material no longer exists can be dismantled again.
+- A paid treasure whose saved record is damaged appears once its buyer comes near.
+- Graves hop up when they appear again, as in the unmodded game.
+- Your own damage numbers show out to 200 m.
+- If a server stop fails because someone disconnected, the other players' last saves are kept, and a player waiting to respawn is no longer logged out by a failed or repeated stop.
+- A death still posts to Discord when its statistics can't be saved, the daily death rankings no longer drop or repeat an hour around clock changes, and achievements are announced for a second character played in the same game session.
+
 # 1.32.1
 
 - Brokkr's Gift no longer appears on the enchanting table's Sacrifice page. It is the only way to add a socket, and sacrificing one paid out only ordinary dust and a reagent.
