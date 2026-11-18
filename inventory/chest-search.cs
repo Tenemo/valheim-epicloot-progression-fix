@@ -16,10 +16,11 @@ namespace EpicLootProgressionFix
     // A search field beside an open chest. Items whose name, enchantments, set name or set bonuses contain every typed word
     // are outlined; the chest's other items are dimmed. Unidentified items match by name only. Letters match with or without
     // accents, so "jorm" finds Jörmundling. The search stays while the player moves between chests and is cleared by
-    // emptying the field.
+    // emptying the field or with the X button at its right end.
     internal static class ChestSearch
     {
-        private const string FieldName = "ProgressionFixChestSearch", OutlineName = "ProgressionFixChestSearchMatch";
+        private const string FieldName = "ProgressionFixChestSearch", OutlineName = "ProgressionFixChestSearchMatch",
+            ClearName = "ProgressionFixChestSearchClear";
         private const float DimmedAlpha = 0.25f, OutlineWidth = 3f;
         // White, since Quick Stack outlines favorites in yellow and EpicLoot colors items by rarity.
         private static readonly Color OutlineColor = Color.white;
@@ -86,7 +87,8 @@ namespace EpicLootProgressionFix
             areaRect.anchorMin = Vector2.zero;
             areaRect.anchorMax = Vector2.one;
             areaRect.offsetMin = new Vector2(10f, 2f);
-            areaRect.offsetMax = new Vector2(-10f, -2f);
+            // The right end stays free for the X button.
+            areaRect.offsetMax = new Vector2(-34f, -2f);
 
             TextMeshProUGUI Label(string name, Color color)
             {
@@ -129,6 +131,52 @@ namespace EpicLootProgressionFix
             field.onValueChanged.AddListener(Search);
             field.onSubmit.AddListener(_ => { keyLeftFrame = Time.frameCount; Unselect(); });
             field.onEndEdit.AddListener(_ => { if (field.wasCanceled) { keyLeftFrame = Time.frameCount; Unselect(); } });
+
+            // A small X button at the field's right end, styled as the window's own buttons, shown while the field has text,
+            // empties the search. It lies over the field rather than in it, so a click on it does not give the field the keyboard.
+            var clear = new GameObject(ClearName, typeof(RectTransform), typeof(Image), typeof(Button));
+            var clearRect = (RectTransform)clear.transform;
+            clearRect.SetParent(panel, false);
+            clearRect.anchorMin = clearRect.anchorMax = new Vector2(1f, 1f);
+            clearRect.pivot = new Vector2(1f, 0.5f);
+            clearRect.anchoredPosition = new Vector2(rect.anchoredPosition.x + rect.sizeDelta.x - 4f, rect.anchoredPosition.y - rect.sizeDelta.y / 2f);
+            clearRect.sizeDelta = new Vector2(26f, 26f);
+            var clearImage = clear.GetComponent<Image>();
+            if (buttonImage)
+            {
+                clearImage.sprite = buttonImage.sprite;
+                clearImage.type = Image.Type.Sliced;
+                clearImage.color = buttonImage.color;
+            }
+            var cross = new GameObject("Text", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
+            var crossRect = cross.rectTransform;
+            crossRect.SetParent(clearRect, false);
+            crossRect.anchorMin = Vector2.zero;
+            crossRect.anchorMax = Vector2.one;
+            crossRect.offsetMin = crossRect.offsetMax = Vector2.zero;
+            cross.font = template.font;
+            cross.fontSharedMaterial = template.fontSharedMaterial;
+            cross.fontSize = 18f;
+            cross.alignment = TextAlignmentOptions.Center;
+            cross.color = template.color;
+            cross.raycastTarget = false;
+            cross.text = "X";
+            var button = clear.GetComponent<Button>();
+            // Hover and press look as on Take All.
+            button.targetGraphic = clearImage;
+            button.transition = gui.m_takeAllButton.transition;
+            button.colors = gui.m_takeAllButton.colors;
+            button.spriteState = gui.m_takeAllButton.spriteState;
+            button.navigation = new Navigation { mode = Navigation.Mode.None };
+            button.onClick.AddListener(() =>
+            {
+                field.text = "";
+                // A selected button would take the next Enter through the interface.
+                var events = EventSystem.current;
+                if (events && events.currentSelectedGameObject == clear) events.SetSelectedGameObject(null);
+            });
+            field.onValueChanged.AddListener(typed => clear.SetActive(typed.Length > 0));
+            clear.SetActive(false);
         }
 
         // The field stays the interface's selected object after it gives up the keyboard, and the UI input module sends
