@@ -125,7 +125,12 @@ namespace EpicLootProgressionFix
                 if (players.Length != 1 || following && following != players[0]) return false;
                 following = players[0];
             }
-            if (!following) following = character.GetComponent<MonsterAI>()?.GetFollowTarget()?.GetComponent<Player>();
+            if (!following)
+            {
+                // A player who logged out leaves the follow target destroyed but not null.
+                var followed = character.GetComponent<MonsterAI>()?.GetFollowTarget();
+                following = followed ? followed.GetComponent<Player>() : null;
+            }
             if (!following) return false;
             summoner = following.GetPlayerID(); staff = expected;
             if (view.IsOwner())

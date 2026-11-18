@@ -463,7 +463,8 @@ namespace EpicLootProgressionFix
         private static bool Following(Character creature, Held held)
         {
             if (!creature || !Belongs(GameFields.CharacterView(creature).GetZDO(), held.Player, held.Name)) return false;
-            var following = creature.GetComponent<MonsterAI>()?.GetFollowTarget()?.GetComponent<Player>();
+            var followed = creature.GetComponent<MonsterAI>()?.GetFollowTarget();
+            var following = followed ? followed.GetComponent<Player>() : null;
             return !following || following.GetPlayerID() == held.Player;
         }
         private static void Park(Held held)
@@ -689,7 +690,9 @@ namespace EpicLootProgressionFix
             // Position packets and the remote Player's visual transform need not update in the same frame.
             // A completed transfer must not dismiss an actually nearby follower because its caster's replica still lags behind.
             if (!data.IsOwner() || data.GetLong(SettlingKey) <= ZNet.instance.GetTime().Ticks || __instance.m_unsummonDistance <= 0f) return true;
-            var following = __instance.GetComponent<MonsterAI>()?.GetFollowTarget()?.GetComponent<Player>();
+            // A player who logged out leaves the follow target destroyed but not null.
+            var followed = __instance.GetComponent<MonsterAI>()?.GetFollowTarget();
+            var following = followed ? followed.GetComponent<Player>() : null;
             var actor = following ? GameFields.CharacterView(following)?.GetZDO() : null;
             return actor == null || !actor.HasOwner() || !SummonOwnership.Recorded(data, following.GetPlayerID(), SummonOwnership.StaffFor(data)) ||
                 Vector3.Distance(actor.GetPosition(), __instance.transform.position) > __instance.m_unsummonDistance;
