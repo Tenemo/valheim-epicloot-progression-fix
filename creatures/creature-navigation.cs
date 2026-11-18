@@ -109,6 +109,11 @@ namespace EpicLootProgressionFix
                 state.Navigation == Pathfinding.instance && Fallback(ai, state, to) && Pathfinding.instance.GetPath(from, to, path, state.Original, true, cleanup);
         }
 
+        // A body often measures exactly on a step, such as a wolf 0.65 m from middle to flank at 1.2 times its size,
+        // where rounding noise swapped its profile, and cleared its route, every few frames; a hundredth of a step's
+        // tolerance keeps it on one.
+        private static int Bucket(float steps) => Mathf.CeilToInt(steps - .01f);
+
         internal static void Fit(BaseAI ai)
         {
             var character = GameFields.AiCharacter(ai);
@@ -144,12 +149,12 @@ namespace EpicLootProgressionFix
                 if (body.Valid && (Mathf.Abs(body.HalfWidth - nativeBuild.agentRadius) > .01f || Mathf.Abs(body.Height - nativeBuild.agentHeight) > .01f ||
                     Mathf.Abs(bodyDepth - nativeDepth) > .01f))
                 {
-                    int radius = Mathf.CeilToInt((body.HalfWidth + .02f) * 10f);
+                    int radius = Bucket((body.HalfWidth + .02f) * 10f);
                     reach = radius / 10f;
-                    int swimDepth = Mathf.CeilToInt(bodyDepth * 10f);
+                    int swimDepth = Bucket(bodyDepth * 10f);
                     // The water mesh represents the bottom of the real swimming body. Its depth bucket extends
                     // downwards; include that extra span in height so the whole physical body remains enclosed.
-                    int height = Mathf.CeilToInt((body.Height + .02f + swimDepth / 10f - bodyDepth) * 4f);
+                    int height = Bucket((body.Height + .02f + swimDepth / 10f - bodyDepth) * 4f);
                     var key = (state.Original, radius, height, swimDepth);
                     if (!Profiles.TryGetValue(key, out selected))
                     {
