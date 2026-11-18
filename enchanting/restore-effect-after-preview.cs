@@ -33,11 +33,13 @@ namespace EpicLootProgressionFix
                     itemData.m_shared = CloneShared(originalShared);
                     itemData.m_shared.m_useDurability = true;
                 }
+                // As EpicLoot does, "Health Critical Enchantments" off keeps those effects from rolling; runes still read them.
                 __result = MagicItemEffectDefinitions.AllDefinitions.Values.Where(definition =>
                     definition.CheckRequirements(itemData, magicItem, checklootroll, checkaugment, checkruneroll)
                     && !EnchantCostsHelper.EffectIsDeprecated(definition)
                     && AffixReplacements.PreservesRequirements(itemData, magicItem, definition, removed?.EffectType)
-                    && EnchantmentApplicability.DeadReason(itemData, magicItem, definition.Type) == null).ToList();
+                    && EnchantmentApplicability.DeadReason(itemData, magicItem, definition.Type) == null
+                    && (checkruneroll || ModifyWithLowHealth.MayRoll(definition.Type))).ToList();
             }
             finally
             {
@@ -47,7 +49,8 @@ namespace EpicLootProgressionFix
             // A new value for the replaced effect is a fresh choice too; Augment's keep-original choice stays separate.
             if (removed != null && MagicItemEffectDefinitions.AllDefinitions.TryGetValue(removed.EffectType, out var original)
                 && !__result.Contains(original) && !EnchantCostsHelper.EffectIsDeprecated(original)
-                && EnchantmentApplicability.DeadReason(itemData, magicItem, original.Type) == null) __result.Add(original);
+                && EnchantmentApplicability.DeadReason(itemData, magicItem, original.Type) == null
+                && (checkruneroll || ModifyWithLowHealth.MayRoll(original.Type))) __result.Add(original);
             return false;
         }
     }
