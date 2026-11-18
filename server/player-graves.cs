@@ -356,6 +356,20 @@ namespace EpicLootProgressionFix
             private static void Postfix(TombStone __instance) => __instance.gameObject.AddComponent<PlayerGraveSupport>();
         }
 
+        // A new grave is paused in Awake, before Setup gives it the native upward hop; resuming releases it with that hop.
+        [HarmonyPatch(typeof(TombStone), nameof(TombStone.Setup))]
+        private static class SpawnHop
+        {
+            private static void Postfix(TombStone __instance)
+            {
+                var support = __instance.GetComponent<PlayerGraveSupport>();
+                if (support == null || !support.paused || !support.pausedBody || support.pausedBody.isKinematic) return;
+                // The frozen body reads back no velocity, so the hop is the one Setup gives it.
+                support.velocity = new Vector3(0f, __instance.m_spawnUpVel, 0f);
+                support.pausedBody.linearVelocity = Vector3.zero;
+            }
+        }
+
         [HarmonyPatch(typeof(TombStone), "PositionCheck")]
         private static class PositionCheck
         {
