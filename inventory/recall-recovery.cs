@@ -29,6 +29,8 @@ namespace EpicLootProgressionFix
         private static Player loadedPlayer;
         private static readonly Action<ItemDrop> SaveDrop =
             AccessTools.MethodDelegate<Action<ItemDrop>>(AccessTools.Method(typeof(ItemDrop), "Save"));
+        // The item format ItemData.Save writes, read from the running game so a format change keeps records loadable.
+        private static readonly int ItemVersion = Enum.GetValues(typeof(global::Version.Item)).Cast<int>().Max();
         private static bool showedNoRoom;
         internal static string Problem { get; private set; }
 
@@ -245,7 +247,7 @@ namespace EpicLootProgressionFix
             if (Problem != null || !Recovered.TryGetValue(player.GetPlayerID(), out var held)) return;
             if (held.Count == 0) { player.m_customData.Remove(StateKey); return; }
             var package = new ZPackage();
-            package.Write(109); package.Write((ushort)held.Count);
+            package.Write(ItemVersion); package.Write((ushort)held.Count);
             for (int index = 0; index < held.Count; index++)
             {
                 var item = held[index].Clone();
