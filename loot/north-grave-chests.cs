@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using BepInEx.Logging;
 using EpicLoot;
 using HarmonyLib;
@@ -313,14 +314,20 @@ namespace EpicLootProgressionFix
     [HarmonyPatch(typeof(WearNTear), nameof(WearNTear.UpdateWear))]
     internal static class NorthGraveChestSupport
     {
+        private static readonly AccessTools.FieldRef<WearNTear, float> CreateTime = AccessTools.FieldRefAccess<WearNTear, float>("m_createTime");
+        // Chests found away from every grave once the game's 30-second start without wear had passed. A chest doesn't move
+        // and graves are generated with their chests, so the answer stays; a chest loaded again is checked again.
+        private static readonly ConditionalWeakTable<WearNTear, object> Unburied = new ConditionalWeakTable<WearNTear, object>();
+
         // Every building piece runs this, so the cheap support flag and the game's own view come before any lookup.
-        private static void Prefix(WearNTear __instance)
+        private static void Prefix(WearNTear __instance, float time)
         {
             if (!__instance.m_noSupportWear) return;
             var view = GameFields.WearView(__instance);
             var data = view == null ? null : view.GetZDO();
-            if (data != null && data.GetPrefab() == NorthGraveChests.ChestPrefab && NorthGraveChests.IsBuriedGraveChest(data))
-                __instance.m_noSupportWear = false;
+            if (data == null || data.GetPrefab() != NorthGraveChests.ChestPrefab || Unburied.TryGetValue(__instance, out _)) return;
+            if (NorthGraveChests.IsBuriedGraveChest(data)) __instance.m_noSupportWear = false;
+            else if (CreateTime(__instance) < 0f || time - CreateTime(__instance) > 30f) Unburied.Add(__instance, null);
         }
     }
 
