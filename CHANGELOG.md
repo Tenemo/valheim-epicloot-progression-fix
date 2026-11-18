@@ -1,3 +1,11 @@
+# 1.32.1
+
+- Brokkr's Gift no longer appears on the enchanting table's Sacrifice page. It is the only way to add a socket, and sacrificing one paid out only ordinary dust and a reagent.
+- Leaving a snowy mountain stops the snowfall as the sky starts to clear, instead of about 20 seconds later.
+- Sprinting through shallow water, such as in a Sunken Crypt, is now faster than jogging. The water used to slow a fast runner by more the faster they ran, so a well-geared character sprinted slower than they jogged.
+- A tamed lox's or asksvin's Staff of Protection bubble is as large as a wild one's, instead of a third of its size and mostly inside the animal.
+- Summons give up an enemy they can't reach, such as a skeleton high in a tree, for 30 seconds and attack another, instead of standing beside it for up to a minute. Creatures also judge more accurately whether they can reach a large enemy like Bonemass.
+
 # 1.32.0
 
 - A night's sleep takes about two and a half seconds from lying down to a clear screen instead of about 22. Smelters, kilns, fermenters, beehives, plants, eggs and growing animals still get the whole night's work, and you wake Rested by your bed's comfort. Taming and food timers run about 18 seconds less over a night.
