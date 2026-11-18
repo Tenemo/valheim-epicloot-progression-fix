@@ -19,11 +19,26 @@ namespace EpicLootProgressionFix
         }
     }
 
-    // The native tooltip calls SetLevel on shared status-effect assets. Work on a fresh copy instead, so inspecting
+    // The native tooltip calls SetLevel on shared status-effect assets. Work on a copy instead, so inspecting
     // different qualities and skill levels cannot change the prefab later used by an actual cast or equipped item.
     [HarmonyPatch]
     internal static class StatusEffectTooltips
     {
+        // The game asks for a hovered item's tooltip every frame. SetLevel sets the levelled values from its arguments
+        // alone, so one copy per effect serves every call; it is remade every 2 s, so a later change to the asset shows.
+        private const float PreviewLifetime = 2f;
+        private static readonly Dictionary<StatusEffect, (StatusEffect Preview, float Until)> Previews = new Dictionary<StatusEffect, (StatusEffect, float)>();
+
+        private static StatusEffect Preview(StatusEffect source)
+        {
+            if (Previews.TryGetValue(source, out var kept) && kept.Preview && Time.unscaledTime < kept.Until) return kept.Preview;
+            if (kept.Preview) Object.Destroy(kept.Preview);
+            var preview = Object.Instantiate(source);
+            preview.name = source.name;
+            Previews[source] = (preview, Time.unscaledTime + PreviewLifetime);
+            return preview;
+        }
+
         private static IEnumerable<MethodBase> TargetMethods()
         {
             foreach (string name in new[] { "GetStatusEffectTooltip", "GetEquipStatusEffectTooltip", "GetSetStatusEffectTooltip" })
@@ -41,8 +56,7 @@ namespace EpicLootProgressionFix
             else source = shared.m_attackStatusEffect ? shared.m_attackStatusEffect : shared.m_consumeStatusEffect ? shared.m_consumeStatusEffect : shared.m_equipStatusEffect;
             __result = "";
             if (!source) return false;
-            var preview = Object.Instantiate(source);
-            preview.name = source.name;
+            var preview = Preview(source);
             var prior = HandOverride.Active;
             try
             {
@@ -63,7 +77,7 @@ namespace EpicLootProgressionFix
                 }
                 __result += description;
             }
-            finally { HandOverride.Active = prior; Object.Destroy(preview); }
+            finally { HandOverride.Active = prior; }
             return false;
         }
     }
