@@ -315,9 +315,9 @@ namespace EpicLootProgressionFix
                     var character = entry.Character; var view = character ? GameFields.CharacterView(character) : null;
                     if (!view || !view.IsValid())
                     {
-                        // One summon lost elsewhere, such as a bat the swarm limit removed, leaves the others to appear.
-                        if (scope.Summon) { entry.Done = true; Pending.Remove(character); continue; }
-                        Reject(scope); return;
+                        // One member lost elsewhere, such as a bat the swarm limit removed or a bounty's add that unloaded at the
+                        // edge of the area, leaves the others to appear.
+                        entry.Done = true; Pending.Remove(character); continue;
                     }
                     if (!view.IsOwner())
                     {
