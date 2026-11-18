@@ -14,6 +14,10 @@ namespace EpicLootProgressionFix
         private static readonly ConditionalWeakTable<Projectile, object> Shots = new ConditionalWeakTable<Projectile, object>();
         private static object landing;
 
+        // The mark of the arrow landing now. A hit on a creature another game runs replays its effects once that game
+        // confirms it, after the landing, so it carries this value there.
+        internal static object Landing { get => landing; set => landing = value; }
+
         internal static void Initialize(IntegrationPatches harmony)
         {
             var self = typeof(QuarryMarkInFlight);

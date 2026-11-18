@@ -53,6 +53,7 @@ namespace EpicLootProgressionFix
             internal float Started, Adrenaline, SkillAmount, HealthReturn;
             internal Skills.SkillType Skill;
             internal Receipt Result;
+            internal object Mark;
             internal bool Resolved, ReplayEffects = true;
             internal readonly List<(Character Owner, Skills.SkillType Skill, float Amount, ItemDrop.ItemData Weapon)> SkillAwards =
                 new List<(Character, Skills.SkillType, float, ItemDrop.ItemData)>();
@@ -175,6 +176,7 @@ namespace EpicLootProgressionFix
             {
                 shot.CoinsSpent = Mathf.Max(0, shot.CoinsBefore - CountCoins(Player.m_localPlayer));
                 if (WagerHit() == hit) { shot.Stake = WagerCoins(); WagerHit() = null; WagerCoins() = 0; }
+                shot.Mark = QuarryMarkInFlight.Landing;
             }
             shot.Request = ++nextRequest;
             Pending.Add(shot.Request, shot);
@@ -447,10 +449,12 @@ namespace EpicLootProgressionFix
             shot.Result = new Receipt { Known = true, Alive = true, Killed = killed, Dead = dead };
             var previous = Replaying;
             var previousWeapon = FiringWeapon();
+            var previousMark = QuarryMarkInFlight.Landing;
             try
             {
                 Replaying = shot;
                 FiringWeapon() = shot.Weapon;
+                QuarryMarkInFlight.Landing = shot.Mark;
                 if (shot.ReplayEffects) Effects(shot.Target, shot.Hit);
                 if (shot.HealthReturn > 0f) player.Heal(shot.HealthReturn);
                 if (shot.SkillAmount != 0f) GrantSkill(player, shot.Skill, shot.SkillAmount, shot.Weapon);
@@ -458,7 +462,7 @@ namespace EpicLootProgressionFix
                 shot.SkillAwards.Clear();
                 player.AddAdrenaline(shot.Adrenaline);
             }
-            finally { FiringWeapon() = previousWeapon; Replaying = previous; }
+            finally { FiringWeapon() = previousWeapon; Replaying = previous; QuarryMarkInFlight.Landing = previousMark; }
         }
 
         internal static void Cleanup()
