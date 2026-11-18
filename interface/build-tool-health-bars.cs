@@ -11,12 +11,21 @@ namespace EpicLootProgressionFix
         private delegate void HoverSearch(Player player, out GameObject hoveredObject, out Character hoveredCreature);
         private static readonly HoverSearch FindHoverObject = AccessTools.MethodDelegate<HoverSearch>(
             AccessTools.Method(typeof(Player), "FindHoverObject"));
+        // Several HUD parts ask every frame, and each search is a long raycast; the view changes only between frames.
+        private static int searchedFrame = -1;
+        private static Player searcher;
+        private static Character found;
 
         private static void Postfix(Player __instance, ref Character __result)
         {
             if (__result || !__instance.InPlaceMode() || __instance.IsDead() || __instance.GetDoodadController() != null)
                 return;
-            FindHoverObject(__instance, out _, out __result);
+            if (searchedFrame != Time.frameCount || searcher != __instance)
+            {
+                FindHoverObject(__instance, out _, out found);
+                searchedFrame = Time.frameCount; searcher = __instance;
+            }
+            __result = found;
         }
     }
 }
