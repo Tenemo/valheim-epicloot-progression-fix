@@ -64,7 +64,9 @@ namespace EpicLootProgressionFix
             float stop = Slide(creature, speed) + speed * dt / 2f;
             // A resting creature that is still sliding doesn't set off again.
             // A floor or ledge can be directly above the creature. Keep pathfinding until it reaches the player's elevation.
-            bool sameElevation = Mathf.Abs(player.transform.position.y - creature.transform.position.y) <= 1f;
+            // On a slope, or beside a player who rides or stands on something, the player is above but farther away than that.
+            float rise = Mathf.Abs(player.transform.position.y - creature.transform.position.y);
+            bool sameElevation = rise <= 1f || rise <= Utils.DistanceXZ(player.transform.position, creature.transform.position);
             if (sameElevation && gap <= target + (state.Resting ? Mathf.Max(ResumeMargin, stop) : stop))
             {
                 state.Resting = true;
