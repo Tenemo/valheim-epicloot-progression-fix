@@ -40,6 +40,12 @@ namespace EpicLootProgressionFix
         private static readonly Dictionary<Vector2s, Bounds> interiors = new Dictionary<Vector2s, Bounds>();
         private static readonly Dictionary<Vector2s, ZDOID> interiorProxies = new Dictionary<Vector2s, ZDOID>();
         private static readonly Dictionary<ZDOID, Vector2s> playerDungeons = new Dictionary<ZDOID, Vector2s>();
+        // Each location's entrance record, found once by a sector scan: it never moves, and is looked up again only once gone.
+        private static readonly Dictionary<Vector2s, ZDOID> entrances = new Dictionary<Vector2s, ZDOID>();
+        // A player inside no configured dungeon, such as a boss room, is looked for again a few times a second, not every frame.
+        private const float EntryRecheck = .25f;
+        private static readonly Dictionary<ZDOID, float> entryRecheck = new Dictionary<ZDOID, float>();
+        private static List<KeyValuePair<Vector2s, ZoneSystem.LocationInstance>> sweepBuffer;
         // What locating an interior needs from a location's or room's prefab, taken once per server run. Loading a prefab
         // stops the server for up to half a second, so an entry check loads missing ones in the background and decides
         // once they are in, with the time it first saw the player.
@@ -141,7 +147,7 @@ namespace EpicLootProgressionFix
         {
             if (!(position.y > InteriorHeight) || float.IsInfinity(position.y) || float.IsNaN(position.x) || float.IsInfinity(position.x) || float.IsNaN(position.z) || float.IsInfinity(position.z))
             {
-                playerDungeons.Remove(player); entrySeen.Remove(player);
+                playerDungeons.Remove(player); entrySeen.Remove(player); entryRecheck.Remove(player);
                 return;
             }
             if (playerDungeons.TryGetValue(player, out var known) && Inside(position, known) && interiorProxies.TryGetValue(known, out var identity))
@@ -151,6 +157,7 @@ namespace EpicLootProgressionFix
                 if (entrance != null) return;
             }
             playerDungeons.Remove(player);
+            if (entryRecheck.TryGetValue(player, out float recheck) && Time.realtimeSinceStartup < recheck) return;
             var center = ZoneSystem.GetZone(position);
             ZDO closest = null;
             Vector2s dungeon = default;
@@ -161,7 +168,7 @@ namespace EpicLootProgressionFix
                 {
                     var zone = new Vector2s(center.x + x, center.y + z);
                     if (failed.Contains(zone) || !GeneratedZones(ZoneSystem.instance).Contains(zone) || !Locations(ZoneSystem.instance).TryGetValue(zone, out var instance) || ConfiguredEntry(instance) == null) continue;
-                    var proxy = findProxy(zone, instance.m_location.Hash);
+                    var proxy = Entrance(zone, instance.m_location.Hash);
                     if (proxy == null) continue;
                     try
                     {
@@ -187,9 +194,20 @@ namespace EpicLootProgressionFix
             }
             long seen = entrySeen.TryGetValue(player, out long first) ? first : Now;
             entrySeen.Remove(player);
-            if (closest == null) return;
+            if (closest == null) { entryRecheck[player] = Time.realtimeSinceStartup + EntryRecheck; return; }
+            entryRecheck.Remove(player);
             DungeonResetTimers.Start(closest, seen);
             playerDungeons[player] = dungeon;
+        }
+
+        private static ZDO Entrance(Vector2s zone, int location)
+        {
+            if (entrances.TryGetValue(zone, out var known) && ZDOMan.instance.GetZDO(known) is ZDO cached && cached.IsValid() && cached.GetInt(ZDOVars.s_location) == location)
+                return cached;
+            var found = findProxy(zone, location);
+            if (found != null) entrances[zone] = found.m_uid;
+            else entrances.Remove(zone);
+            return found;
         }
 
         private static IEnumerator Run()
@@ -207,22 +225,33 @@ namespace EpicLootProgressionFix
         {
             if (ZNet.instance == null || !ZNet.instance.IsServer() || ZoneSystem.instance == null || ZDOMan.instance == null) yield break;
             var config = captureConfig.Invoke(null, null);
-            var snapshot = Locations(ZoneSystem.instance).ToArray();
-            float slice = Time.realtimeSinceStartup;
-            foreach (var pair in snapshot)
+            // The world's locations are copied into a list kept between sweeps instead of a new array each second.
+            var snapshot = sweepBuffer ?? new List<KeyValuePair<Vector2s, ZoneSystem.LocationInstance>>();
+            sweepBuffer = null;
+            try
             {
-                if (!GeneratedZones(ZoneSystem.instance).Contains(pair.Key) || failed.Contains(pair.Key)) continue;
-                try { Regenerate(pair.Key, config, true); }
-                catch (Exception error)
+                foreach (var pair in Locations(ZoneSystem.instance)) snapshot.Add(pair);
+                float slice = Time.realtimeSinceStartup;
+                foreach (var pair in snapshot)
                 {
-                    failed.Add(pair.Key);
-                    logger.LogError($"Interior reset {pair.Value.m_location?.m_prefabName} at {pair.Key.x},{pair.Key.y} failed; automatic retries paused until the world reloads: {error.GetBaseException()}");
+                    if (!GeneratedZones(ZoneSystem.instance).Contains(pair.Key) || failed.Contains(pair.Key)) continue;
+                    try { Regenerate(pair.Key, config, true); }
+                    catch (Exception error)
+                    {
+                        failed.Add(pair.Key);
+                        logger.LogError($"Interior reset {pair.Value.m_location?.m_prefabName} at {pair.Key.x},{pair.Key.y} failed; automatic retries paused until the world reloads: {error.GetBaseException()}");
+                    }
+                    if (Time.realtimeSinceStartup - slice >= 0.004f)
+                    {
+                        yield return null;
+                        slice = Time.realtimeSinceStartup;
+                    }
                 }
-                if (Time.realtimeSinceStartup - slice >= 0.004f)
-                {
-                    yield return null;
-                    slice = Time.realtimeSinceStartup;
-                }
+            }
+            finally
+            {
+                snapshot.Clear();
+                sweepBuffer = snapshot;
             }
         }
 
@@ -233,9 +262,11 @@ namespace EpicLootProgressionFix
         {
             if (!Enabled || ZNet.instance == null || !ZNet.instance.IsServer()) return "disabled";
             if (!Locations(ZoneSystem.instance).TryGetValue(zone, out var instance) || instance.m_location == null) return "no location";
+            var proxy = Entrance(zone, instance.m_location.Hash);
+            // Almost no location has an armed timer: the sweep passes those on the timer alone, before the configuration.
+            if (background && (proxy == null || DungeonResetTimers.Read(proxy) <= 0)) return "not entered";
             object entry = ConfiguredEntry(instance);
             if (entry == null) return "not a configured dungeon";
-            var proxy = findProxy(zone, instance.m_location.Hash);
             if (proxy == null) return "no entrance";
             long previous = DungeonResetTimers.Read(proxy);
             if (previous <= 0) return "not entered";
@@ -343,7 +374,7 @@ namespace EpicLootProgressionFix
             if (!shape.Generator) return true;
             var record = FindGeneratorRecord(zone, GeneratorPosition(zone, proxy, shape), shape);
             // LocateInterior reports a missing generator, room layout or room.
-            if (record == null || !record.GetByteArray(RoomData, out var bytes)) return true;
+            if (record == null || !SavedRooms(record, out var bytes)) return true;
             bool loaded = true;
             using var reader = new BinaryReader(new MemoryStream(bytes));
             int count = reader.ReadInt32();
@@ -410,9 +441,31 @@ namespace EpicLootProgressionFix
             return saved.FirstOrDefault(value => value.GetPrefab() == shape.GeneratorPrefab && Vector3.Distance(value.GetPosition(), position) < .1f);
         }
 
+        // The saved room layout in the game's current format. A dungeon generated before the game had it keeps one record per
+        // room, which the game still loads and leaves as it is; it is read in the current format's layout.
+        private static bool SavedRooms(ZDO generator, out byte[] bytes)
+        {
+            if (generator.GetByteArray(RoomData, out bytes)) return true;
+            if (!generator.GetInt(ZDOVars.s_rooms, out int count)) return false;
+            using var stream = new MemoryStream();
+            using (var writer = new BinaryWriter(stream))
+            {
+                writer.Write(count);
+                for (int index = 0; index < count; index++)
+                {
+                    string room = "room" + index;
+                    writer.Write(generator.GetInt(room));
+                    writer.Write(generator.GetVec3(room + "_pos", Vector3.zero));
+                    writer.Write(generator.GetQuaternion(room + "_rot", Quaternion.identity));
+                }
+            }
+            bytes = stream.ToArray();
+            return true;
+        }
+
         private static void AddRoomBounds(ref Bounds bounds, ZDO generator)
         {
-            if (!generator.GetByteArray(RoomData, out var bytes))
+            if (!SavedRooms(generator, out var bytes))
                 throw new InvalidOperationException("The dungeon has no saved room layout.");
             using var reader = new BinaryReader(new MemoryStream(bytes));
             int count = reader.ReadInt32();
@@ -523,12 +576,11 @@ namespace EpicLootProgressionFix
 
         private static void VerifyRooms(List<ZDO> old, List<ZDO> fresh)
         {
-            int rooms = "roomData".GetStableHashCode();
             foreach (var saved in old)
             {
-                if (!saved.GetByteArray(rooms, out var before)) continue;
+                if (!SavedRooms(saved, out var before)) continue;
                 var replacement = fresh.FirstOrDefault(zdo => zdo.GetPrefab() == saved.GetPrefab() && (zdo.GetPosition() - saved.GetPosition()).sqrMagnitude < 0.0025f);
-                if (replacement == null || !replacement.GetByteArray(rooms, out var after) || !SameRooms(before, after))
+                if (replacement == null || !replacement.GetByteArray(RoomData, out var after) || !SameRooms(before, after))
                     throw new InvalidOperationException("The regenerated room layout differs from the saved dungeon; the existing interior was retained.");
             }
         }
@@ -561,7 +613,8 @@ namespace EpicLootProgressionFix
         private static void RecordView(ZNetView __instance) { if (operation != null && __instance.GetZDO() != null) operation.Views.Add(__instance); }
         private static void ClearWorld()
         {
-            occupied.Clear(); failed.Clear(); interiors.Clear(); interiorProxies.Clear(); playerDungeons.Clear(); entrySeen.Clear(); running = false; nextSweep = 0; DungeonOccupancy.Clear();
+            occupied.Clear(); failed.Clear(); interiors.Clear(); interiorProxies.Clear(); playerDungeons.Clear(); entrySeen.Clear(); entrances.Clear(); entryRecheck.Clear();
+            running = false; nextSweep = 0; DungeonOccupancy.Clear();
             foreach (var pending in loadingLocations.Values.Concat(loadingRooms.Values).Concat(rebuildAssets.Values.SelectMany(held => held))) pending.Release();
             loadingLocations.Clear(); loadingRooms.Clear(); rebuildAssets.Clear();
         }
@@ -570,8 +623,10 @@ namespace EpicLootProgressionFix
     internal static class DungeonResetTimers
     {
         internal const string TimerKey = Plugin.Id + ".dungeon-entry-timer";
+        // The sweep reads every location's timer each second.
+        private static readonly int TimerHash = TimerKey.GetStableHashCode();
 
-        internal static long Read(ZDO proxy) => proxy.GetLong(TimerKey);
+        internal static long Read(ZDO proxy) => proxy.GetLong(TimerHash);
 
         internal static void Start(ZDO proxy, long at)
         {
