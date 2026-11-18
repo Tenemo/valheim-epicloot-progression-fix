@@ -322,14 +322,21 @@ namespace EpicLootProgressionFix
             // Requests that arrive together share the scan, including in a nearly empty world.
             yield return null;
             var frame = Stopwatch.StartNew();
-            foreach (var sector in Sectors(ZDOMan.instance))
+            // A scan that fails still answers everyone waiting on it with the spots it found, and the next request scans again.
+            try
             {
-                if (frame.ElapsedMilliseconds >= 1) { yield return null; frame.Restart(); }
-                if (sector == null) continue;
-                foreach (var zdo in sector) AddSpot(zdo);
+                foreach (var sector in Sectors(ZDOMan.instance))
+                {
+                    if (frame.ElapsedMilliseconds >= 1) { yield return null; frame.Restart(); }
+                    if (sector == null) continue;
+                    foreach (var zdo in sector) AddSpot(zdo);
+                }
             }
-            waiting = null;
-            foreach (var callback in callbacks) callback(spots);
+            finally
+            {
+                if (waiting == callbacks) waiting = null;
+                foreach (var callback in callbacks) callback(spots);
+            }
             log.LogInfo($"Reported {spots.Count} open bounty and treasure spots in {watch.ElapsedMilliseconds} ms.");
 
             void AddSpot(ZDO zdo)
