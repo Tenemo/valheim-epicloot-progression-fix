@@ -136,7 +136,8 @@ namespace EpicLootProgressionFix
             {
                 DisabledFeatures.Set(Feature, error.Message);
                 __result = prefix + Heading + "\nChances unavailable for this selection.";
-                refresh?.Record(item, _rarity, null, false);
+                // Without chances Enchant still works, as Augment does; only a pending calculation holds it.
+                refresh?.Record(item, _rarity, null, true);
             }
         }
     }
@@ -159,7 +160,8 @@ namespace EpicLootProgressionFix
         internal bool StillMatches()
         {
             var selected = panel.AvailableItems.GetSingleSelectedItem<InventoryItemListElement>()?.Item1.GetItem();
-            return ready && pressedItem == selected && pressedKey != null && pressedKey == EnchantProbabilityInput.Capture(selected, Rarity(panel)).Key;
+            // A press while chances were unavailable showed none, so only the item has to match.
+            return ready && pressedItem == selected && (pressedKey == null || pressedKey == EnchantProbabilityInput.Capture(selected, Rarity(panel)).Key);
         }
         private void Update()
         {
