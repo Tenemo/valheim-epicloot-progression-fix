@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -21,6 +22,8 @@ namespace EpicLootProgressionFix
     {
         private const string TakeRpc = "EpicLootProgressionFix_DyrnwynTake";
         private const string GrantRpc = "EpicLootProgressionFix_DyrnwynGrant";
+        private const string OfferRpc = "EpicLootProgressionFix_DyrnwynOffer", SavedRpc = "EpicLootProgressionFix_DyrnwynSaved",
+            OverflowRpc = "EpicLootProgressionFix_DyrnwynOverflow", ResumeRpc = "EpicLootProgressionFix_DyrnwynResume";
         private const string ChampionDiedRpc = "EpicLootProgressionFix_DyrnwynChampionDied";
         private const string RestoreRpc = "EpicLootProgressionFix_DyrnwynRestorePickup";
         private const float PickupReach = 10f;
@@ -77,6 +80,10 @@ namespace EpicLootProgressionFix
             {
                 __instance.Register<ZDOID>(TakeRpc, ReceiveTake);
                 __instance.Register<ZDOID>(GrantRpc, ReceiveGrant);
+                __instance.Register<string, string, long>(OfferRpc, ReceiveOffer);
+                __instance.Register<string>(SavedRpc, ReceiveSaved);
+                __instance.Register<string>(OverflowRpc, ReceiveOverflow);
+                __instance.Register(ResumeRpc, Resume);
                 __instance.Register<ZDOID, Vector3>(ChampionDiedRpc, ReceiveChampionDied);
                 __instance.Register<ZDOID>(RestoreRpc, ReceiveRestore);
             }
@@ -131,11 +138,16 @@ namespace EpicLootProgressionFix
 
         // The grant and its physical item share a world save. A missed pickup notification leaves the item on the ground.
         // Keep recognizing the grants earlier releases recorded in the private file.
-        private static ZDOID DropOnce(string fragment, string account, Vector3 position)
+        private static string GrantKey(string fragment, string account)
         {
             using var sha = SHA256.Create();
-            string key = "dyrnwyn_" + BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(
+            return "dyrnwyn_" + BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(
                 ZNet.instance.GetWorldUID() + "|" + fragment + "|" + account))).Replace("-", "").ToLowerInvariant();
+        }
+
+        private static ZDOID DropOnce(string fragment, string account, Vector3 position)
+        {
+            string key = GrantKey(fragment, account);
             if (Records().Has(fragment, account) || ZoneSystem.instance.GetGlobalKey(key)) return ZDOID.None;
             var prefab = ObjectDB.instance.GetItemPrefab(fragment);
             var drop = UnityEngine.Object.Instantiate(prefab, position, Quaternion.identity).GetComponent<ItemDrop>();
@@ -158,8 +170,6 @@ namespace EpicLootProgressionFix
             var peer = ZNet.instance.GetPeer(sender);
             if (peer == null || !peer.IsReady() || !peer.m_rpc.IsConnected()) return false;
             position = peer.m_refPos;
-            if (CharacterCheckpoints.Available)
-                return CharacterCheckpoints.PrivatePeerIdentity(peer.m_rpc, out account, out _, out _);
             account = peer.m_socket.GetHostName();
             if (string.IsNullOrEmpty(account)) return false;
             if (account.All(char.IsDigit)) account = "Steam_" + account;
@@ -179,9 +189,130 @@ namespace EpicLootProgressionFix
             var prefab = pickup != null ? ZNetScene.instance.GetPrefab(pickup.GetPrefab()) : null;
             if (prefab == null || !PickupFragment.TryGetValue(prefab.name, out string fragment) || !Collector(sender, out string account, out var position) ||
                 Vector3.Distance(position, pickup.GetPosition()) > PickupReach) return;
-            var item = DropOnce(fragment, account, position + Vector3.up);
-            ZRoutedRpc.instance.InvokeRoutedRPC(sender, GrantRpc, item);
+            long actor = Actor(sender);
+            if (actor == 0) return;
+            var records = Records();
+            string key = GrantKey(fragment, account);
+            if (records.Has(fragment, account) || ZoneSystem.instance.GetGlobalKey(key))
+            { ZRoutedRpc.instance.InvokeRoutedRPC(sender, GrantRpc, ZDOID.None); return; }
+            if (records.Recipient(fragment, account) == 0)
+                Persist(records, () => records.Reserve(fragment, account, actor));
+            if (records.Recipient(fragment, account) == actor) ZRoutedRpc.instance.InvokeRoutedRPC(sender, OfferRpc, fragment, key, actor);
+            else ZRoutedRpc.instance.InvokeRoutedRPC(sender, OfferRpc, fragment, "", actor);
         });
+
+        private static long Actor(long sender)
+        {
+            if (sender == ZDOMan.GetSessionID()) return Player.m_localPlayer ? Player.m_localPlayer.GetPlayerID() : 0;
+            var peer = ZNet.instance.GetPeer(sender);
+            return peer == null ? 0 : ZDOMan.instance.GetZDO(peer.m_characterID)?.GetLong(ZDOVars.s_playerID) ?? 0;
+        }
+
+        private static void Persist(DyrnwynFragmentRecords state, Action change)
+        {
+            try { change(); Save(RecordsPath(recordsWorld), state); }
+            catch { records = null; throw; }
+        }
+
+        private static bool Personal(string fragment) => fragment == DyrnwynFragmentRecords.Tip || fragment == DyrnwynFragmentRecords.Blade;
+
+        [HarmonyPatch(typeof(Player), nameof(Player.OnSpawned)), HarmonyPostfix]
+        private static void Rejoin(Player __instance)
+        {
+            if (__instance == Player.m_localPlayer) ToServer(ResumeRpc);
+        }
+
+        private static void Resume(long sender) => Server("Resuming Dyrnwyn deliveries", () =>
+        {
+            if (!File.Exists(RecordsPath(ZNet.instance.GetWorldUID())) || !Collector(sender, out var account, out _)) return;
+            var state = Records();
+            if (state.Recipient(DyrnwynFragmentRecords.Tip, account) != 0 || state.Recipient(DyrnwynFragmentRecords.Blade, account) != 0)
+                ZNet.instance.StartCoroutine(ResumeWhenReady(sender, account));
+        });
+
+        private static IEnumerator ResumeWhenReady(long sender, string account)
+        {
+            // A peer announces its character before spawning, but the first replicated character record can arrive later.
+            float deadline = Time.realtimeSinceStartup + 15f;
+            long actor;
+            while ((actor = Actor(sender)) == 0)
+            {
+                if (Time.realtimeSinceStartup >= deadline || !Collector(sender, out string connected, out _) || connected != account) yield break;
+                yield return new WaitForSecondsRealtime(.25f);
+            }
+            foreach (var fragment in new[] { DyrnwynFragmentRecords.Tip, DyrnwynFragmentRecords.Blade })
+            {
+                string key = GrantKey(fragment, account);
+                if (Records().Recipient(fragment, account) == actor && !ZoneSystem.instance.GetGlobalKey(key))
+                    ZRoutedRpc.instance.InvokeRoutedRPC(sender, OfferRpc, fragment, key, actor);
+            }
+        }
+
+        private static void ReceiveOffer(long sender, string fragment, string key, long actor)
+        {
+            var player = Player.m_localPlayer;
+            if (!FromServer(sender) || !player || player.GetPlayerID() != actor || !Personal(fragment)) return;
+            if (key.Length == 0) { player.Message(MessageHud.MessageType.Center, "Finish collecting this fragment with the character that first took it."); return; }
+            if (key.Length != 72 || !key.StartsWith("dyrnwyn_", StringComparison.Ordinal) || !key.Skip(8).All(Uri.IsHexDigit)) return;
+            if (!player.m_customData.TryGetValue(key, out string delivery))
+            {
+                var bag = player.GetInventory();
+                var prefab = ObjectDB.instance.GetItemPrefab(fragment);
+                if (bag.CanAddItem(prefab, 1) && bag.AddItem(fragment, 1, 1, 0, 0L, "", false, pickedUp: true) != null)
+                {
+                    delivery = fragment;
+                    var data = prefab.GetComponent<ItemDrop>().m_itemData;
+                    player.Message(MessageHud.MessageType.TopLeft, "$msg_added " + data.m_shared.m_name, 1, data.GetIcon());
+                }
+                else
+                {
+                    delivery = "ground";
+                    player.Message(MessageHud.MessageType.Center, "$inventory_full");
+                }
+                player.m_customData[key] = delivery;
+            }
+            // A replay repeats the same delivery decision, even if the player made room after choosing overflow.
+            var profile = Game.instance.GetPlayerProfile();
+            profile.SavePlayerData(player);
+            if (profile.Save()) ToServer(delivery == "ground" ? OverflowRpc : SavedRpc, fragment);
+        }
+
+        private static void ReceiveOverflow(long sender, string fragment) => Server("Delivering a full bag's fragment", () =>
+        {
+            if (!Personal(fragment) || !Collector(sender, out var account, out var position)) return;
+            long actor = Actor(sender);
+            if (actor == 0 || Records().Recipient(fragment, account) != actor) return;
+            // A full bag explicitly accepts a ground drop. Its completion lives in the same world save as the item.
+            ZRoutedRpc.instance.InvokeRoutedRPC(sender, GrantRpc, DropOnce(fragment, account, position + Vector3.up));
+        });
+
+        private static void ReceiveSaved(long sender, string fragment) => Server("Confirming Dyrnwyn delivery", () =>
+        {
+            if (!Personal(fragment) || !Collector(sender, out var account, out _)) return;
+            long actor = Actor(sender);
+            if (actor == 0 || Records().Recipient(fragment, account) != actor) return;
+            if (sender == ZDOMan.GetSessionID() || !CharacterCheckpoints.Available) Finish(fragment, account, actor);
+            else ZNet.instance.StartCoroutine(ConfirmSaved(ZNet.instance.GetPeer(sender), fragment, account, actor));
+        });
+
+        private static IEnumerator ConfirmSaved(ZNetPeer peer, string fragment, string account, long actor)
+        {
+            string key = GrantKey(fragment, account);
+            float until = Time.realtimeSinceStartup + 15f;
+            while (peer.m_rpc.IsConnected() && Time.realtimeSinceStartup < until && Records().Recipient(fragment, account) == actor)
+            {
+                var profile = CharacterCheckpoints.ReadSavedCharacter(peer);
+                if (profile != null && profile.GetPlayerID() == actor && EnchantmentMigration.SavedCharacterValue(profile, key) == fragment)
+                { Finish(fragment, account, actor); yield break; }
+                yield return new WaitForSecondsRealtime(.5f);
+            }
+        }
+
+        private static void Finish(string fragment, string account, long actor)
+        {
+            var state = Records();
+            if (state.Recipient(fragment, account) == actor) Persist(state, () => state.Finish(fragment, account, actor));
+        }
 
         // The champion's owner reports his death while his record still exists, and drops one hilt for each player near him
         // who never had one dropped. Who picks them up is up to the players.

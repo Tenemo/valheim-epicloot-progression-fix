@@ -16,10 +16,30 @@ namespace EpicLootProgressionFix
         {
             [JsonProperty(Required = Required.Always)] public int Version = 1;
             [JsonProperty(Required = Required.Always)] public Dictionary<string, string[]> Taken = new();
+            public Dictionary<string, Dictionary<string, long>> Pending = new();
         }
 
         private readonly Dictionary<string, SortedSet<string>> taken =
             Fragments.ToDictionary(fragment => fragment, _ => new SortedSet<string>(StringComparer.Ordinal), StringComparer.Ordinal);
+
+        private readonly Dictionary<string, Dictionary<string, long>> pending = Fragments.ToDictionary(
+            fragment => fragment, _ => new Dictionary<string, long>(StringComparer.Ordinal), StringComparer.Ordinal);
+
+        internal long Recipient(string fragment, string account) =>
+            pending[fragment].TryGetValue(Valid(account), out var player) ? player : 0L;
+
+        internal void Reserve(string fragment, string account, long player)
+        {
+            if (player == 0 || Has(fragment, account)) throw new InvalidOperationException("Invalid pending fragment delivery.");
+            pending[fragment].Add(account, player);
+        }
+
+        internal bool Finish(string fragment, string account, long player)
+        {
+            if (player == 0 || Recipient(fragment, account) != player) return false;
+            pending[fragment].Remove(account);
+            return Add(fragment, account);
+        }
 
         internal bool Has(string fragment, string account) => Accounts(fragment).Contains(Valid(account));
 
@@ -35,6 +55,7 @@ namespace EpicLootProgressionFix
             string.IsNullOrWhiteSpace(account) || account.Length > 128 ? throw new ArgumentException("Invalid account.") : account;
 
         internal string Serialize() => JsonConvert.SerializeObject(new Saved {
+            Pending = pending,
             Taken = taken.ToDictionary(entry => entry.Key, entry => entry.Value.ToArray(), StringComparer.Ordinal) }, Formatting.Indented);
 
         internal static DyrnwynFragmentRecords Parse(string json)
@@ -46,6 +67,11 @@ namespace EpicLootProgressionFix
             foreach (var entry in saved.Taken)
             foreach (string account in entry.Value ?? throw new FormatException("Invalid Dyrnwyn fragment records."))
                 records.Add(entry.Key, account);
+            foreach (var entry in saved.Pending ?? throw new FormatException("Invalid pending fragment deliveries."))
+            {
+                if (!Fragments.Contains(entry.Key) || entry.Value == null) throw new FormatException("Invalid pending fragment deliveries.");
+                foreach (var pair in entry.Value) records.Reserve(entry.Key, pair.Key, pair.Value);
+            }
             return records;
         }
 
