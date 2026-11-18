@@ -27,6 +27,7 @@ namespace EpicLootProgressionFix
         private static ReadTreasure readTreasure;
         private static ManualLogSource logger;
         private static readonly HashSet<ZDOID> Waiting = new();
+        private static readonly Dictionary<ZDOID, (uint Revision, TreasureMapChestInfo Treasure)> LegacyTreasures = new();
         [ThreadStatic] internal static BuyerHistory Current;
 
         internal sealed class BuyerHistory
@@ -86,8 +87,6 @@ namespace EpicLootProgressionFix
                 prefix: new HarmonyMethod(typeof(TreasureProgression), nameof(BeforeSetup)),
                 postfix: new HarmonyMethod(typeof(TreasureProgression), nameof(AfterSetup)),
                 finalizer: new HarmonyMethod(typeof(TreasureProgression), nameof(EndScope)));
-            harmony.Patch(AccessTools.Method(typeof(Container), nameof(Container.GetInventory)),
-                prefix: new HarmonyMethod(typeof(TreasureProgression), nameof(BeforeInventory)) { priority = Priority.First });
             foreach (string method in new[] { "RPC_OpenResponse", "RPC_TakeAllResponse" })
                 harmony.Patch(AccessTools.Method(typeof(Container), method),
                     prefix: new HarmonyMethod(typeof(TreasureProgression), nameof(BeforeCollection)) { priority = Priority.First });
@@ -115,15 +114,20 @@ namespace EpicLootProgressionFix
             __instance.GetComponent<ZNetView>().GetZDO().Set(HistoryKey, history.Encode());
         }
 
-        // Old spawners have no purchase snapshot. Their buyer supplies it when their area loads.
+        // Old spawners have no purchase snapshot, and a spawner whose snapshot could not be read has an empty one. Their
+        // buyer supplies their current history when their area loads.
         private static bool PrepareLegacySpawner(MonoBehaviour __instance)
         {
             if (!Eligibility.CraftingMode) return true;
             var view = __instance.GetComponent<ZNetView>();
-            // The spawner's update runs every frame: a recorded history ends the check before the treasure is deserialized.
-            if (!view || !view.IsValid() || view.GetZDO().GetByteArray(HistoryHash) != null) return true;
-            if (!readTreasure(view.GetZDO(), out var treasure) || treasure.PlayerID == 0) return true;
+            // The spawner's update runs every frame: a recorded history ends the check before the treasure is deserialized,
+            // and a waiting spawner's treasure is deserialized again only when its record changes.
+            if (!view || !view.IsValid() || view.GetZDO().GetByteArray(HistoryHash)?.Length > 0) return true;
             var data = view.GetZDO();
+            if (!LegacyTreasures.TryGetValue(data.m_uid, out var read) || read.Revision != data.DataRevision)
+                LegacyTreasures[data.m_uid] = read = (data.DataRevision, readTreasure(data, out var decoded) ? decoded : null);
+            var treasure = read.Treasure;
+            if (treasure == null || treasure.PlayerID == 0) return true;
             var history = Capture(treasure.PlayerID);
             if (history == null)
             {
@@ -133,6 +137,7 @@ namespace EpicLootProgressionFix
             view.ClaimOwnership();
             data.Set(HistoryKey, history.Encode());
             Waiting.Remove(data.m_uid);
+            LegacyTreasures.Remove(data.m_uid);
             return true;
         }
 
@@ -143,14 +148,18 @@ namespace EpicLootProgressionFix
             var data = __instance.GetComponent<ZNetView>().GetZDO();
             try
             {
-                var history = BuyerHistory.Decode(data.GetByteArray(HistoryKey), __0.PlayerID);
-                if (history == null) return false;
-                Current = history;
+                var saved = data.GetByteArray(HistoryKey);
+                if (saved == null || saved.Length == 0) return false;
+                Current = BuyerHistory.Decode(saved, __0.PlayerID);
                 return true;
             }
             catch (Exception error)
             {
-                if (Waiting.Add(data.m_uid)) logger.LogError("Treasure generation deferred: " + error.GetBaseException().Message);
+                // An unreadable snapshot is emptied once, so the treasure waits for its buyer's current history as an
+                // old spawner does instead of never appearing.
+                data.Set(HistoryKey, Array.Empty<byte>());
+                Waiting.Add(data.m_uid);
+                logger.LogError($"Treasure crafting history was unreadable, so the treasure waits for buyer {__0.PlayerID}'s current one: " + error.GetBaseException().Message);
                 return false;
             }
         }
@@ -182,13 +191,8 @@ namespace EpicLootProgressionFix
                 !string.IsNullOrEmpty(data.GetString(TreasureBiomeKey)) && !data.GetBool(FoundKey) && data.GetInt(CheckedKey) != Version;
         }
 
-        private static void BeforeInventory(Container __instance)
-        {
-            if (Legacy(__instance, out _, out var data) && Player.m_localPlayer != null &&
-                Player.m_localPlayer.GetPlayerID() == data.GetLong(ZDOVars.s_creator) && !Repair(__instance))
-                throw new InvalidOperationException("Treasure collection is waiting for its buyer's equipment correction.");
-        }
-
+        // Opening and taking everything both arrive here, so an uncorrected chest is never shown or emptied, while other
+        // readers of its inventory, such as hover text and nearby-chest scans, keep working.
         private static bool BeforeCollection(Container __instance, ref bool granted)
         {
             if (!granted || !Legacy(__instance, out _, out _)) return true;
