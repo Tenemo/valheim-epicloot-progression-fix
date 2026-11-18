@@ -30,6 +30,9 @@ namespace EpicLootProgressionFix
         {
             internal float Scale = -1f, Growth;
             internal Collider[] Colliders;
+            internal Character Target;
+            internal int TargetFrame = -1;
+            internal float TargetExcess;
             internal readonly Dictionary<ItemDrop.ItemData.SharedData, float> Swings = new Dictionary<ItemDrop.ItemData.SharedData, float>();
         }
 
@@ -250,11 +253,27 @@ namespace EpicLootProgressionFix
             if (!swing) return range + body.Growth;
             if (!body.Swings.TryGetValue(item.m_shared, out float growth))
                 body.Swings[item.m_shared] = growth = SwingGrowth(character, body, attack, character.transform.position, enlargement);
-            // The distance UpdateAI compares subtracts a radius that overstates non-player targets, which would stop the
-            // creature short of them. Minimum ranges and gap closers rely on the native range, so it never shrinks.
+            // The distance UpdateAI compares subtracts a radius that overstates most non-player targets, which would stop the
+            // creature short of them, so the range drops by how far that radius lies beyond the target's body. The body is
+            // measured towards the creature: Bonemass's outer collider reaches past his radius, so nothing is overstated there,
+            // and a big wolf stopped by it stood outside its own bite. Minimum ranges and gap closers rely on the native range,
+            // so it never shrinks.
             var target = GameFields.TargetCreature(ai);
-            float excess = target ? Mathf.Max(0f, target.GetRadius() - GameFields.CharacterCollider(target).radius * target.transform.lossyScale.x) : 0f;
-            return Mathf.Max(range, range + growth - excess);
+            if (body.Target != target || body.TargetFrame != Time.frameCount)
+            {
+                body.Target = target; body.TargetFrame = Time.frameCount;
+                body.TargetExcess = target ? Mathf.Max(0f, target.GetRadius() - Reach(target, character)) : 0f;
+            }
+            return Mathf.Max(range, range + growth - body.TargetExcess);
+        }
+
+        // How far the target's solid body reaches from its root towards the creature, at the height of its middle.
+        private static float Reach(Character target, Character creature)
+        {
+            var root = target.transform.position;
+            var toward = creature.transform.position - root; toward.y = 0f;
+            if (toward.sqrMagnitude < 0.0001f) return target.GetRadius();
+            return Extent(BodyOf(target), new Vector3(root.x, target.GetCenterPoint().y, root.z), toward.normalized);
         }
     }
 }
