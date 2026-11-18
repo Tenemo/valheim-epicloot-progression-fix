@@ -312,7 +312,9 @@ namespace EpicLootProgressionFix
                         var addition = new Addition { Station = station, Source = source, Item = source.Item.Clone(),
                             Owner = view.GetZDO().GetOwner(), ReturnPosition = player.transform.position + Vector3.up, Fuel = fuel };
                         addition.Item.m_stack = 1;
-                        if (!source.Inventory.RemoveItem(source.Item, 1)) break;
+                        // RemoveItem(item, 1) on a one-item stack becomes RemoveItem(item), which MultiUserChest refuses
+                        // for a chest another player owns; RemoveOneItem goes through.
+                        if (!source.Inventory.RemoveOneItem(source.Item)) break;
                         if (source.Chest != null) saveChest.Invoke(source.Chest, null);
                         int request = ++nextRequest;
                         Pending.Add(request, addition);
