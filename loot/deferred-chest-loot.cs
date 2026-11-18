@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Collections;
+using System.Runtime.CompilerServices;
+using UnityEngine;
 using BepInEx.Logging;
 using EpicLoot;
 using HarmonyLib;
@@ -18,10 +21,10 @@ namespace EpicLootProgressionFix
     // before keep their contents.
     internal static class DeferredChestLoot
     {
-        private const string Rpc = Plugin.Id + ".chest-loot";
-        // An open grants ownership with it, and the new ownership can reach the opener after the grant; a roll is passed on
-        // to the owner each game knows of until it arrives.
-        private const int MaxHops = 4;
+        private const string HistoryRpc = Plugin.Id + ".chest-opener";
+        private static readonly ConditionalWeakTable<Container, Dictionary<long, float>> Grants = new();
+        private sealed class OpenRequest { internal long Peer; internal bool TakeAll; }
+        private static readonly ConditionalWeakTable<Container, OpenRequest> Requests = new();
         private static readonly Func<Container, bool> Load = AccessTools.MethodDelegate<Func<Container, bool>>(AccessTools.Method(typeof(Container), "Load"));
         private static ManualLogSource logger;
         private static HitData destroyingHit;
@@ -42,6 +45,10 @@ namespace EpicLootProgressionFix
                 if (original == null || roll == null) throw new MissingMethodException("EpicLoot's deferred chest roll changed.");
                 harmony.Unpatch(original, roll);
             }
+            harmony.Patch(AccessTools.Method(typeof(ZNetView), nameof(ZNetView.InvokeRPC), new[] { typeof(string), typeof(object[]) }),
+                prefix: Patch(nameof(Requesting)));
+            harmony.Patch(AccessTools.Method(typeof(ZNetView), nameof(ZNetView.InvokeRPC), new[] { typeof(long), typeof(string), typeof(object[]) }),
+                prefix: Patch(nameof(SendingResponse)));
             harmony.Patch(AccessTools.Method(typeof(Container), "Awake"), postfix: Patch(nameof(Register)));
             harmony.Patch(AccessTools.Method(typeof(Container), "RPC_OpenResponse"), prefix: Patch(nameof(Opened)));
             harmony.Patch(AccessTools.Method(typeof(Container), "RPC_TakeAllResponse"), prefix: Patch(nameof(TakingAll)));
@@ -56,21 +63,74 @@ namespace EpicLootProgressionFix
         {
             var view = GameFields.ContainerView(__instance);
             if (view != null && view.GetZDO() != null && PendingChestLoot.TryGetLootTables(__instance, out _, out _))
-                view.Register<ZPackage>(Rpc, (sender, package) => Receive(__instance, package));
+                view.Register<long, ZPackage>(HistoryRpc, (sender, playerId, package) => ReceiveHistory(__instance, sender, playerId, package));
         }
 
-        // Runs after TreasureProgression, which can still refuse the open.
-        private static void Opened(Container __instance, bool granted)
+        private static void Requesting(ZNetView __instance, string __0)
         {
-            if (granted && Player.m_localPlayer != null) Collect(__instance, "opened");
+            if (__0 != "RPC_RequestOpen" && __0 != "RPC_RequestTakeAll") return;
+            var chest = __instance.GetComponent<Container>();
+            if (!chest || !Pending(chest, out var data)) return;
+            var request = Requests.GetOrCreateValue(chest);
+            request.Peer = data.GetOwner();
+            request.TakeAll = __0 == "RPC_RequestTakeAll";
         }
 
-        private static void TakingAll(Container __instance, bool granted)
+        private static bool Requested(Container chest, long peer, bool takeAll)
         {
-            if (!granted || Player.m_localPlayer == null || !Pending(__instance, out _)) return;
+            if (!Requests.TryGetValue(chest, out var request) || request.Peer != peer || request.TakeAll != takeAll) return false;
+            Requests.Remove(chest);
+            return true;
+        }
+
+        // MultiUserChest can grant a second viewer access while keeping the first viewer as owner.
+        private static void SendingResponse(ZNetView __instance, long __0, string __1, object[] __2)
+        {
+            if (__1 != "RPC_OpenResponse" || __2.Length != 1 || !(__2[0] is bool granted) || !granted || !__instance.IsOwner()) return;
+            var chest = __instance.GetComponent<Container>();
+            if (chest && Pending(chest, out _)) Grants.GetOrCreateValue(chest)[__0] = Time.realtimeSinceStartup;
+        }
+
+        private static void Opened(Container __instance, bool granted, long __0)
+        {
+            if (!Requested(__instance, __0, false) || !granted || !Player.m_localPlayer || !Pending(__instance, out _)) return;
+            var view = GameFields.ContainerView(__instance);
+            if (view.IsOwner()) Collect(__instance, "opened", TreasureProgression.Capture(Player.m_localPlayer.GetPlayerID()));
+            else __instance.StartCoroutine(WaitForOwner(__instance, __0, Player.m_localPlayer));
+        }
+
+        private static IEnumerator WaitForOwner(Container chest, long grantingPeer, Player player)
+        {
+            var history = TreasureProgression.Capture(player.GetPlayerID());
+            if (Eligibility.CraftingMode && history == null) yield break;
+            var view = GameFields.ContainerView(chest);
+            // A shared owner rolls from its own tables, using only the opener's eligibility snapshot.
+            var package = new ZPackage(history?.Encode() ?? Array.Empty<byte>());
+            view.InvokeRPC(grantingPeer, HistoryRpc, player.GetPlayerID(), package);
+            float until = Time.realtimeSinceStartup + 10f;
+            while (chest && view.IsValid() && player == Player.m_localPlayer && Pending(chest, out _) && Time.realtimeSinceStartup < until)
+            {
+                if (view.IsOwner()) { Collect(chest, "opened", history); yield break; }
+                yield return null;
+            }
+        }
+
+        private static void ReceiveHistory(Container chest, long sender, long playerId, ZPackage package)
+        {
+            var view = GameFields.ContainerView(chest);
+            if (!view.IsOwner() || !Pending(chest, out _) || !Grants.TryGetValue(chest, out var grants) ||
+                !grants.TryGetValue(sender, out float at) || Time.realtimeSinceStartup - at > 10f) return;
+            grants.Remove(sender);
+            var history = Eligibility.CraftingMode ? TreasureProgression.BuyerHistory.Decode(package.GetArray(), playerId) : null;
+            Collect(chest, "opened", history);
+        }
+
+        private static void TakingAll(Container __instance, long __0, bool granted)
+        {
+            if (!Requested(__instance, __0, true) || !granted || Player.m_localPlayer == null || !Pending(__instance, out _)) return;
             // The game claims the chest before moving everything; claiming it first adds the loot here, before the move.
             GameFields.ContainerView(__instance).ClaimOwnership();
-            Collect(__instance, "took everything from");
+            Collect(__instance, "took everything from", TreasureProgression.Capture(Player.m_localPlayer.GetPlayerID()));
         }
 
         private static void BeforeDestroy(HitData hitData, out HitData __state)
@@ -85,7 +145,7 @@ namespace EpicLootProgressionFix
         private static void Destroying(Container __instance)
         {
             var player = Player.m_localPlayer;
-            if (player != null && destroyingHit != null && destroyingHit.GetAttacker() == player) Collect(__instance, "destroyed");
+            if (player != null && destroyingHit != null && destroyingHit.GetAttacker() == player) Collect(__instance, "destroyed", TreasureProgression.Capture(player.GetPlayerID()));
         }
 
         private static bool Pending(Container chest, out ZDO data)
@@ -95,71 +155,23 @@ namespace EpicLootProgressionFix
             return data != null && data.GetBool(PendingChestLoot.PendingKey);
         }
 
-        // Rolls the chest's loot with this player's crafting history and sends it to the chest's owner.
-        private static void Collect(Container chest, string action)
+        private static void Collect(Container chest, string action, TreasureProgression.BuyerHistory history)
         {
-            if (!Pending(chest, out var data) || !PendingChestLoot.TryGetLootTables(chest, out string name, out var tables)) return;
-            string player = Player.m_localPlayer.GetPlayerName();
-            if (Eligibility.CraftingMode && !CraftingHistory.Ready)
-            {
-                logger.LogWarning($"{name} at {chest.transform.position:F0} stays unrolled: {player}'s crafting history has not loaded.");
-                return;
-            }
-            List<ItemDrop.ItemData> items;
-            try { items = LootRoller.RollLootTable(tables, 1, chest.GetComponent<Piece>().name, chest.transform.position); }
-            catch (Exception error)
-            {
-                logger.LogError($"{name} at {chest.transform.position:F0} stays unrolled; its roll for {player} failed: {error}");
-                return;
-            }
-            var loot = new Inventory(name, null, 8, Math.Max(1, items.Count));
-            foreach (var item in items) loot.AddItem(item);
-            var rolled = new ZPackage();
-            loot.Save(rolled);
-            Send(GameFields.ContainerView(chest), data, 0, $"{player} {action}", rolled);
-        }
-
-        private static void Send(ZNetView view, ZDO data, int hops, string reason, ZPackage loot)
-        {
-            var package = new ZPackage();
-            package.Write(hops);
-            package.Write(reason);
-            package.Write(loot);
-            // A chest with no owner would broadcast to every game; its roll stays pending instead.
-            if (data.HasOwner()) view.InvokeRPC(data.GetOwner(), Rpc, package);
-        }
-
-        // On the chest owner's game: the first roll to arrive fills the chest.
-        private static void Receive(Container chest, ZPackage package)
-        {
-            int hops = package.ReadInt();
-            string reason = package.ReadString();
-            var rolled = package.ReadPackage();
             var view = GameFields.ContainerView(chest);
-            if (!view.IsValid() || !PendingChestLoot.TryGetLootTables(chest, out string name, out _)) return;
-            var data = view.GetZDO();
-            string where = $"{name} at {chest.transform.position:F0}";
-            if (!view.IsOwner())
+            if (!view.IsOwner() || !Pending(chest, out var data) || !PendingChestLoot.TryGetLootTables(chest, out string name, out var tables)) return;
+            if (Eligibility.CraftingMode && history == null) return;
+            var previous = TreasureProgression.Current;
+            try
             {
-                if (hops < MaxHops) Send(view, data, hops + 1, reason, rolled);
-                else logger.LogWarning($"{where} stays unrolled: the roll after {reason} it found no owner.");
-                return;
+                TreasureProgression.Current = history;
+                var items = LootRoller.RollLootTable(tables, 1, chest.GetComponent<Piece>().name, chest.transform.position);
+                Load(chest);
+                ContainerCapacity.AddItems(chest, items);
+                data.Set(PendingChestLoot.PendingKey, false);
+                Grants.Remove(chest);
+                logger.LogInfo($"Rolled {name} when {action}: " + string.Join(", ", items.Select(Describe)) + ".");
             }
-            if (!data.GetBool(PendingChestLoot.PendingKey))
-            {
-                logger.LogInfo($"{where} already has its loot; the roll after {reason} it was discarded.");
-                return;
-            }
-            var loot = new Inventory(name, null, 8, 1);
-            loot.Load(rolled);
-            var items = loot.GetAllItems().ToList();
-            // The chest as last saved, then its loot and the completed roll, saved together. EpicLoot's helper adds rows
-            // for loot the chest can't fit, as its own rolls do.
-            Load(chest);
-            data.Set(PendingChestLoot.PendingKey, false);
-            logger.LogInfo($"Rolled {where} after {reason} it at {DateTime.Now:yyyy-MM-dd HH:mm:ss}: " +
-                (items.Count == 0 ? "no EpicLoot items" : string.Join(", ", items.Select(Describe))) + ".");
-            ContainerCapacity.AddItems(chest, items);
+            finally { TreasureProgression.Current = previous; }
         }
 
         private static string Describe(ItemDrop.ItemData item) =>

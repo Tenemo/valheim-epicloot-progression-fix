@@ -93,7 +93,7 @@ namespace EpicLootProgressionFix
                     prefix: new HarmonyMethod(typeof(TreasureProgression), nameof(BeforeCollection)) { priority = Priority.First });
         }
 
-        private static BuyerHistory Capture(long buyerId)
+        internal static BuyerHistory Capture(long buyerId)
         {
             if (!CraftingHistory.Ready || Player.m_localPlayer.GetPlayerID() != buyerId) return null;
             return new BuyerHistory(buyerId, GatedItemTypeHelper.AllItemsWithDetails.Keys.Where(CraftingHistory.IsUnlocked));
