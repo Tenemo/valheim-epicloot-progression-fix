@@ -70,7 +70,9 @@ namespace EpicLootProgressionFix
             string saved = view && view.IsValid() ? view.GetZDO().GetString(PaidKey, "") : "";
             if (saved.Length == 0) return;
             var recorded = JsonConvert.DeserializeObject<Dictionary<string, int>>(saved);
-            var resources = recorded.Select(row => new Piece.Requirement { m_resItem = ObjectDB.instance.GetItemPrefab(row.Key).GetComponent<ItemDrop>(), m_amount = row.Value, m_recover = true }).ToArray();
+            // A recorded material that is no longer in the game refunds nothing, so the piece can still be removed.
+            var resources = recorded.Select(row => (Prefab: ObjectDB.instance.GetItemPrefab(row.Key), Amount: row.Value)).Where(row => row.Prefab && row.Prefab.GetComponent<ItemDrop>())
+                .Select(row => new Piece.Requirement { m_resItem = row.Prefab.GetComponent<ItemDrop>(), m_amount = row.Amount, m_recover = true }).ToArray();
             __state = __instance.m_resources; __instance.m_resources = resources;
         }
 
