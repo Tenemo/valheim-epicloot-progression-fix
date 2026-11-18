@@ -35,6 +35,64 @@ namespace EpicLootProgressionFix
         private static readonly AccessTools.FieldRef<Character, float> SwimTimer = AccessTools.FieldRefAccess<Character, float>("m_swimTimer");
         private static readonly AccessTools.FieldRef<Character, bool> Running = AccessTools.FieldRefAccess<Character, bool>("m_running");
 
+        // What the item, recipe and prefab lists say for the rows, which no player changes. An open tooltip refreshes twice a
+        // second, and matching every item against every recipe each time stalls the game in a large pack, so the facts are
+        // gathered once and again only when a list changes; the refresh works out only the player's numbers.
+        private sealed class Catalog
+        {
+            internal ObjectDB Items; internal ZNetScene Prefabs; internal int ItemCount, RecipeCount, PrefabCount;
+            // Craftable items with an attack, in the item list's order.
+            internal List<ItemDrop.ItemData> Weapons;
+            internal readonly Dictionary<Skills.SkillType, WeaponFacts> BySkill = new Dictionary<Skills.SkillType, WeaponFacts>();
+            internal float[] BonusHarvestChances;
+            internal ItemDrop.ItemData Tray;
+            internal List<(ItemDrop.ItemData Item, Attack Attack)> Harvesting;
+            internal FishingFloat Bobber;
+        }
+        private sealed class WeaponFacts
+        {
+            internal bool Draw, Reload;
+            internal List<(ItemDrop.ItemData Item, SpawnAbility Spawn, SE_Shield Shield)> Casts;
+        }
+        private static Catalog catalog;
+
+        private static Catalog Facts()
+        {
+            var items = ObjectDB.instance; var scene = ZNetScene.instance;
+            if (catalog != null && catalog.Items == items && catalog.Prefabs == scene && catalog.ItemCount == items.m_items.Count &&
+                catalog.RecipeCount == items.m_recipes.Count && catalog.PrefabCount == scene.m_prefabs.Count) return catalog;
+            var all = items.m_items.Select(prefab => prefab.GetComponent<ItemDrop>()?.m_itemData).Where(item => item != null).ToList();
+            catalog = new Catalog
+            {
+                Items = items, Prefabs = scene, ItemCount = items.m_items.Count, RecipeCount = items.m_recipes.Count, PrefabCount = scene.m_prefabs.Count,
+                Weapons = all.Where(item => item.m_shared.m_attack != null && items.GetRecipe(item) != null).ToList(),
+                BonusHarvestChances = scene.m_prefabs.Select(prefab => prefab.GetComponent<Pickable>())
+                    .Where(pickable => pickable && pickable.m_pickRaiseSkill == Skills.SkillType.Farming && pickable.m_bonusYieldAmount > 0)
+                    .Select(pickable => pickable.m_maxLevelBonusChance).ToArray(),
+                Tray = all.FirstOrDefault(ServingTrayStacks.IsTray),
+                // Attack.DoMeleeAttack harvests around a harvesting attack, such as the scythe's, by Farming.
+                Harvesting = all.Select(item => (Item: item, Attack: new[] { item.m_shared.m_attack, item.m_shared.m_secondaryAttack }.FirstOrDefault(attack => attack != null && attack.m_harvest)))
+                    .Where(entry => entry.Attack != null).ToList(),
+                Bobber = Bobber()
+            };
+            return catalog;
+        }
+
+        private static WeaponFacts Weapons(Skills.SkillType skill)
+        {
+            var facts = Facts();
+            if (facts.BySkill.TryGetValue(skill, out var found)) return found;
+            var own = facts.Weapons.Where(item => item.m_shared.m_skillType == skill).ToList();
+            found = new WeaponFacts
+            {
+                Draw = own.Any(item => item.m_shared.m_attack.m_bowDraw), Reload = own.Any(item => item.m_shared.m_attack.m_requiresReload),
+                Casts = facts.Weapons.Select(item => (Item: item, Spawn: MagicItemTooltips.Summoning(item), Shield: Shield(item, skill)))
+                    .Where(cast => cast.Spawn != null || cast.Shield != null).ToList()
+            };
+            facts.BySkill[skill] = found;
+            return found;
+        }
+
         // Running, jumping and swimming pay both world stamina rates; the other costs only the general one.
         private static float MoveStamina => Game.m_moveStaminaRate * Game.m_staminaRate;
 
@@ -131,25 +189,21 @@ namespace EpicLootProgressionFix
         // and shields of staves, which the caster's level sets when cast.
         private static void WeaponSkill(List<string> rows, Player player, Skills.SkillType skill, float factor)
         {
-            var items = ObjectDB.instance.m_items.Select(prefab => prefab.GetComponent<ItemDrop>()?.m_itemData)
-                .Where(item => item?.m_shared.m_attack != null && ObjectDB.instance.GetRecipe(item) != null).ToList();
-            var own = items.Where(item => item.m_shared.m_skillType == skill).ToList();
+            var weapons = Weapons(skill);
             // Humanoid.GetAttackDrawPercentage and ItemData.GetWeaponLoadingTime; an untrained skill leaves both at their base.
-            if (factor > 0f && own.Any(item => item.m_shared.m_attack.m_bowDraw)) rows.Add(Value("Draw time from skill", Percent(Mathf.Lerp(1f, .2f, factor)) + " of base"));
-            if (factor > 0f && own.Any(item => item.m_shared.m_attack.m_requiresReload)) rows.Add(Value("Reload time from skill", Percent(Mathf.Lerp(1f, .5f, factor)) + " of base"));
+            if (factor > 0f && weapons.Draw) rows.Add(Value("Draw time from skill", Percent(Mathf.Lerp(1f, .2f, factor)) + " of base"));
+            if (factor > 0f && weapons.Reload) rows.Add(Value("Reload time from skill", Percent(Mathf.Lerp(1f, .5f, factor)) + " of base"));
             float level = player.GetSkillLevel(skill);
             void Add(string row) { if (!rows.Contains(row)) rows.Add(row); }
-            foreach (var item in items)
+            foreach (var (item, spawn, shield) in weapons.Casts)
             {
                 string name = Localization.instance.Localize(item.m_shared.m_name);
-                var spawn = MagicItemTooltips.Summoning(item);
                 // SpawnAbility.Spawn stores 1 + level × factor on the summon, which multiplies the damage it deals.
                 if (spawn && spawn.m_copySkill == skill && spawn.m_copySkillToRandomFactor > 0f && level > 0f)
                     Add(Value("Summon damage from skill", Multiplier(1f + level * spawn.m_copySkillToRandomFactor)));
                 string followers = spawn ? Followers(player, spawn, skill, level) : null;
                 if (followers != null) Add(Value(name + " follower limit", followers));
                 // SE_Shield.SetLevel adds the caster's level times the shield's per-level absorption.
-                var shield = Shield(item, skill);
                 if (shield && shield.m_absorbDamagePerSkillLevel != 0f)
                 {
                     float absorb = shield.m_absorbDamage + shield.m_absorbDamagePerSkillLevel * level;
@@ -309,7 +363,7 @@ namespace EpicLootProgressionFix
                     }
                     break;
                 case Skills.SkillType.Fishing:
-                    var bobber = Bobber();
+                    var bobber = Facts().Bobber;
                     if (bobber)
                     {
                         // FishingFloat.FixedUpdate pays both drains, which EpicLoot's fishing stamina reduction lowers.
@@ -326,9 +380,7 @@ namespace EpicLootProgressionFix
                 case Skills.SkillType.Cooking:
                     if (skill == Skills.SkillType.Farming)
                     {
-                        var chances = ZNetScene.instance.m_prefabs.Select(prefab => prefab.GetComponent<Pickable>())
-                            .Where(pickable => pickable && pickable.m_pickRaiseSkill == skill && pickable.m_bonusYieldAmount > 0)
-                            .Select(pickable => Mathf.Clamp01(pickable.m_maxLevelBonusChance * factor)).Distinct().OrderBy(chance => chance).ToArray();
+                        var chances = Facts().BonusHarvestChances.Select(chance => Mathf.Clamp01(chance * factor)).Distinct().OrderBy(chance => chance).ToArray();
                         if (chances.Length > 0) rows.Add(Value("Bonus harvest chance", Percent(chances[0]) + (chances.Length > 1 ? "–" + Percent(chances[chances.Length - 1]) + ", depending on crop" : "")));
                     }
                     else
@@ -336,7 +388,7 @@ namespace EpicLootProgressionFix
                         rows.Add(Value("Bonus output chance", Percent(Mathf.Clamp01(InventoryGui.instance.m_craftBonusChance * factor))));
                         rows.Add(Value("Table work time remaining from skill", Percent(1f - InventoryGui.instance.m_craftDurationSkillMaxDecrease * factor)));
                     }
-                    var tool = skill == Skills.SkillType.Cooking ? ObjectDB.instance.m_items.Select(prefab => prefab.GetComponent<ItemDrop>()?.m_itemData).FirstOrDefault(ServingTrayStacks.IsTray) :
+                    var tool = skill == Skills.SkillType.Cooking ? Facts().Tray :
                         ObjectDB.instance.GetItemPrefab(skill == Skills.SkillType.Farming ? "Cultivator" : "Hammer").GetComponent<ItemDrop>().m_itemData;
                     if (tool != null)
                     {
@@ -359,15 +411,9 @@ namespace EpicLootProgressionFix
                                 if (piece && piece.m_harvest) Add("Harvest radius of " + Localization.instance.Localize(piece.m_name), Mathf.Lerp(piece.m_harvestRadius, piece.m_harvestRadiusMaxLevel, factor), " m");
                             }
                     }
-                    // Attack.DoMeleeAttack harvests around a harvesting attack, such as the scythe's, by Farming.
                     if (skill == Skills.SkillType.Farming)
-                        foreach (var item in ObjectDB.instance.m_items.Select(prefab => prefab.GetComponent<ItemDrop>()?.m_itemData).Where(item => item != null))
-                            foreach (var attack in new[] { item.m_shared.m_attack, item.m_shared.m_secondaryAttack })
-                                if (attack != null && attack.m_harvest)
-                                {
-                                    Add("Harvest radius with " + Localization.instance.Localize(item.m_shared.m_name), Mathf.Lerp(attack.m_harvestRadius, attack.m_harvestRadiusMaxLevel, factor), " m");
-                                    break;
-                                }
+                        foreach (var (item, attack) in Facts().Harvesting)
+                            Add("Harvest radius with " + Localization.instance.Localize(item.m_shared.m_name), Mathf.Lerp(attack.m_harvestRadius, attack.m_harvestRadiusMaxLevel, factor), " m");
                     if (skill == Skills.SkillType.Crafting)
                         rows.Add(Value("New cart health when built", Multiplier(CraftingCartHealth.HealthFactor(CraftingCartHealth.BuilderFactor(player)))));
                     break;
