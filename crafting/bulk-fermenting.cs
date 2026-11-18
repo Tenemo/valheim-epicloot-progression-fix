@@ -19,7 +19,6 @@ namespace EpicLootProgressionFix
         private const string PlaceRpc = "ProgressionFixFermenterPlace", ReceiptRpc = "ProgressionFixFermenterReceipt";
         // A payment's character data key ends with its barrel's identity and its own, in hexadecimal.
         private const string PaymentKey = "ProgressionFix.FermenterPayment.";
-        private const int ReceiptLimit = 32;
         private static readonly int IdentityKey = "ProgressionFix.FermenterIdentity".GetStableHashCode();
         private static readonly int ReceiptsKey = "ProgressionFix.FermenterReceipts".GetStableHashCode();
         private static readonly Func<Fermenter, int> Content = AccessTools.MethodDelegate<Func<Fermenter, int>>(AccessTools.Method(typeof(Fermenter), "GetContent"));
@@ -29,6 +28,7 @@ namespace EpicLootProgressionFix
         // This session's requests by transaction, until their outcome arrives.
         private static readonly Dictionary<long, Placement> Placements = new Dictionary<long, Placement>();
         private static bool running, tapping;
+        private static readonly HashSet<long> uncertainPayments = new();
         private static int playerGeneration;
 
         internal sealed class Supply
@@ -42,7 +42,7 @@ namespace EpicLootProgressionFix
         {
             internal long Barrel, Transaction, World;
             internal string Prefab;
-            internal bool Cheated, Rejected;
+            internal bool Cheated, Rejected, FullReceiptHistory;
             internal ItemDrop.ItemData Item;
         }
         // A request of this session. Source is the waiting batch's supply, which a refusal refills; it is gone once the
@@ -236,7 +236,7 @@ namespace EpicLootProgressionFix
                     var paid = source.Item.Clone(); paid.m_stack = 1; paid.m_gridPos = source.Item.m_gridPos;
                     if (!source.Inventory.RemoveOneItem(source.Item)) continue;
                     if (source.Chest != null) BulkProcessing.SaveChest(source.Chest);
-                    var payment = new Payment { Barrel = barrel, Transaction = NewIdentity(), World = ZNet.instance.GetWorldUID(), Prefab = prefab, Cheated = paid.m_cheated, Item = paid };
+                    var payment = new Payment { FullReceiptHistory = true, Barrel = barrel, Transaction = NewIdentity(), World = ZNet.instance.GetWorldUID(), Prefab = prefab, Cheated = paid.m_cheated, Item = paid };
                     Record(player, payment);
                     var placement = new Placement { Source = source, Paid = paid, ReturnPosition = player.transform.position + Vector3.up };
                     Send(view, payment, placement);
@@ -333,7 +333,7 @@ namespace EpicLootProgressionFix
             holder.AddItem(payment.Item.Clone(), new Vector2i(0, 0));
             var item = new ZPackage(); holder.Save(item);
             var package = new ZPackage();
-            package.Write(payment.World); package.Write(payment.Prefab); package.Write(payment.Cheated); package.Write(payment.Rejected); package.Write(item);
+            package.Write(payment.World); package.Write(payment.Prefab); package.Write(payment.Cheated); package.Write(payment.Rejected); package.Write(item); package.Write(payment.FullReceiptHistory);
             player.m_customData[PaymentKey + payment.Barrel.ToString("x16") + "." + payment.Transaction.ToString("x16")] = package.GetBase64();
         }
         private static Payment Read(KeyValuePair<string, string> entry)
@@ -347,6 +347,7 @@ namespace EpicLootProgressionFix
             };
             var holder = new Inventory("", null, 1, 1);
             holder.Load(package.ReadPackage());
+            payment.FullReceiptHistory = package.GetPos() < package.Size() && package.ReadBool();
             payment.Item = holder.GetAllItems().FirstOrDefault();
             return payment;
         }
@@ -377,7 +378,7 @@ namespace EpicLootProgressionFix
                     accepted = Content(station) == prefab.GetStableHashCode();
                 }
                 receipts.Add((transaction, accepted));
-                if (receipts.Count > ReceiptLimit) receipts.RemoveRange(0, receipts.Count - ReceiptLimit);
+                // A character save can replay this payment after any number of later batches.
                 var package = new ZPackage();
                 package.Write(receipts.Count);
                 foreach (var receipt in receipts) { package.Write(receipt.Transaction); package.Write(receipt.Accepted); }
@@ -463,8 +464,18 @@ namespace EpicLootProgressionFix
                 var payment = Read(entry);
                 if (payment.World != ZNet.instance.GetWorldUID()) continue;
                 if (payment.Rejected) { Refund(player, entry.Key, payment, null); continue; }
-                var receipt = Receipts(___m_nview.GetZDO()).FirstOrDefault(candidate => candidate.Transaction == payment.Transaction);
+                var history = Receipts(___m_nview.GetZDO());
+                var receipt = history.FirstOrDefault(candidate => candidate.Transaction == payment.Transaction);
                 if (receipt.Transaction != 0L) { Settle(payment.Transaction, receipt.Accepted); continue; }
+                if (!payment.FullReceiptHistory && history.Count >= 32)
+                {
+                    if (uncertainPayments.Add(payment.Transaction))
+                    {
+                        player.Message(MessageHud.MessageType.Center, "This fermenter's old payment needs the server owner's help.");
+                        Debug.LogWarning("Unresolved fermenter payment " + payment.Transaction.ToString("x16") + " predates complete barrel receipts.");
+                    }
+                    continue;
+                }
                 if (Placements.TryGetValue(payment.Transaction, out var placement) && Time.realtimeSinceStartup - placement.Sent < 10f) continue;
                 if (___m_nview.GetZDO().GetOwner() == 0L) ___m_nview.ClaimOwnership();
                 Send(___m_nview, payment, placement ?? new Placement { ReturnPosition = player.transform.position + Vector3.up });
@@ -484,6 +495,6 @@ namespace EpicLootProgressionFix
         [HarmonyPrefix, HarmonyPatch(typeof(Player), nameof(Player.SetLocalPlayer))]
         private static void NewPlayer(Player __instance) { if (Player.m_localPlayer != __instance) Shutdown(); }
         [HarmonyPrefix, HarmonyPatch(typeof(ZNet), nameof(ZNet.Shutdown))]
-        private static void Shutdown() { playerGeneration++; running = tapping = false; Placements.Clear(); }
+        private static void Shutdown() { playerGeneration++; running = tapping = false; Placements.Clear(); uncertainPayments.Clear(); }
     }
 }
