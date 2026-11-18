@@ -142,12 +142,13 @@ namespace EpicLootProgressionFix
                 if (type.IsDefined(typeof(HarmonyPatch), false)) core.CreateClassProcessor(type).Patch();
                 return;
             }
-            if (!Allowed(group)) return;
+            // An applied durable group stays, even when another group's failure has since disabled its plugin.
             if (group.Active)
             {
                 if (type.IsDefined(typeof(HarmonyPatch), false)) throw new InvalidOperationException("Durable integration hooks must be prepared before applying: " + type.Name);
                 return;
             }
+            if (!Allowed(group)) return;
             try
             {
                 Snapshot(group, type); Preparing = group.Patches;
