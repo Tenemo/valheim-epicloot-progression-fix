@@ -1,4 +1,3 @@
-using System.Linq;
 using UnityEngine;
 
 namespace EpicLootProgressionFix
@@ -15,7 +14,7 @@ namespace EpicLootProgressionFix
         internal static bool IsTame(Character character) => SummonOwnership.CompanionOf(character) == SummonOwnership.Companion.Tame;
 
         // The same from saved data alone, as the server reads creatures it doesn't run.
-        internal static bool IsTame(ZDO data) => data != null && data.GetBool(ZDOVars.s_tamed) && !SummonOwnership.IsPlayerSummon(data) &&
+        internal static bool IsTame(ZDO data) => data != null && data.GetBool(ZDOVars.s_tamed) && !SummonOwnership.IsPlayerSummon(data) && !SummonedBats.IsBat(data) &&
             ZNetScene.instance?.GetPrefab(data.GetPrefab())?.GetComponent<MonsterAI>();
 
         internal static Player Leader(Character character) => Leader(character, SummonOwnership.CompanionOf(character));
@@ -31,11 +30,14 @@ namespace EpicLootProgressionFix
             {
                 // Only the creature's owner sets the follow target; other games find the player by the saved name.
                 string name = GameFields.CharacterView(character).GetZDO().GetString(ZDOVars.s_follow);
+                // A tame keeps the name of a player who logged out, and this runs every AI update, so it allocates nothing.
                 if (name.Length > 0)
-                {
-                    var players = Player.GetAllPlayers().Where(candidate => candidate.GetPlayerName() == name).Take(2).ToArray();
-                    if (players.Length == 1) player = players[0];
-                }
+                    foreach (var candidate in Player.GetAllPlayers())
+                    {
+                        if (candidate.GetPlayerName() != name) continue;
+                        if (player) { player = null; break; }
+                        player = candidate;
+                    }
             }
             return player && !player.IsDead() ? player : null;
         }

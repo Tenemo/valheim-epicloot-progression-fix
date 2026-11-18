@@ -71,6 +71,8 @@ namespace EpicLootProgressionFix
             Player.GetPlayer(GameFields.OwnView(bat).GetZDO().GetLong(SummonerKey, 0));
 
         internal static long SummonerId(Character bat) => IsBat(bat) ? SummonerId(bat.GetComponent<ZNetView>().GetZDO()) : 0;
+        // By kind alone: a bat whose summoner was never recorded is still a bat.
+        internal static bool IsBat(ZDO data) => data != null && data.GetPrefab() == BatPrefab;
         internal static long SummonerId(ZDO data) => data != null && data.GetPrefab() == BatPrefab ? data.GetLong(SummonerKey, 0) : 0;
 
         internal static void ResetAfterDungeon(Character bat, Player summoner)

@@ -96,7 +96,7 @@ namespace EpicLootProgressionFix
             if (StaffTypes.TryGetValue(data.GetPrefab(), out var staff)) return staff == SkeletonStaff || staff == SpiritStaff ? Companion.Follower : Companion.None;
             if (data.GetLong(SpiritHash, 0L) != 0) return Companion.Follower;
             // Shardstone bats and Hel's Harvest raises keep their own rules.
-            if (SummonedBats.SummonerId(data) != 0 || data.GetLong(RaisedByHash, 0L) != 0) return Companion.None;
+            if (SummonedBats.IsBat(data) || data.GetLong(RaisedByHash, 0L) != 0) return Companion.None;
             return character.GetBaseAI() is MonsterAI ? Companion.Tame : Companion.None;
         }
 
