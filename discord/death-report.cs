@@ -107,5 +107,8 @@ namespace EpicLootProgressionFix
             DateTime end = End(date);
             return end <= utcNow ? end : End(date.AddDays(-1));
         }
+
+        // The deadline a day before, which starts that deadline's report: 23 or 25 hours earlier across a clock change.
+        internal static DateTime PreviousDeadline(DateTime deadlineUtc, TimeZoneInfo zone, int hour) => LatestDeadline(deadlineUtc.AddTicks(-1), zone, hour);
     }
 }

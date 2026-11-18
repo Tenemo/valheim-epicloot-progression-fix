@@ -173,18 +173,25 @@ namespace EpicLootProgressionFix
 
         private static bool StoreDeath(object collection, string playerName, string playerHostName, Vector3 pos)
         {
-            if (!ReferenceEquals(collection, deaths.GetValue(database.GetValue(null)))) return true;
-            var record = createDeathRecord.Invoke(new object[] { playerName, playerHostName, pos.x, pos.y, pos.z });
-            if (currentSource == null) insertDeathRecord.Invoke(collection, new[] { record });
-            else
+            // A closed database is the original's to report.
+            var storage = database.GetValue(null);
+            if (collection == null || storage == null || !ReferenceEquals(collection, deaths.GetValue(storage))) return true;
+            // Like the original, a failed insert is logged and the death message still goes out.
+            try
             {
-                var engine = databaseEngine.GetValue(database.GetValue(null));
-                var document = toDocument.Invoke(databaseMapper.GetValue(engine), new[] { record.GetType(), record });
-                documentField.SetValue(document, stringValue.Invoke(new object[] { currentSource.Key }), new object[] { "DeathSourceKey" });
-                documentField.SetValue(document, stringValue.Invoke(new object[] { PlainName(currentSource.Name) }), new object[] { "DeathSourceName" });
-                // One insert preserves the native record and its cause in the same database commit.
-                rawInsert.Invoke(RawDeaths(), new[] { document });
+                var record = createDeathRecord.Invoke(new object[] { playerName, playerHostName, pos.x, pos.y, pos.z });
+                if (currentSource == null) insertDeathRecord.Invoke(collection, new[] { record });
+                else
+                {
+                    var engine = databaseEngine.GetValue(storage);
+                    var document = toDocument.Invoke(databaseMapper.GetValue(engine), new[] { record.GetType(), record });
+                    documentField.SetValue(document, stringValue.Invoke(new object[] { currentSource.Key }), new object[] { "DeathSourceKey" });
+                    documentField.SetValue(document, stringValue.Invoke(new object[] { PlainName(currentSource.Name) }), new object[] { "DeathSourceName" });
+                    // One insert preserves the native record and its cause in the same database commit.
+                    rawInsert.Invoke(RawDeaths(), new[] { document });
+                }
             }
+            catch (Exception error) { logger.LogError("Could not record the death of " + playerName + ": " + error.GetBaseException().Message); }
             return false;
         }
 
@@ -257,7 +264,7 @@ namespace EpicLootProgressionFix
             }
             // The server stopped while a delivery was in flight, so Discord may already show that report.
             if (state.PendingUtc != default) SkipUncertain(path, state, "was interrupted by a server stop");
-            if (end <= state.CompletedUtc || end.AddHours(-24) < state.RecordingSinceUtc || now < state.RetryAfterUtc) return;
+            if (end <= state.CompletedUtc || PreviousDeadline(end) < state.RecordingSinceUtc || now < state.RetryAfterUtc) return;
             string content = killers ? ComposeKillers(collection, end) : Compose(collection, end);
             if (preview)
             {
@@ -375,9 +382,12 @@ namespace EpicLootProgressionFix
 
         internal static DateTime LatestDeadline(DateTime utcNow) => DeathReport.LatestDeadline(utcNow, reportZone, reportHour);
 
+        // A report covers the time since the previous one, which a clock change makes 23 or 25 hours long.
+        private static DateTime PreviousDeadline(DateTime end) => DeathReport.PreviousDeadline(end, reportZone, reportHour);
+
         private static string Compose(object collection, DateTime end)
         {
-            DateTime start = end.AddHours(-24);
+            DateTime start = PreviousDeadline(end);
             var totals = new Dictionary<string, DeathReport.Row>(StringComparer.Ordinal);
             // The connector's date queries cover whole calendar days; this window runs from report hour to report hour.
             foreach (var record in (IEnumerable)findAll.Invoke(collection, null))
@@ -393,7 +403,7 @@ namespace EpicLootProgressionFix
 
         private static string ComposeKillers(object collection, DateTime end)
         {
-            DateTime start = end.AddHours(-24);
+            DateTime start = PreviousDeadline(end);
             var totals = new Dictionary<string, DeathReport.Row>(StringComparer.Ordinal);
             foreach (var record in (IEnumerable)rawFindAll.Invoke(collection, null))
             {
