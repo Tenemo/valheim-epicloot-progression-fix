@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using BepInEx.Logging;
 using HarmonyLib;
 using UnityEngine;
@@ -20,7 +22,6 @@ namespace EpicLootProgressionFix
         private const string TakeRpc = "EpicLootProgressionFix_DyrnwynTake";
         private const string GrantRpc = "EpicLootProgressionFix_DyrnwynGrant";
         private const string ChampionDiedRpc = "EpicLootProgressionFix_DyrnwynChampionDied";
-        private const string DropHiltsRpc = "EpicLootProgressionFix_DyrnwynDropHilts";
         private const string RestoreRpc = "EpicLootProgressionFix_DyrnwynRestorePickup";
         private const float PickupReach = 10f;
         private const float RestoreReach = 300f;
@@ -75,10 +76,9 @@ namespace EpicLootProgressionFix
             private static void Postfix(ZRoutedRpc __instance)
             {
                 __instance.Register<ZDOID>(TakeRpc, ReceiveTake);
-                __instance.Register<string, bool>(GrantRpc, ReceiveGrant);
+                __instance.Register<ZDOID>(GrantRpc, ReceiveGrant);
                 __instance.Register<ZDOID, Vector3>(ChampionDiedRpc, ReceiveChampionDied);
-                __instance.Register<int, Vector3>(DropHiltsRpc, ReceiveDropHilts);
-                __instance.Register<string, Vector3, Quaternion>(RestoreRpc, ReceiveRestore);
+                __instance.Register<ZDOID>(RestoreRpc, ReceiveRestore);
             }
         }
 
@@ -103,7 +103,7 @@ namespace EpicLootProgressionFix
             if (File.Exists(path)) records = DyrnwynFragmentRecords.Parse(File.ReadAllText(path));
             else
             {
-                string journal = ItemActivityChannel.JournalDirectory;
+                string journal = Path.Combine(SaveDirectory, "item-activity", world.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 var lines = Directory.Exists(journal)
                     ? Directory.EnumerateFiles(journal, "*.jsonl", SearchOption.AllDirectories).OrderBy(file => file, StringComparer.Ordinal).SelectMany(File.ReadLines)
                     : Enumerable.Empty<string>();
@@ -117,7 +117,10 @@ namespace EpicLootProgressionFix
             return records;
         }
 
-        private static string RecordsPath(long world) => Path.Combine(CharacterCheckpoints.PrivateSaveDirectory(), "dyrnwyn-fragments",
+        private static string SaveDirectory => CharacterCheckpoints.Available ? CharacterCheckpoints.PrivateSaveDirectory() :
+            global::Utils.GetSaveDataPath(FileHelpers.FileSource.Local);
+
+        private static string RecordsPath(long world) => Path.Combine(SaveDirectory, "dyrnwyn-fragments",
             world.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".json");
 
         private static void Save(string path, DyrnwynFragmentRecords saved)
@@ -126,21 +129,41 @@ namespace EpicLootProgressionFix
             WholeFile.Replace(path, System.Text.Encoding.UTF8.GetBytes(saved.Serialize()));
         }
 
-        // Records an account's fragment and saves it before the fragment is handed over.
-        private static bool Record(string fragment, string account)
+        // The grant and its physical item share a world save. A missed pickup notification leaves the item on the ground.
+        // Keep recognizing the grants earlier releases recorded in the private file.
+        private static ZDOID DropOnce(string fragment, string account, Vector3 position)
         {
-            var current = Records();
-            if (!current.Add(fragment, account)) return false;
-            try { Save(RecordsPath(recordsWorld), current); }
-            catch { records = null; throw; }
-            return true;
+            using var sha = SHA256.Create();
+            string key = "dyrnwyn_" + BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(
+                ZNet.instance.GetWorldUID() + "|" + fragment + "|" + account))).Replace("-", "").ToLowerInvariant();
+            if (Records().Has(fragment, account) || ZoneSystem.instance.GetGlobalKey(key)) return ZDOID.None;
+            var prefab = ObjectDB.instance.GetItemPrefab(fragment);
+            var drop = UnityEngine.Object.Instantiate(prefab, position, Quaternion.identity).GetComponent<ItemDrop>();
+            ItemDrop.OnCreateNew(drop);
+            var view = drop.GetComponent<ZNetView>();
+            ItemDrop.SaveToZDO(drop.m_itemData, view.GetZDO());
+            ZoneSystem.instance.SetGlobalKey(key);
+            return view.GetZDO().m_uid;
         }
 
-        private static bool Account(long sender, out ZNetPeer peer, out string account)
+        private static bool Collector(long sender, out string account, out Vector3 position)
         {
-            account = null;
-            peer = ZNet.instance.GetPeer(sender);
-            return peer != null && CharacterCheckpoints.PrivatePeerIdentity(peer.m_rpc, out account, out _, out _);
+            account = null; position = default;
+            if (sender == ZDOMan.GetSessionID() && Player.m_localPlayer)
+            {
+                account = UserInfo.GetLocalUser().UserId.ToString();
+                position = Player.m_localPlayer.transform.position;
+                return true;
+            }
+            var peer = ZNet.instance.GetPeer(sender);
+            if (peer == null || !peer.IsReady() || !peer.m_rpc.IsConnected()) return false;
+            position = peer.m_refPos;
+            if (CharacterCheckpoints.Available)
+                return CharacterCheckpoints.PrivatePeerIdentity(peer.m_rpc, out account, out _, out _);
+            account = peer.m_socket.GetHostName();
+            if (string.IsNullOrEmpty(account)) return false;
+            if (account.All(char.IsDigit)) account = "Steam_" + account;
+            return true;
         }
 
         private static void Server(string action, Action run)
@@ -154,11 +177,10 @@ namespace EpicLootProgressionFix
         {
             var pickup = ZDOMan.instance.GetZDO(pickupId);
             var prefab = pickup != null ? ZNetScene.instance.GetPrefab(pickup.GetPrefab()) : null;
-            if (prefab == null || !PickupFragment.TryGetValue(prefab.name, out string fragment) || !Account(sender, out var peer, out string account) ||
-                Vector3.Distance(peer.m_refPos, pickup.GetPosition()) > PickupReach) return;
-            bool granted = Record(fragment, account);
-            if (granted) Log.LogInfo($"{peer.m_playerName} took the Dyrnwyn fragment {fragment}.");
-            ZRoutedRpc.instance.InvokeRoutedRPC(sender, GrantRpc, fragment, granted);
+            if (prefab == null || !PickupFragment.TryGetValue(prefab.name, out string fragment) || !Collector(sender, out string account, out var position) ||
+                Vector3.Distance(position, pickup.GetPosition()) > PickupReach) return;
+            var item = DropOnce(fragment, account, position + Vector3.up);
+            ZRoutedRpc.instance.InvokeRoutedRPC(sender, GrantRpc, item);
         });
 
         // The champion's owner reports his death while his record still exists, and drops one hilt for each player near him
@@ -169,44 +191,20 @@ namespace EpicLootProgressionFix
             var prefab = champion != null ? ZNetScene.instance.GetPrefab(champion.GetPrefab()) : null;
             if (prefab == null || !Champions.Contains(prefab.name) || champion.GetOwner() != sender || !HandledKills.Add(championId)) return;
             float range = ChampionSpawners.Values.Max();
-            int hilts = 0;
-            foreach (var peer in ZNet.instance.GetPeers())
+            var position = champion.GetPosition();
+            foreach (long id in ZNet.instance.GetPeers().Where(peer => peer.IsReady()).Select(peer => peer.m_uid).Concat(new[] { ZDOMan.GetSessionID() }))
             {
-                if (!peer.IsReady() || Vector3.Distance(peer.m_refPos, champion.GetPosition()) > range ||
-                    !CharacterCheckpoints.PrivatePeerIdentity(peer.m_rpc, out string account, out _, out _) ||
-                    !Record(DyrnwynFragmentRecords.Hilt, account)) continue;
-                Log.LogInfo($"The Dyrnwyn champion dropped a hilt for {peer.m_playerName}.");
-                hilts++;
+                if (Collector(id, out var account, out var playerPosition) && Vector3.Distance(playerPosition, position) <= range)
+                    DropOnce(DyrnwynFragmentRecords.Hilt, account, position + Vector3.up);
             }
-            if (hilts > 0) ZRoutedRpc.instance.InvokeRoutedRPC(sender, DropHiltsRpc, hilts, center);
         });
 
-        // Player side.
-
-        private static void ReceiveGrant(long sender, string fragment, bool granted)
+        private static void ReceiveGrant(long sender, ZDOID drop)
         {
             var player = Player.m_localPlayer;
-            if (!FromServer(sender) || player == null || !DyrnwynFragmentRecords.Fragments.Contains(fragment)) return;
-            if (!granted) { player.Message(MessageHud.MessageType.Center, AlreadyTaken); return; }
-            var prefab = ObjectDB.instance.GetItemPrefab(fragment);
-            var item = prefab.GetComponent<ItemDrop>().m_itemData;
-            if (player.GetInventory().CanAddItem(prefab, 1) &&
-                player.GetInventory().AddItem(fragment, 1, 1, 0, 0L, "", false, pickedUp: true) != null)
-                player.Message(MessageHud.MessageType.TopLeft, "$msg_added " + item.m_shared.m_name, 1, item.GetIcon());
-            else
-            {
-                // A full inventory gets it at the player's feet, as the native pickup leaves an item it cannot carry.
-                var drop = UnityEngine.Object.Instantiate(prefab, player.transform.position + Vector3.up, Quaternion.identity).GetComponent<ItemDrop>();
-                ItemDrop.OnCreateNew(drop);
-                player.Message(MessageHud.MessageType.Center, "$inventory_full");
-            }
-        }
-
-        private static void ReceiveDropHilts(long sender, int hilts, Vector3 center)
-        {
-            if (!FromServer(sender) || hilts <= 0 || ObjectDB.instance == null) return;
-            CharacterDrop.DropItems(new List<KeyValuePair<GameObject, int>> { new(ObjectDB.instance.GetItemPrefab(DyrnwynFragmentRecords.Hilt), hilts) },
-                center, 0.5f, false);
+            if (!FromServer(sender) || !player) return;
+            if (drop.IsNone()) player.Message(MessageHud.MessageType.Center, AlreadyTaken);
+            else player.StartCoroutine(HarvestOutputPickup.Pickup(player, new List<ZDOID> { drop }));
         }
 
         [HarmonyPatch(typeof(Pickable), nameof(Pickable.Interact)), HarmonyPrefix]
@@ -230,30 +228,54 @@ namespace EpicLootProgressionFix
         // objects in place but unused, so for each fragment pickup there the server puts back a pickup that is gone.
         // Nothing else in the site changes.
         [HarmonyPatch(typeof(LocationProxy), "SpawnLocation"), HarmonyPostfix]
-        private static void FindMissingPickups(bool __result, GameObject ___m_instance)
+        private static void FindMissingPickups(LocationProxy __instance, bool __result, GameObject ___m_instance)
         {
-            if (!__result || ___m_instance == null || !Plugin.Ready || ZNet.instance == null || ZNet.instance.IsDedicated()) return;
-            foreach (var pickable in ___m_instance.GetComponentsInChildren<Pickable>(true))
-                if (IsFragmentPickup(pickable))
-                    ToServer(RestoreRpc, pickable.m_itemPrefab.name, pickable.transform.position, pickable.transform.rotation);
+            if (__result && ___m_instance && Plugin.Ready && ZNet.instance && !ZNet.instance.IsDedicated() &&
+                ___m_instance.GetComponentsInChildren<Pickable>(true).Any(IsFragmentPickup))
+                ToServer(RestoreRpc, __instance.GetComponent<ZNetView>().GetZDO().m_uid);
         }
 
-        private static void ReceiveRestore(long sender, string fragment, Vector3 position, Quaternion rotation) => Server("Putting back a Dyrnwyn fragment pickup", () =>
+        private static void ReceiveRestore(long sender, ZDOID proxyId) => Server("Putting back a Dyrnwyn fragment pickup", () =>
         {
-            string pickup = PickupFragment.FirstOrDefault(entry => entry.Value == fragment).Key;
-            if (pickup == null || !Account(sender, out var peer, out _) || Vector3.Distance(peer.m_refPos, position) > RestoreReach) return;
-            int hash = pickup.GetStableHashCode();
-            var nearby = new List<ZDO>();
-            ZDOMan.instance.FindSectorObjects(ZoneSystem.GetZone(position), new SimulationDistance(1, 0), nearby);
-            if (nearby.Any(data => data.GetPrefab() == hash && Vector3.Distance(data.GetPosition(), position) < 2f)) return;
-            var view = ZNetScene.instance.GetPrefab(hash).GetComponent<ZNetView>();
-            var created = ZDOMan.instance.CreateNewZDO(position, hash);
-            created.SetPrefab(hash);
-            created.Persistent = view.m_persistent;
-            created.Type = view.m_type;
-            created.Distant = view.m_distant;
-            created.SetRotation(rotation);
-            Log.LogInfo($"Put back the {fragment} pickup {pickup} at {position.x:0},{position.z:0}.");
+            var proxy = ZDOMan.instance.GetZDO(proxyId);
+            if (proxy == null || proxy.GetPrefab() != ZoneSystem.instance.m_locationProxyPrefab.name.GetStableHashCode() ||
+                !Collector(sender, out _, out var playerPosition)) return;
+            var origin = proxy.GetPosition();
+            if (Utils.DistanceXZ(playerPosition, origin) > RestoreReach ||
+                !DungeonInteriors.Locations(ZoneSystem.instance).TryGetValue(ZoneSystem.GetZone(origin), out var placed) ||
+                !placed.m_placed || placed.m_location.Hash != proxy.GetInt(ZDOVars.s_location) ||
+                Utils.DistanceXZ(placed.m_position, origin) > 1f) return;
+            var sector = new List<ZDO>();
+            ZDOMan.instance.FindSectorObjects(ZoneSystem.GetZone(origin), new SimulationDistance(1, 0), sector);
+            // Refuse an ambiguous proxy. The real generated site has one proxy at the recorded position.
+            if (sector.Count(data => data.GetPrefab() == proxy.GetPrefab() && data.GetInt(ZDOVars.s_location) == placed.m_location.Hash &&
+                Utils.DistanceXZ(data.GetPosition(), placed.m_position) <= 1f) != 1) return;
+            var asset = placed.m_location.m_prefab;
+            asset.Load();
+            try
+            {
+                var root = asset.Asset;
+                foreach (var pickable in root.GetComponentsInChildren<Pickable>(true).Where(IsFragmentPickup))
+                {
+                    string name = Name(pickable.gameObject);
+                    if (!PickupFragment.ContainsKey(name)) name = PickupFragment.First(pair => pair.Value == pickable.m_itemPrefab.name).Key;
+                    var matrix = SummonDungeonTravel.LocationMatrix(pickable.transform, root.transform, root.GetComponent<Location>(),
+                        origin, proxy.GetRotation(), out var rotation);
+                    Vector3 position = matrix.GetColumn(3);
+                    var nearby = new List<ZDO>();
+                    ZDOMan.instance.FindSectorObjects(ZoneSystem.GetZone(position), new SimulationDistance(1, 0), nearby);
+                    int hash = name.GetStableHashCode();
+                    if (nearby.Any(data => data.GetPrefab() == hash && Vector3.Distance(data.GetPosition(), position) < 2f)) continue;
+                    var view = ZNetScene.instance.GetPrefab(hash).GetComponent<ZNetView>();
+                    var created = ZDOMan.instance.CreateNewZDO(position, hash);
+                    created.SetPrefab(hash);
+                    created.Persistent = view.m_persistent;
+                    created.Type = view.m_type;
+                    created.Distant = view.m_distant;
+                    created.SetRotation(rotation);
+                }
+            }
+            finally { asset.Release(); }
         });
 
         [HarmonyPatch(typeof(CharacterDrop), nameof(CharacterDrop.GenerateDropList)), HarmonyPostfix, HarmonyPriority(Priority.Last)]

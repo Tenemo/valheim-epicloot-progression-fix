@@ -17,7 +17,7 @@ namespace EpicLootProgressionFix
         internal const float InteriorHeight = 3000f;
         // Morkhalla's Malicious Ice, whose destruction starts the persistent Jotun invasion.
         private static readonly int InvasionTrigger = "BlackIce_Start".GetStableHashCode();
-        private static readonly AccessTools.FieldRef<ZoneSystem, Dictionary<Vector2s, ZoneSystem.LocationInstance>> Locations =
+        internal static readonly AccessTools.FieldRef<ZoneSystem, Dictionary<Vector2s, ZoneSystem.LocationInstance>> Locations =
             AccessTools.FieldRefAccess<ZoneSystem, Dictionary<Vector2s, ZoneSystem.LocationInstance>>("m_locationInstances");
         private static readonly AccessTools.FieldRef<ZoneSystem, HashSet<Vector2s>> GeneratedZones =
             AccessTools.FieldRefAccess<ZoneSystem, HashSet<Vector2s>>("m_generatedZones");

@@ -170,7 +170,7 @@ namespace EpicLootProgressionFix
         }
 
         // Read the same prefab transforms that SpawnLocation uses, without instantiating or changing the asset.
-        private static Matrix4x4 DoorMatrix(Transform door, Transform root, Location location, Vector3 position, Quaternion rotation, out Quaternion worldRotation)
+        internal static Matrix4x4 LocationMatrix(Transform door, Transform root, Location location, Vector3 position, Quaternion rotation, out Quaternion worldRotation)
         {
             var hierarchy = new List<Transform>();
             for (var part = door; part != root; part = part.parent)
@@ -212,8 +212,8 @@ namespace EpicLootProgressionFix
                 if (doorIndex < 0 || doorIndex >= doors.Length || !doors[doorIndex].m_targetPoint) return false;
                 int target = Array.IndexOf(doors, doors[doorIndex].m_targetPoint);
                 if (target < 0) return false;
-                var from = DoorMatrix(doors[doorIndex].transform, prefab.transform, definition, proxy.GetPosition(), proxy.GetRotation(), out var fromRotation);
-                var to = DoorMatrix(doors[target].transform, prefab.transform, definition, proxy.GetPosition(), proxy.GetRotation(), out var toRotation);
+                var from = LocationMatrix(doors[doorIndex].transform, prefab.transform, definition, proxy.GetPosition(), proxy.GetRotation(), out var fromRotation);
+                var to = LocationMatrix(doors[target].transform, prefab.transform, definition, proxy.GetPosition(), proxy.GetRotation(), out var toRotation);
                 var departure = DoorPoint(from, fromRotation); var destination = DoorPoint(to, toRotation);
                 if (!Finite(departure) || !Finite(destination) || (departure.y > DungeonInteriors.InteriorHeight) == (destination.y > DungeonInteriors.InteriorHeight)) return false;
                 var zone = ZoneSystem.GetZone(proxy.GetPosition());
