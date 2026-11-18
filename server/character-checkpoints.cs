@@ -321,6 +321,13 @@ namespace EpicLootProgressionFix
             return true;
         }
 
+        internal static PlayerProfile ReadSavedCharacter(ZNetPeer peer)
+        {
+            if (!Available || peer == null || !peer.IsReady() || !PrivatePeerIdentity(peer.m_rpc, out string account, out string name, out long id)) return null;
+            var profile = new PlayerProfile(null, FileHelpers.FileSource.Local);
+            return loadProfile(profile, ReadSavedPayload(CharacterPath(account, name))) && profile.GetPlayerID() == id ? profile : null;
+        }
+
         internal static void Tick()
         {
             var current = ZNet.instance;

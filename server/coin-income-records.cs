@@ -58,17 +58,8 @@ namespace EpicLootProgressionFix
         {
             this.path = path;
             if (!File.Exists(path)) return;
-            byte[] bytes = File.ReadAllBytes(path);
-            int complete = Array.LastIndexOf(bytes, (byte)'\n') + 1;
-            if (complete != bytes.Length)
+            foreach (string line in WholeFile.CompleteLines(path))
             {
-                string recovery = path + ".incomplete-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N");
-                File.WriteAllBytes(recovery, bytes);
-                WholeFile.Replace(path, bytes.Take(complete).ToArray());
-            }
-            foreach (string line in Encoding.UTF8.GetString(bytes, 0, complete).Split('\n'))
-            {
-                if (string.IsNullOrWhiteSpace(line)) continue;
                 var record = JsonConvert.DeserializeObject<CoinIncomeRecord>(line);
                 if (record == null || record.Version != 1 || string.IsNullOrEmpty(record.Account))
                     throw new InvalidDataException("Invalid private currency journal record.");

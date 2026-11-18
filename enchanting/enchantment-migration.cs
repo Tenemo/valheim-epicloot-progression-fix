@@ -266,6 +266,13 @@ namespace EpicLootProgressionFix
             return (items, custom);
         }
 
+        internal static string SavedCharacterValue(PlayerProfile profile, string key)
+        {
+            var data = ProfileData(profile);
+            if (data == null) return null;
+            return ReadCharacter(data).Custom.FirstOrDefault(field => field.Key == key).Value;
+        }
+
         private static void PlanWorld(Pass pass)
         {
             var objects = new HashSet<ZDOID>(SavedArrays.Keys.Cast<ZDOID>().Concat(SavedTexts.Keys.Cast<ZDOID>()));
