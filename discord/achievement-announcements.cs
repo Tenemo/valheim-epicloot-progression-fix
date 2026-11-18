@@ -9,7 +9,9 @@ namespace EpicLootProgressionFix
 {
     internal static class AchievementAnnouncements
     {
+        // The achievements the current character has, which each world load sweeps in again.
         private static readonly HashSet<string> ObservedUnlocks = new HashSet<string>();
+        private static PlayerProfile observedProfile;
         private static FieldInfo discordInstance;
         private static object chat;
         private static object defaultRoute;
@@ -42,7 +44,11 @@ namespace EpicLootProgressionFix
 
         private static void AfterUnlock(Achievement ach)
         {
-            if (ach == null || !ObservedUnlocks.Add(ach.m_id)) return;
+            if (ach == null) return;
+            // Another character, or the same one loaded again, starts with its own achievements.
+            var profile = Game.instance ? Game.instance.GetPlayerProfile() : null;
+            if (!ReferenceEquals(profile, observedProfile)) { ObservedUnlocks.Clear(); observedProfile = profile; }
+            if (!ObservedUnlocks.Add(ach.m_id)) return;
             if (suppressedUnlocks != 0 || !Plugin.DiscordAchievements.Value || !Plugin.Ready) return;
             var player = Player.m_localPlayer;
             var server = ZNet.instance != null ? ZNet.instance.GetServerRPC() : null;
