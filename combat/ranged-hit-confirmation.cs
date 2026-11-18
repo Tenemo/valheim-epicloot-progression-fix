@@ -157,6 +157,16 @@ namespace EpicLootProgressionFix
             return false;
         }
 
+        internal static void ConfirmStake(Character target, HitData hit, int coins)
+        {
+            var view = GameFields.CharacterView(target);
+            if (!view || !view.IsValid() || !view.GetZDO().HasOwner()) return;
+            var shot = Current != null && Current.Target == target ? Current : new Shot { Target = target,
+                TargetId = target.GetZDOID(), Owner = view.GetZDO().GetOwner(), ReplayEffects = false, Started = Time.realtimeSinceStartup };
+            shot.Stake = coins;
+            Request(shot, hit);
+        }
+
         private static void Request(Shot shot, HitData hit)
         {
             if (shot.Request > 0) return;
@@ -313,7 +323,7 @@ namespace EpicLootProgressionFix
         {
             __state = null;
             var view = GameFields.CharacterView(__instance);
-            if (!view || !view.IsValid() || hit == null || !hit.m_ranged || __instance.IsPlayer()) return true;
+            if (!view || !view.IsValid() || hit == null || (!hit.m_ranged || __instance.IsPlayer()) && !(hit.GetAttacker() is Player)) return true;
             if (!view.IsOwner())
             {
                 long owner = view.GetZDO().GetOwner();
@@ -345,7 +355,7 @@ namespace EpicLootProgressionFix
             var result = __state.Result;
             result.Dead = !__instance || __instance.IsDead();
             result.Killed = result.Alive && (result.Dead || __instance.GetHealth() <= 0f);
-            if (__exception != null) result.Alive = false;
+            if (__exception != null) result.Known = false;
             if (__state.Volley != null)
             {
                 if (__exception == null && result.Killed) BowVolleySound.ConfirmKill(__state.Volley, __state.Key.Target);
