@@ -36,9 +36,18 @@ namespace EpicLootProgressionFix
         // shots.
         internal static float UpgradeDamage(int quality) => 1f + Upgrades(quality) / 6f;
 
+        // Every item's damage asks this, so each prefab's name, which Unity copies out on every read, is compared once.
+        private static readonly Dictionary<GameObject, bool> FrostPrefabs = new Dictionary<GameObject, bool>();
+        internal static bool IsFrost(ItemDrop.ItemData item)
+        {
+            var prefab = item?.m_dropPrefab;
+            if (!prefab) return false;
+            if (!FrostPrefabs.TryGetValue(prefab, out bool frost)) FrostPrefabs.Add(prefab, frost = prefab.name == FrostStaff);
+            return frost;
+        }
+
         // Staff of Frost's stream narrows by a quarter of its spread per upgrade, closing in on perfect aim without reaching it:
         // 5 degrees at quality 1, 2.9 at 4 and 1.3 at 12.
-        internal static bool IsFrost(ItemDrop.ItemData item) => item?.m_dropPrefab?.name == FrostStaff;
         internal static float FrostSpread(float spread, int quality) => spread / (1f + .25f * Upgrades(quality));
 
         // Staff of Embers' fireball explodes 0.5 m wider per upgrade: 3 m at quality 1, 4.5 m at 4.
