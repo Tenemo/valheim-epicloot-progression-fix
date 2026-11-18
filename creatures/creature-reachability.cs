@@ -24,7 +24,6 @@ namespace EpicLootProgressionFix
             internal bool Flying, Swimming, Unreachable, WaitingNavigation;
             internal long Owner;
             internal ushort OwnerRevision;
-            internal Vector3 TargetPosition;
             internal Bounds Explored;
             internal float BestDistance, LastProgress, NextObservation, NextCheck;
             internal float LastPursuit = float.NegativeInfinity;
@@ -39,10 +38,11 @@ namespace EpicLootProgressionFix
             bool swimming = state.Character.IsSwimming();
             var data = GameFields.CharacterView(state.Character).GetZDO();
             long owner = data.GetOwner();
-            if (state.Target != target || state.Flying != flying || state.Swimming != swimming || state.Owner != owner || state.OwnerRevision != data.OwnerRevision ||
-                Vector3.Distance(state.TargetPosition, target.transform.position) > 2f)
+            // A target that keeps moving, such as a player strafing on a roof, keeps its failed routes: each check routes to
+            // where it stands then, and only a route, an attack or progress clears them.
+            if (state.Target != target || state.Flying != flying || state.Swimming != swimming || state.Owner != owner || state.OwnerRevision != data.OwnerRevision)
             {
-                state.Target = target; state.Flying = flying; state.Swimming = swimming; state.Owner = owner; state.OwnerRevision = data.OwnerRevision; state.TargetPosition = target.transform.position;
+                state.Target = target; state.Flying = flying; state.Swimming = swimming; state.Owner = owner; state.OwnerRevision = data.OwnerRevision;
                 state.Explored = new Bounds(ai.transform.position, Vector3.one * 2f);
                 state.BestDistance = Vector3.Distance(ai.transform.position, target.transform.position);
                 state.LastProgress = Time.time; state.LastPursuit = float.NegativeInfinity;
