@@ -29,8 +29,10 @@ namespace EpicLootProgressionFix
         private static readonly int SpawnerPrefab = "EL_SpawnController".GetStableHashCode();
         private static readonly int ChestPrefab = "loot_chest_stone".GetStableHashCode();
         private static readonly int ChestBiomeKey = "TreasureMapChest.Biome".GetStableHashCode();
-        private static readonly AccessTools.FieldRef<ZDOMan, Dictionary<ZDOID, ZDO>> Objects =
-            AccessTools.FieldRefAccess<ZDOMan, Dictionary<ZDOID, ZDO>>("m_objectsByID");
+        private static readonly AccessTools.FieldRef<ZDOMan, List<ZDO>[]> Sectors =
+            AccessTools.FieldRefAccess<ZDOMan, List<ZDO>[]>("m_objectsBySector");
+        private static ZNet scanningWorld;
+        private static List<Action<List<Vector2>>> waiting;
         private static readonly Dictionary<int, List<Vector2>> replies = new Dictionary<int, List<Vector2>>();
         private static int lastRequest;
         private static HashSet<int> creatures;
@@ -124,7 +126,9 @@ namespace EpicLootProgressionFix
                 if (map.State == TreasureMapState.Purchased) spots.Add(Flat((Vector3)map.Position + (Vector3)map.MinimapCircleOffset));
             if (ZNet.instance.IsServer())
             {
-                spots.AddRange(WorldSpots());
+                bool received = false;
+                RequestSpots(result => { spots.AddRange(result); received = true; });
+                while (!received && ZNet.instance) yield return null;
                 yield break;
             }
             var server = ZNet.instance.GetServerPeer();
@@ -271,7 +275,10 @@ namespace EpicLootProgressionFix
 
         private static void Register(ZNet __instance, ZNetPeer peer)
         {
-            if (__instance.IsServer()) peer.m_rpc.Register<int>(RequestRpc, (rpc, id) => rpc.Invoke(ReplyRpc, id, Pack(WorldSpots())));
+            if (__instance.IsServer()) peer.m_rpc.Register<int>(RequestRpc, (rpc, id) =>
+            {
+                if (peer.IsReady()) RequestSpots(result => { if (rpc.IsConnected()) rpc.Invoke(ReplyRpc, id, Pack(result)); });
+            });
             else peer.m_rpc.Register<int, ZPackage>(ReplyRpc, Receive);
         }
 
@@ -298,26 +305,45 @@ namespace EpicLootProgressionFix
 
         // Spawners still waiting for a player, living bounty creatures with their bounty's own spot, and unopened treasure chests,
         // which EpicLoot removes once emptied.
-        private static List<Vector2> WorldSpots()
+        private static void RequestSpots(Action<List<Vector2>> reply)
+        {
+            if (waiting != null && scanningWorld == ZNet.instance) { waiting.Add(reply); return; }
+            scanningWorld = ZNet.instance;
+            waiting = new List<Action<List<Vector2>>> { reply };
+            scanningWorld.StartCoroutine(WorldSpots(waiting));
+        }
+
+        private static IEnumerator WorldSpots(List<Action<List<Vector2>>> callbacks)
         {
             var watch = Stopwatch.StartNew();
             creatures ??= new HashSet<int>(ZNetScene.instance.m_prefabs.Where(prefab => prefab.GetComponent<Character>()).Select(prefab => prefab.name.GetStableHashCode()));
             var spots = new List<Vector2>();
             var bounties = new HashSet<string>();
-            foreach (var zdo in Objects(ZDOMan.instance).Values)
+            // Requests that arrive together share the scan, including in a nearly empty world.
+            yield return null;
+            var frame = Stopwatch.StartNew();
+            foreach (var sector in Sectors(ZDOMan.instance))
+            {
+                if (frame.ElapsedMilliseconds >= 1) { yield return null; frame.Restart(); }
+                if (sector == null) continue;
+                foreach (var zdo in sector) AddSpot(zdo);
+            }
+            waiting = null;
+            foreach (var callback in callbacks) callback(spots);
+            log.LogInfo($"Reported {spots.Count} open bounty and treasure spots in {watch.ElapsedMilliseconds} ms.");
+
+            void AddSpot(ZDO zdo)
             {
                 int prefab = zdo.GetPrefab();
                 if (prefab == SpawnerPrefab || prefab == ChestPrefab && zdo.GetString(ChestBiomeKey).Length > 0) spots.Add(Flat(zdo.GetPosition()));
                 else if (creatures.Contains(prefab))
                 {
                     string id = zdo.GetString(BountyCreature.IdKey);
-                    if (id.Length == 0) continue;
+                    if (id.Length == 0) return;
                     spots.Add(Flat(zdo.GetPosition()));
                     if (bounties.Add(id) && TryReadSpot(zdo, out var spot)) spots.Add(spot);
                 }
             }
-            log.LogInfo($"Reported {spots.Count} open bounty and treasure spots in {watch.ElapsedMilliseconds} ms.");
-            return spots;
         }
 
         private static bool TryReadSpot(ZDO zdo, out Vector2 spot)
