@@ -81,13 +81,22 @@ namespace EpicLootProgressionFix
         private static Body BodyOf(Character character)
         {
             var body = Bodies.GetOrCreateValue(character);
-            if (body.Colliders == null || body.Colliders.Any(collider => !collider))
+            if (!AllPresent(body.Colliders))
             {
                 var rigidbody = character.GetComponent<Rigidbody>();
                 body.Colliders = character.GetComponentsInChildren<Collider>(true).Where(collider => !collider.isTrigger && collider.attachedRigidbody == rigidbody).ToArray();
                 body.Scale = -1f;
             }
             return body;
+        }
+
+        // Every AI update of an enlarged creature reads its body, so the check allocates nothing.
+        private static bool AllPresent(Collider[] colliders)
+        {
+            if (colliders == null) return false;
+            foreach (var collider in colliders)
+                if (!collider) return false;
+            return true;
         }
 
         // How far the creature's own colliders reach from origin along direction.
