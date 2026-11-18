@@ -86,7 +86,7 @@ namespace EpicLootProgressionFix
             return ids.ToArray();
         }
 
-        internal static IEnumerator Pickup(Player player, List<ZDOID> ids)
+        internal static IEnumerator Pickup(Player player, List<ZDOID> ids, bool bulkHarvest = false)
         {
             float deadline = Time.time + 5f;
             while (ids.Count > 0 && player != null && !player.IsDead() && ZNetScene.instance != null && Time.time < deadline)
@@ -98,7 +98,8 @@ namespace EpicLootProgressionFix
                     var item = output.GetComponent<ItemDrop>();
                     if (!item.CanPickup(false)) { item.RequestOwn(); continue; }
                     // Native pickup handles stacks and inventory limits; overflow stays on the ground.
-                    player.Pickup(output, false, false);
+                    if (bulkHarvest) HarvestDiscovery.Pickup(player, output);
+                    else player.Pickup(output, false, false);
                     ids.Remove(id);
                 }
                 if (ids.Count > 0) yield return null;
