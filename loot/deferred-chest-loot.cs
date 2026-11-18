@@ -164,7 +164,14 @@ namespace EpicLootProgressionFix
             try
             {
                 TreasureProgression.Current = history;
-                var items = LootRoller.RollLootTable(tables, 1, chest.GetComponent<Piece>().name, chest.transform.position);
+                List<ItemDrop.ItemData> items;
+                // A roll that fails leaves the chest unrolled, and it still opens and empties as usual.
+                try { items = LootRoller.RollLootTable(tables, 1, chest.GetComponent<Piece>().name, chest.transform.position); }
+                catch (Exception error)
+                {
+                    logger.LogError($"{name} at {chest.transform.position:F0} stays unrolled; its roll when {action} failed: {error}");
+                    return;
+                }
                 Load(chest);
                 ContainerCapacity.AddItems(chest, items);
                 data.Set(PendingChestLoot.PendingKey, false);
