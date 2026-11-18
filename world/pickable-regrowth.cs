@@ -35,12 +35,19 @@ namespace EpicLootProgressionFix
 
         // A bush usually loads before a player comes close enough to own it, and its load check returns while nobody
         // owns it, so an overdue bush waited up to a minute for its timer, or until hovered. Remember each record whose
-        // ownership passes to this game, and check those already loaded once the incoming data has been applied.
+        // ownership passes to this game, and check those already loaded once the incoming data has been applied. Alone in a
+        // world nothing is received, so each network update checks the rest.
         [HarmonyPrefix, HarmonyPatch(typeof(ZDO), nameof(ZDO.SetOwnerInternal))]
         private static void OnOwnerChange(ZDO __instance, long uid)
         {
             if (uid != 0L && uid == ZDOMan.GetSessionID() && !__instance.IsOwner()) Acquired.Add(__instance);
         }
+
+        [HarmonyPostfix, HarmonyPatch(typeof(ZDOMan), nameof(ZDOMan.Update))]
+        private static void OnUpdate() => OnDataApplied();
+
+        [HarmonyPostfix, HarmonyPatch(typeof(ZNet), "Shutdown")]
+        private static void EndSession() => Acquired.Clear();
 
         [HarmonyPostfix, HarmonyPatch(typeof(ZDOMan), "RPC_ZDOData")]
         private static void OnDataApplied()
@@ -89,16 +96,13 @@ namespace EpicLootProgressionFix
             if (!___m_picked || __instance.m_respawnTimeMinutes <= 0f || __instance.GetEnabled == 0 ||
                 !___m_nview.IsValid() || !Overdue(__instance, ___m_nview)) return;
 
-            if (___m_nview.IsOwner())
-            {
-                UpdateRespawn(__instance);
-                return;
-            }
-            // Limit each target while awaiting its owner's reply, including repeated bulk harvests of several bushes.
+            // Limit each target, including repeated bulk harvests of several bushes, while awaiting its owner's reply and as its
+            // owner: a bare vine segment stays overdue, and its fruit check searches the area around it.
             var request = Requests.GetValue(__instance, pickable => new RegrowthRequest());
             if (Time.time < request.NextRequest) return;
             request.NextRequest = Time.time + 1f;
-            ___m_nview.InvokeRPC(CheckRpc);
+            if (___m_nview.IsOwner()) UpdateRespawn(__instance);
+            else ___m_nview.InvokeRPC(CheckRpc);
         }
 
         internal static bool Overdue(Pickable pickable, ZNetView view)
