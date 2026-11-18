@@ -56,9 +56,8 @@ namespace EpicLootProgressionFix
 
         internal static float Multiplier(Character character, bool running)
         {
-            if (!SummonOwnership.IsFollower(character) || character.HaveRider()) return 1f;
-            var player = SummonOwnership.Summoner(character);
-            if (!player || player.IsDead()) return 1f;
+            var player = Companions.Leader(character);
+            if (!player || player.IsDead() || character.HaveRider()) return 1f;
             var view = GameFields.CharacterView(player);
             return view && view.IsValid() ? ValidMultiplier(view.GetZDO().GetFloat(running ? RunningHash : MovementHash, 1f)) : 1f;
         }

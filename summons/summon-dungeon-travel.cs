@@ -138,14 +138,20 @@ namespace EpicLootProgressionFix
         private static bool Alive(ZDO data) => data != null && !data.GetBool(ZDOVars.s_dead) && data.GetFloat(ZDOVars.s_health, 1f) > 0f;
         private static bool StaffFollower(ZDO data) => SummonOwnership.StaffFor(data) is string staff &&
             (staff == SummonOwnership.SkeletonStaff || staff == SummonOwnership.SpiritStaff);
+        // Staff followers and tames set to follow their player go through a doorway with them.
+        private static bool Travels(ZDO data) => StaffFollower(data) || Companions.IsTame(data);
         private static bool Belongs(ZDO data, long player, string name)
         {
             if (!Alive(data) || TameRiding.HoldingPosition(data)) return false;
             long bat = SummonedBats.SummonerId(data);
             if (bat != 0) return bat == player;
-            if (!StaffFollower(data) || !data.GetBool(ZDOVars.s_tamed) || data.GetString(ZDOVars.s_follow) != name) return false;
-            if (SummonOwnership.Recorded(data, player, SummonOwnership.StaffFor(data))) return true;
-            if (!SummonOwnership.Unrecorded(data)) return false;
+            if (!Travels(data) || !data.GetBool(ZDOVars.s_tamed) || data.GetString(ZDOVars.s_follow) != name) return false;
+            // A tame follows a player by name alone, as an unrecorded summon does.
+            if (StaffFollower(data))
+            {
+                if (SummonOwnership.Recorded(data, player, SummonOwnership.StaffFor(data))) return true;
+                if (!SummonOwnership.Unrecorded(data)) return false;
+            }
             var candidates = ZNet.instance.IsServer()
                 ? ZNet.instance.GetPeers().Where(peer => peer.IsReady() && peer.m_playerName == name)
                     .Select(peer => ZDOMan.instance.GetZDO(peer.m_characterID)?.GetLong(ZDOVars.s_playerID) ?? 0L).ToList()
@@ -235,7 +241,7 @@ namespace EpicLootProgressionFix
             if (!ReadRoute(view.GetZDO().m_uid, index, out var route)) return true;
             var selected = Character.GetAllCharacters().Where(creature => creature && !creature.IsDead() && !creature.HaveRider() &&
                 !TameRiding.HoldingPosition(creature) && Follows(creature, player) &&
-                (SummonedBats.SummonerId(creature) == player.GetPlayerID() || SummonOwnership.IsFollower(creature) &&
+                (SummonedBats.SummonerId(creature) == player.GetPlayerID() || Companions.IsTame(creature) || SummonOwnership.IsFollower(creature) &&
                     SummonOwnership.TryGet(creature, out long owner, out _) && owner == player.GetPlayerID()) &&
                 SameSide(creature.transform.position, route) && SummonedBats.WithinSimulation(player, creature)).ToArray();
             if (selected.Length == 0) return true;
@@ -463,7 +469,7 @@ namespace EpicLootProgressionFix
         private static void Park(Held held)
         {
             var creature = ZNetScene.instance?.FindInstance(held.Id)?.GetComponent<Character>();
-            if (!creature || !creature.IsOwner() || creature.IsDead() || !StaffFollower(GameFields.CharacterView(creature).GetZDO()) ||
+            if (!creature || !creature.IsOwner() || creature.IsDead() || !Travels(GameFields.CharacterView(creature).GetZDO()) ||
                 !Belongs(GameFields.CharacterView(creature).GetZDO(), held.Player, held.Name)) return;
             var ai = creature.GetComponent<MonsterAI>(); ai.SetFollowTarget(null); SetPatrol(ai);
             GameFields.CharacterView(creature).GetZDO().Set(ZDOVars.s_follow, "");

@@ -85,6 +85,21 @@ namespace EpicLootProgressionFix
             return StaffTypes.TryGetValue(data.GetPrefab(), out var staff) ? staff == SkeletonStaff || staff == SpiritStaff : data.GetLong(SpiritHash, 0L) != 0;
         }
 
+        // Followers and the tames that fight by their rules, read in one pass: the AI hooks ask this of every creature each frame.
+        internal enum Companion { None, Follower, Tame }
+        internal static Companion CompanionOf(Character character)
+        {
+            if (!character || !character.IsTamed()) return Companion.None;
+            var view = GameFields.CharacterView(character);
+            if (!view || !view.IsValid()) return Companion.None;
+            var data = view.GetZDO();
+            if (StaffTypes.TryGetValue(data.GetPrefab(), out var staff)) return staff == SkeletonStaff || staff == SpiritStaff ? Companion.Follower : Companion.None;
+            if (data.GetLong(SpiritHash, 0L) != 0) return Companion.Follower;
+            // Shardstone bats and Hel's Harvest raises keep their own rules.
+            if (SummonedBats.SummonerId(data) != 0 || data.GetLong(RaisedByHash, 0L) != 0) return Companion.None;
+            return character.GetBaseAI() is MonsterAI ? Companion.Tame : Companion.None;
+        }
+
         // EpicLoot records the player whose Fylgja's Bond summoned the spirit.
         internal static bool IsFylgjaSpirit(ZDO data) => data != null && data.GetLong(SpiritHash, 0L) != 0;
         internal static bool IsFylgjaSpirit(Character character)
@@ -126,9 +141,10 @@ namespace EpicLootProgressionFix
         internal static bool IsPlayerSummon(Character character)
         {
             var view = character ? GameFields.CharacterView(character) : null;
-            var data = view && view.IsValid() ? view.GetZDO() : null;
-            return data != null && (StaffFor(data) != null || SummonedBats.SummonerId(data) != 0 || data.GetLong(RaisedByHash, 0L) != 0 || data.GetLong(SpiritHash, 0L) != 0);
+            return IsPlayerSummon(view && view.IsValid() ? view.GetZDO() : null);
         }
+        internal static bool IsPlayerSummon(ZDO data) =>
+            data != null && (StaffFor(data) != null || SummonedBats.SummonerId(data) != 0 || data.GetLong(RaisedByHash, 0L) != 0 || data.GetLong(SpiritHash, 0L) != 0);
         // A summon of the local player other than a shardstone bat: a staff summon, a Hel's Harvest raise or a Spirit Animal.
         // A caller that has just found the character is no bat says so instead of having it looked up again.
         internal static bool OwnSummon(Character character, bool notBat = false)

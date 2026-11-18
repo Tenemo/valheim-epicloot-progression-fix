@@ -39,7 +39,7 @@ namespace EpicLootProgressionFix
         {
             var creature = GameFields.AiCharacter(__instance);
             var player = go ? go.GetComponent<Player>() : null;
-            if (!player || !SummonOwnership.IsFollower(creature)) return true;
+            if (!player || !Companions.IsCompanion(creature)) return true;
             if (!States.TryGetValue(__instance, out var state)) States.Add(__instance, state = new State { Capsule = creature.GetComponent<CapsuleCollider>() });
             if (!state.Capsule) return true;
             float gap = Gap(state.Capsule, player), target = TargetGap(state.Capsule);

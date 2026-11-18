@@ -65,7 +65,7 @@ namespace EpicLootProgressionFix
             if (eligible && !___m_lastFindPathResult && Time.time - ___m_lastFindPathTime >= 1f && Waiting.TryGetValue(__instance, out _))
                 ___m_lastFindPathTime -= 5f;
             var character = GameFields.AiCharacter(__instance);
-            if (!eligible && !(character && character.IsOwner() && SummonOwnership.IsFollower(character))) return;
+            if (!eligible && !(character && character.IsOwner() && Companions.IsCompanion(character))) return;
             float age = Time.time - ___m_lastFindPathTime;
             if (age < 1f || age < 5f && Vector3.Distance(target, ___m_lastFindPathTarget) < 1f || !Pathfinding.instance || !ZoneSystem.instance) return;
             int steps = Mathf.CeilToInt(Utils.DistanceXZ(__instance.transform.position, target) / Pathfinding.instance.m_tileSize);
@@ -107,7 +107,7 @@ namespace EpicLootProgressionFix
         {
             var character = GameFields.AiCharacter(ai);
             var position = ai.transform.position;
-            if (Utils.DistanceXZ(point, position) < Mathf.Max(dist, 1f) || !SummonOwnership.IsFollower(character) || !Eligible(ai)) return false;
+            if (Utils.DistanceXZ(point, position) < Mathf.Max(dist, 1f) || !Companions.IsCompanion(character) || !Eligible(ai)) return false;
             var direction = point - position; direction.y = 0f; direction.Normalize();
             var ahead = position + direction * (character.GetRadius() + 2f);
             if (!ZoneSystem.instance.GetSolidHeight(ahead, out float height) || height < ZoneSystem.instance.m_waterLevel || ZoneSystem.IsLavaPreHeightmap(ahead, .1f)) return false;

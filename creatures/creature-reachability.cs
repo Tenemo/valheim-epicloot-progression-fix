@@ -133,7 +133,7 @@ namespace EpicLootProgressionFix
             var character = state.Character;
             // A Spirit Caller moose readies its charge whenever it sees its target, however far, so for a follower only an
             // attack counts as getting somewhere.
-            bool charging = ai.IsCharging() && !SummonOwnership.IsFollower(character);
+            bool charging = ai.IsCharging() && !Companions.IsCompanion(character);
             if (character.InAttack() || charging || TakingOff(ai))
             {
                 state.LastProgress = Time.time; state.Unreachable = false; state.FailedPaths = 0;

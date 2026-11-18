@@ -59,13 +59,13 @@ namespace EpicLootProgressionFix
         {
             if (!attacker) return 0;
             if (attacker is Player player) return player.GetPlayerID();
-            long owner = SummonedBats.SummonerId(attacker);
-            if (owner != 0) return owner;
             var view = GameFields.CharacterView(attacker);
-            if (!attacker.IsTamed() || !view || !view.IsValid()) return 0;
-            var data = view.GetZDO();
-            owner = data.GetLong("el-sumby", 0L);
-            return owner != 0 ? owner : data.GetLong("el-spirit", 0L);
+            if (!view || !view.IsValid()) return 0;
+            // Every summon kills for its summoner, and a tame for the player it follows.
+            long owner = SummonOwnership.SummonerId(attacker);
+            if (owner != 0) return owner;
+            var leader = Companions.Leader(attacker);
+            return leader ? leader.GetPlayerID() : 0;
         }
 
         [HarmonyPatch(typeof(Character), "RPC_Damage")]

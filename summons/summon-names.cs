@@ -65,7 +65,7 @@ namespace EpicLootProgressionFix
 
         private static void AlertedSummon(Character ___m_character, ref string __result)
         {
-            if (__result == "$hud_tamefrightened" && SummonOwnership.IsPlayerSummon(___m_character)) __result = "$" + Alerted;
+            if (__result == "$hud_tamefrightened" && (SummonOwnership.IsPlayerSummon(___m_character) || Companions.IsTame(___m_character))) __result = "$" + Alerted;
         }
 
         // Every game that loads the spirit names its own copy; the bound record and the creature's kind keep their name.

@@ -29,7 +29,7 @@ namespace EpicLootProgressionFix
         }
 
         private static float Sight(BaseAI animal) => TamedAnimal(animal) ? 50f : animal.m_viewRange;
-        private static float Alert(MonsterAI animal) => SummonOwnership.IsFollower(GameFields.AiCharacter(animal))
+        private static float Alert(MonsterAI animal) => Companions.IsCompanion(GameFields.AiCharacter(animal))
             ? animal.m_alertRange : TamedAnimal(animal) ? 30f : animal.m_alertRange;
 
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, MethodBase __originalMethod)

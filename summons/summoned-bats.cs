@@ -145,7 +145,7 @@ namespace EpicLootProgressionFix
         {
             // One still waiting to appear can't be fought, and standing on its spot would keep it from appearing.
             if (!BaseAI.IsEnemy(creature, target) || FreshCreatureSpawns.Waiting(target)) return false;
-            if (SummonOwnership.IsFollower(creature)) return SummonedFollowers.CanHunt(creature, target);
+            if (Companions.IsCompanion(creature)) return SummonedFollowers.CanHunt(creature, target);
             return !IsBat(creature) || WildlifeCanFight(target);
         }
 

@@ -9,7 +9,8 @@ namespace EpicLootProgressionFix
 {
     internal static class SummonedFollowers
     {
-        // New enemies are picked up near the caster; one a summon already fights is kept until it is twice as far.
+        // New enemies are picked up near the player a companion fights for, or near the spot a staying tame keeps; one it
+        // already fights is kept until it is twice as far.
         private const float CombatRange = 40f, HoldRange = 80f;
         // Hashed once: the object data's string keys hash on every read.
         private static readonly KeyValuePair<int, int> CommandKey = ZDO.GetHashZDOID(Plugin.Id + ".summon-target");
@@ -38,12 +39,12 @@ namespace EpicLootProgressionFix
         private static bool LoadCommandTarget(MonsterAI __instance, Character ___m_character, float dt, ref bool __result)
         {
             var creature = ___m_character;
-            if (!SummonOwnership.IsFollower(creature) || !creature.IsOwner() || creature.HaveRider()) return true;
+            if (!Companions.IsCompanion(creature) || !creature.IsOwner() || creature.HaveRider()) return true;
             var data = GameFields.CharacterView(creature).GetZDO();
             var command = data.GetZDOID(CommandKey);
             if (command.IsNone() || data.GetLong(SessionKey) != Session || Resolve(command)) return true;
             var target = ZDOMan.instance.GetZDO(command);
-            var summoner = SummonOwnership.Summoner(creature);
+            var summoner = Companions.Leader(creature);
             // A new owner can load the follower before its distant target. Keep approaching the saved position
             // while that known enemy is in the caster's simulation area, using the same failed-pursuit deadline.
             if (target != null && summoner && !summoner.IsDead() && target.GetFloat(ZDOVars.s_health) > 0f &&
@@ -72,12 +73,36 @@ namespace EpicLootProgressionFix
             ai.SetFollowTarget(summoner.gameObject);
         }
 
-        private static bool Valid(Character creature, Player summoner, Character target, bool commanded) =>
-            summoner && !summoner.IsDead() && target && target.gameObject.activeInHierarchy && !target.IsDead() && !target.IsPlayer() &&
-            GameFields.CharacterView(target)?.IsValid() == true && !target.IsTamed() && !target.m_aiSkipTarget && BaseAI.IsEnemy(creature, target) &&
-            (commanded ? SummonedBats.WithinSimulation(summoner, target) :
-                (target.transform.position - summoner.transform.position).sqrMagnitude <= HoldRange * HoldRange && SummonedBats.WildlifeCanFight(target)) &&
-            WithinSpiritLeash(creature, summoner, target);
+        // A follower fights only while its summoner lives. Tames go on hunting deer and other wildlife, which summons leave alone.
+        private static bool Valid(Character creature, Player leader, Character target, bool commanded)
+        {
+            if (!target || !target.gameObject.activeInHierarchy || target.IsDead() || target.IsPlayer() ||
+                GameFields.CharacterView(target)?.IsValid() != true || target.IsTamed() || target.m_aiSkipTarget) return false;
+            bool follower = SummonOwnership.CompanionOf(creature) == SummonOwnership.Companion.Follower;
+            if (follower && (!leader || leader.IsDead()) || !BaseAI.IsEnemy(creature, target)) return false;
+            if (commanded) return leader && !leader.IsDead() && SummonedBats.WithinSimulation(leader, target) && WithinSpiritLeash(creature, leader, target);
+            return (target.transform.position - Anchor(creature, leader, target)).sqrMagnitude <= HoldRange * HoldRange &&
+                (!follower || SummonedBats.WildlifeCanFight(target)) && WithinSpiritLeash(creature, leader, target);
+        }
+
+        // Where a companion's ranges count from: its leader, else the spot a tame stays at, else where it stood when it took
+        // on this enemy.
+        private sealed class Engagement { internal Character Target; internal Vector3 Point; }
+        private static readonly ConditionalWeakTable<Character, Engagement> Engagements = new ConditionalWeakTable<Character, Engagement>();
+
+        private static Vector3 Anchor(Character creature, Player leader, Character target)
+        {
+            if (leader) return leader.transform.position;
+            if (GameFields.PatrolPoint(creature.GetBaseAI(), out var patrol)) return patrol;
+            return target && Engagements.TryGetValue(creature, out var engagement) && engagement.Target == target ? engagement.Point : creature.transform.position;
+        }
+
+        private static void Engage(Character creature, Character target)
+        {
+            if (!target) return;
+            var engagement = Engagements.GetValue(creature, _ => new Engagement());
+            if (engagement.Target != target) { engagement.Target = target; engagement.Point = creature.transform.position; }
+        }
 
         // EpicLoot fades a Fylgja spirit once it is farther than its leash from its player, 60 m unless configured, so the spirit
         // takes on only enemies at least 10 m inside the leash, even ones its player hit; 80 m with the pack's 90 m leash.
@@ -87,7 +112,7 @@ namespace EpicLootProgressionFix
 
         private static bool WithinSpiritLeash(Character creature, Player summoner, Character target)
         {
-            if (!SummonOwnership.IsFylgjaSpirit(creature)) return true;
+            if (!SummonOwnership.IsFylgjaSpirit(creature) || !summoner) return true;
             float reach = SpiritLeash() - SpiritLeashMargin;
             return (target.transform.position - summoner.transform.position).sqrMagnitude <= reach * reach;
         }
@@ -95,12 +120,12 @@ namespace EpicLootProgressionFix
         // This runs inside the native candidate loop, before it compares distances or chooses the nearest enemy.
         internal static bool CanHunt(Character creature, Character target)
         {
-            var summoner = SummonOwnership.Summoner(creature);
-            return Valid(creature, summoner, target, false) && (target.transform.position - summoner.transform.position).sqrMagnitude <= CombatRange * CombatRange &&
+            var leader = Companions.Leader(creature);
+            return Valid(creature, leader, target, false) && (target.transform.position - Anchor(creature, leader, null)).sqrMagnitude <= CombatRange * CombatRange &&
                 !IsSetAside(creature, target);
         }
 
-        private const float SetAsideSeconds = 30f;
+        private const float SetAsideSeconds = 15f;
         private static readonly ConditionalWeakTable<Character, Dictionary<Character, float>> SetAsideTargets = new ConditionalWeakTable<Character, Dictionary<Character, float>>();
 
         private static void SetAside(Character creature, Character target)
@@ -125,7 +150,8 @@ namespace EpicLootProgressionFix
         private static void Prepare(MonsterAI __instance, Character ___m_character)
         {
             var creature = GameFields.HeldCreature ? ___m_character : __instance.GetComponent<Character>();
-            if (!SummonOwnership.IsFollower(creature) || !creature.IsOwner()) return;
+            var kind = SummonOwnership.CompanionOf(creature);
+            if (kind == SummonOwnership.Companion.None || !creature.IsOwner()) return;
             var data = GameFields.CharacterView(creature).GetZDO();
             if (data.GetLong(SessionKey) != Session)
             {
@@ -135,9 +161,10 @@ namespace EpicLootProgressionFix
                 data.Set(ContactKey, 0L);
                 data.Set(ContactTimeKey, 0L);
             }
-            // The moose and bear otherwise break off a fight to run circles around their enemy; wild ones keep the prefab's taunt.
-            if (SummonOwnership.StaffFor(data) == SummonOwnership.SpiritStaff || SummonOwnership.IsFylgjaSpirit(data)) __instance.m_circleTargetInterval = 0f;
-            var summoner = SummonOwnership.Summoner(creature);
+            // The moose, bear and wolf otherwise break off a fight to run circles around their enemy; wild ones keep the prefab's taunt.
+            if (kind == SummonOwnership.Companion.Tame || SummonOwnership.StaffFor(data) == SummonOwnership.SpiritStaff || SummonOwnership.IsFylgjaSpirit(data))
+                __instance.m_circleTargetInterval = 0f;
+            var summoner = Companions.Leader(creature, kind);
             var commandedId = data.GetZDOID(CommandKey);
             var commanded = Resolve(commandedId);
             __instance.m_alertRange = CombatRange;
@@ -183,6 +210,9 @@ namespace EpicLootProgressionFix
             }
 
             var target = GameFields.TargetCreature(__instance);
+            // Most companions at a base hold nothing; leave their data alone then.
+            if (!target && data.GetZDOID(CommandKey).IsNone()) return;
+            Engage(creature, target);
             bool designated = target && data.GetZDOID(CommandKey) == target.GetZDOID();
             if (!Valid(creature, summoner, target, designated))
             {
@@ -209,14 +239,14 @@ namespace EpicLootProgressionFix
                 __instance.m_alertRange = Mathf.Max(CombatRange, Vector3.Distance(leashOrigin, target.transform.position) + 1f);
                 Unseen(__instance) = 0f;
             }
-            // The native tamed check drops a target farther than this from the caster.
+            // The native tamed check drops a target farther than this from the player followed or the spot stayed at.
             else __instance.m_alertRange = HoldRange;
         }
 
         private static void Pursue(MonsterAI __instance, Character ___m_character, ref bool canHearTarget)
         {
             var creature = GameFields.HeldCreature ? ___m_character : __instance.GetComponent<Character>();
-            if (!SummonOwnership.IsFollower(creature) || !creature.IsOwner()) return;
+            if (!Companions.IsCompanion(creature) || !creature.IsOwner()) return;
             // A held target the native update just dropped leaves the pick-up range for the next search.
             if (!GameFields.TargetCreature(__instance)) __instance.m_alertRange = CombatRange;
             var data = GameFields.CharacterView(creature).GetZDO();
@@ -230,7 +260,7 @@ namespace EpicLootProgressionFix
                 __instance.m_alertRange = CombatRange;
                 return;
             }
-            if (!Valid(creature, SummonOwnership.Summoner(creature), target, true)) return;
+            if (!Valid(creature, Companions.Leader(creature), target, true)) return;
             canHearTarget = true;
             Unseen(__instance) = 0f;
         }
@@ -239,10 +269,10 @@ namespace EpicLootProgressionFix
         {
             var ai = __instance as MonsterAI;
             var creature = ai ? (GameFields.HeldCreature ? ___m_character : ai.GetComponent<Character>()) : null;
-            if (!SummonOwnership.IsFollower(creature) || !creature.IsOwner() || Unseen(ai) >= 30f) return true;
+            if (!Companions.IsCompanion(creature) || !creature.IsOwner() || Unseen(ai) >= 30f) return true;
             var target = GameFields.TargetCreature(ai);
             bool commanded = target && GameFields.CharacterView(creature).GetZDO().GetZDOID(CommandKey) == target.GetZDOID();
-            if (!Valid(creature, SummonOwnership.Summoner(creature), target, commanded)) return true;
+            if (!Valid(creature, Companions.Leader(creature), target, commanded)) return true;
             __result = target;
             return false;
         }

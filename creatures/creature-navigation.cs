@@ -62,8 +62,8 @@ namespace EpicLootProgressionFix
         // A fitted profile can leave a large creature, such as a giant Seeker Soldier among Mistlands rocks, on a scrap of
         // navigation, where its route stops at the scrap's edge or doesn't exist, and the native MoveTo stops a creature at
         // its route's end, so it stood and took hits from an enemy it could walk to. Where the built fitted route doesn't
-        // bring the body to the destination and the native profile's route gets closer, a wild creature or tame takes that,
-        // as it would without the fit. Summoned followers keep their own straight walk.
+        // bring the body to the destination and the native profile's route gets closer, a wild creature takes that, as it
+        // would without the fit. Summoned followers and tames keep their own straight walk.
         // One postfix for each method, so neither asks Harmony which method it follows.
         [HarmonyPatch(typeof(BaseAI), "FindPath")]
         private static class FoundPath
@@ -96,9 +96,9 @@ namespace EpicLootProgressionFix
             LastPathResult(__instance) = __result = true;
         }
 
-        // Followers keep their straight walk, and while the fitted tiles at either end are still building, route
+        // Followers and tames keep their straight walk, and while the fitted tiles at either end are still building, route
         // readiness waits for them.
-        private static bool Fallback(BaseAI ai, State state, Vector3 target) => !SummonOwnership.IsFollower(state.Character) &&
+        private static bool Fallback(BaseAI ai, State state, Vector3 target) => !Companions.IsCompanion(state.Character) &&
             !CreatureRouteReadiness.Unbuilt(ai.transform.position, state.Fitted) && !CreatureRouteReadiness.Unbuilt(target, state.Fitted);
 
         // A complete route with the same fallback, for checks that look ahead of the creature's movement.
