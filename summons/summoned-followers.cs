@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using UnityEngine;
 
@@ -16,6 +17,7 @@ namespace EpicLootProgressionFix
         private static readonly int ContactTimeKey = (Plugin.Id + ".summon-contact-time").GetStableHashCode();
         private static readonly int SessionKey = (Plugin.Id + ".summon-target-session").GetStableHashCode();
         private static readonly AccessTools.FieldRef<MonsterAI, float> Unseen = AccessTools.FieldRefAccess<MonsterAI, float>("m_timeSinceSensedTargetCreature");
+        private static readonly AccessTools.FieldRef<MonsterAI, float> TargetSearchTimer = AccessTools.FieldRefAccess<MonsterAI, float>("m_updateTargetTimer");
         private static readonly Action<MonsterAI, Character> SetTarget = AccessTools.MethodDelegate<Action<MonsterAI, Character>>(AccessTools.Method(typeof(MonsterAI), "SetTarget"));
         private static readonly Action<MonsterAI, bool> Alert = AccessTools.MethodDelegate<Action<MonsterAI, bool>>(AccessTools.Method(typeof(MonsterAI), "SetAlerted"));
         internal static readonly Func<BaseAI, float, Vector3, float, bool, bool> MoveTo =
@@ -94,8 +96,22 @@ namespace EpicLootProgressionFix
         internal static bool CanHunt(Character creature, Character target)
         {
             var summoner = SummonOwnership.Summoner(creature);
-            return Valid(creature, summoner, target, false) && (target.transform.position - summoner.transform.position).sqrMagnitude <= CombatRange * CombatRange;
+            return Valid(creature, summoner, target, false) && (target.transform.position - summoner.transform.position).sqrMagnitude <= CombatRange * CombatRange &&
+                !IsSetAside(creature, target);
         }
+
+        private const float SetAsideSeconds = 30f;
+        private static readonly ConditionalWeakTable<Character, Dictionary<Character, float>> SetAsideTargets = new ConditionalWeakTable<Character, Dictionary<Character, float>>();
+
+        private static void SetAside(Character creature, Character target)
+        {
+            var targets = SetAsideTargets.GetValue(creature, _ => new Dictionary<Character, float>());
+            foreach (var expired in targets.Where(item => !item.Key || item.Value <= Time.time).Select(item => item.Key).ToArray()) targets.Remove(expired);
+            targets[target] = Time.time + SetAsideSeconds;
+        }
+
+        private static bool IsSetAside(Character creature, Character target) =>
+            SetAsideTargets.TryGetValue(creature, out var targets) && targets.TryGetValue(target, out float until) && Time.time < until;
 
         private static long Session => ZNet.instance.IsServer() ? ZDOMan.GetSessionID() : ZNet.instance.GetServerPeer()?.m_uid ?? 0L;
 
@@ -151,7 +167,7 @@ namespace EpicLootProgressionFix
                     data.Set(ContactTimeKey, contactTime);
                     var current = GameFields.TargetCreature(__instance);
                     bool currentCommand = current && data.GetZDOID(CommandKey) == current.GetZDOID();
-                    if (fresh && Valid(creature, summoner, contact, true) &&
+                    if (fresh && Valid(creature, summoner, contact, true) && !IsSetAside(creature, contact) &&
                         (current == contact || !Valid(creature, summoner, current, currentCommand)))
                     {
                         data.Set(CommandKey, contact.GetZDOID());
@@ -172,6 +188,17 @@ namespace EpicLootProgressionFix
             {
                 GameFields.TargetCreature(__instance) = null;
                 data.Set(CommandKey, ZDOID.None);
+                return;
+            }
+            // A Spirit Wolf held a skeleton standing high in a swamp tree for nearly a minute, standing beside the Bonemass its
+            // player was fighting. An enemy it can neither attack from where it stands nor walk to a place to attack from is
+            // set aside for a while, and the next search picks another.
+            if (CreatureReachability.Unreachable(__instance, target))
+            {
+                SetAside(creature, target);
+                GameFields.TargetCreature(__instance) = null;
+                data.Set(CommandKey, ZDOID.None);
+                TargetSearchTimer(__instance) = 0f;
                 return;
             }
             if (designated)

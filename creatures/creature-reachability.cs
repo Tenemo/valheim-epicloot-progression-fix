@@ -118,10 +118,12 @@ namespace EpicLootProgressionFix
                 return reached && state.Path.Count > 0 && CanAttackFrom(ai, character, target, state.Path[state.Path.Count - 1]);
             }
             if (Reaches(target.transform.position)) return true;
-            float range = AttackRange(ai, character);
+            // Measured from the target's body: from points measured from Bonemass's middle, all inside his 4.8 m radius,
+            // a Spirit Wolf's 2 m bite counted as reaching him from nowhere.
+            float range = AttackRange(ai, character), body = target.GetRadius();
             foreach (float fraction in new[] { .75f, .35f })
                 for (int direction = 0; direction < 8; direction++)
-                    if (Reaches(target.transform.position + Quaternion.Euler(0f, direction * 45f, 0f) * Vector3.forward * range * fraction)) return true;
+                    if (Reaches(target.transform.position + Quaternion.Euler(0f, direction * 45f, 0f) * Vector3.forward * (body + range * fraction))) return true;
             return false;
         }
 
@@ -129,7 +131,10 @@ namespace EpicLootProgressionFix
         {
             var state = Current(ai, target);
             var character = state.Character;
-            if (character.InAttack() || ai.IsCharging() || TakingOff(ai))
+            // A Spirit Caller moose readies its charge whenever it sees its target, however far, so for a follower only an
+            // attack counts as getting somewhere.
+            bool charging = ai.IsCharging() && !SummonOwnership.IsFollower(character);
+            if (character.InAttack() || charging || TakingOff(ai))
             {
                 state.LastProgress = Time.time; state.Unreachable = false; state.FailedPaths = 0;
                 return false;
