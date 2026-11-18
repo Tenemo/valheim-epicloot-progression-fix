@@ -17,6 +17,16 @@ namespace EpicLootProgressionFix
             if (embed == null || !Enum.IsDefined(DiscordBot.Webhook, "DeathFeed")) throw new InvalidOperationException("DiscordBot webhook API changed.");
             deathFeed = Enum.Parse(DiscordBot.Webhook, "DeathFeed");
             harmony.Patch(embed, prefix: new HarmonyMethod(typeof(DeathFeedWithoutEmbed), nameof(SendEmbedMessage)));
+            // With DiscordBot's death screenshot or GIF on, the picture needs the embed, so only its text is converted.
+            foreach (string sender in new[] { "SendImageMessage", "SendGifMessage" })
+                harmony.Patch(AccessTools.Method(DiscordBot.Discord, sender) ?? throw new InvalidOperationException("DiscordBot webhook API changed."),
+                    prefix: new HarmonyMethod(typeof(DeathFeedWithoutEmbed), nameof(CaptionPicture)));
+        }
+
+        // The first argument is the webhook.
+        private static void CaptionPicture(object __0, ref string content)
+        {
+            if (Equals(__0, deathFeed) && !string.IsNullOrWhiteSpace(content)) content = DeathMessageFormatting.ForDiscord(content);
         }
 
         // Runs on the dying player's client. Mark the player's name and box the joke for Discord.
