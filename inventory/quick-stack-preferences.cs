@@ -22,7 +22,9 @@ namespace EpicLootProgressionFix
 
         internal static QuickStackPreferences Read(Stream stream)
         {
-            if (stream.Length == 0 || stream.Length > 16 * 1024 * 1024) throw new InvalidDataException("Invalid Quick Stack preference file size.");
+            // Quick Stack creates an empty file on load and writes it only on a change, so empty means nothing saved.
+            if (stream.Length == 0) return new QuickStackPreferences();
+            if (stream.Length > 16 * 1024 * 1024) throw new InvalidDataException("Invalid Quick Stack preference file size.");
             var reader = new Records(stream);
             var positions = reader.Collection("System.Collections.Generic.List`1[[System.Tuple`2[[System.Int32,");
             var slots = positions.Select(value =>
