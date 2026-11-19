@@ -35,6 +35,19 @@ namespace EpicLootProgressionFix
                 transpiler: new HarmonyMethod(typeof(SummonOwnership), nameof(ShareSpiritLimit)));
             harmony.Patch(AccessTools.Method(typeof(Tameable), "UnsummonMaxInstances"),
                 transpiler: new HarmonyMethod(typeof(SummonOwnership), nameof(ExplainLimit)));
+            harmony.Patch(AccessTools.Method(typeof(SpawnAbility), nameof(SpawnAbility.Setup)),
+                prefix: new HarmonyMethod(typeof(SummonOwnership), nameof(RemoveSharedLimit)));
+        }
+
+        // The game also refuses a summon while as many of its kind as the staff allows are loaded, whoever cast them, so other
+        // players' summons anywhere nearby blocked a cast. A player's summons count only against their own limit: the game's
+        // follower limit for tamed summons, which holds from the first cast when a level-up setting needs no skill, or the one
+        // TrollstavSummons keeps per caster for trolls and roots. Set before Setup starts the summoning, which checks at once.
+        private static void RemoveSharedLimit(SpawnAbility __instance, Character owner)
+        {
+            if (owner is Player && __instance.m_levelUpSettings != null && __instance.m_levelUpSettings.Any(setting => setting.m_skillLevel <= 0) &&
+                (TrollstavSummons.LimitsPerCaster(__instance) || __instance.m_commandOnSpawn && __instance.m_spawnPrefab.All(prefab => prefab && prefab.GetComponent<Tameable>())))
+                __instance.m_maxSpawned = 0;
         }
 
         // The game's follower limit counts each creature name apart; all Spirit Caller animals count as one kind.

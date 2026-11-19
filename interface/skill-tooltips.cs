@@ -214,11 +214,11 @@ namespace EpicLootProgressionFix
         }
 
         // SpawnAbility.Spawn takes the follower limit from the last level-up setting the caster's level reaches, unless the
-        // staff's quality sets it. The settings' summon levels are all 1, so the skill adds no stars.
+        // staff's quality sets it, as it does for Staff of the Wild. The settings' summon levels are all 1, so the skill adds no stars.
         private static string Followers(Player player, SpawnAbility spawn, Skills.SkillType skill, float level)
         {
             var settings = spawn.m_levelUpSettings;
-            if (!spawn.m_commandOnSpawn || spawn.m_setMaxInstancesFromWeaponLevel || settings == null || !settings.Any(setting => setting.m_skill == skill)) return null;
+            if (!spawn.m_commandOnSpawn || spawn.m_setMaxInstancesFromWeaponLevel || StaffQuality.IsRoots(spawn) || settings == null || !settings.Any(setting => setting.m_skill == skill)) return null;
             var reached = settings.AsEnumerable().Reverse().FirstOrDefault(setting => player.GetSkillLevel(setting.m_skill) >= setting.m_skillLevel);
             if (reached == null || reached.m_maxSpawns <= 0) return null;
             var next = settings.Where(setting => setting.m_skill == skill && setting.m_skillLevel > level && setting.m_maxSpawns > reached.m_maxSpawns)

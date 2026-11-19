@@ -28,9 +28,9 @@ namespace EpicLootProgressionFix
         internal static bool IsDundr(Attack attack) => attack.m_attackProjectile && attack.m_attackProjectile.name == DundrBolt;
         internal static int DundrBolts(int bolts, int quality) => bolts + 2 * Upgrades(quality);
 
-        // Staff of the Wild keeps 2 more roots per upgrade.
+        // Staff of the Wild's caster keeps 4 roots, and 1 more per upgrade, whatever their skill.
         internal static bool IsRoots(SpawnAbility spawn) => spawn && Utils.GetPrefabName(spawn.gameObject) == "staff_greenroots_spawn";
-        internal static int RootLimit(int limit, int quality) => limit + 2 * Upgrades(quality);
+        internal static int RootFollowers(int quality) => 4 + Upgrades(quality);
 
         // Echo Spike and Staff of Frost deal a sixth more damage per upgrade, 1.5 times at quality 4, as Dundr gains a sixth more
         // shots.
@@ -148,11 +148,18 @@ namespace EpicLootProgressionFix
             if (view && view.IsValid() && view.IsOwner()) view.GetZDO().Set(TrollQualityKey, Mathf.Max(1, ___m_weapon.m_quality));
         }
 
-        // Set before Setup starts the summoning, which checks the limit at once.
+        // The game stores on each root the limit of the last of these settings the caster's skill reaches, and TrollstavSummons
+        // holds the caster to it; each gets the staff's limit instead, and the first needs no skill, so it holds from the first
+        // cast. Set before Setup starts the summoning.
         [HarmonyPatch(typeof(SpawnAbility), nameof(SpawnAbility.Setup)), HarmonyPrefix]
-        private static void ScaleRootLimit(SpawnAbility __instance, ItemDrop.ItemData item)
+        private static void SetRootFollowers(SpawnAbility __instance, ItemDrop.ItemData item)
         {
-            if (item != null && IsRoots(__instance)) __instance.m_maxSpawned = RootLimit(__instance.m_maxSpawned, item.m_quality);
+            if (item == null || !IsRoots(__instance)) return;
+            __instance.m_setMaxInstancesFromWeaponLevel = false;
+            __instance.m_levelUpSettings = __instance.m_levelUpSettings.Select(setting => new SpawnAbility.LevelUpSettings
+            {
+                m_skill = setting.m_skill, m_skillLevel = setting.m_skillLevel, m_setLevel = setting.m_setLevel, m_maxSpawns = RootFollowers(item.m_quality)
+            }).ToList();
         }
 
         // Only the staff that fires a projectile scales it: EpicLoot's Artillery set makes crossbows fire Staff of Embers'
@@ -191,7 +198,9 @@ namespace EpicLootProgressionFix
             if (!Chaining(__instance.GetPrefab("staff_thunderblood_aoe"))) throw new InvalidOperationException("Lightning Strike's chaining burst is missing.");
             // The two summonings aren't networked: Staff of the Wild's projectile spawns its roots, and the Trollstav's attack is its spawn.
             var roots = __instance.GetPrefab("staff_greenroots_projectile")?.GetComponent<Projectile>()?.m_spawnOnHit;
-            if (!roots || !IsRoots(roots.GetComponent<SpawnAbility>())) throw new InvalidOperationException("Staff of the Wild's roots are missing.");
+            var rootSpawn = roots ? roots.GetComponent<SpawnAbility>() : null;
+            if (!IsRoots(rootSpawn) || !rootSpawn.m_commandOnSpawn || rootSpawn.m_levelUpSettings == null || !rootSpawn.m_levelUpSettings.Any(setting => setting.m_skillLevel <= 0))
+                throw new InvalidOperationException("Staff of the Wild's roots or their follower limit are missing.");
             var troll = __instance.GetPrefab("StaffRedTroll")?.GetComponent<ItemDrop>()?.m_itemData.m_shared.m_attack.m_attackProjectile;
             if (!troll || !troll.GetComponent<SpawnAbility>() || Utils.GetPrefabName(troll) != "staff_redtroll_spawn") throw new InvalidOperationException("The Trollstav's summoning is missing.");
             foreach (string name in new[] { "staff_fireball_projectile", "staff_OrbofAhri_projectile", "staff_OrbofAhri_projectile_return", DundrBolt })

@@ -76,20 +76,18 @@ namespace EpicLootProgressionFix
             return "Reload: " + Number(time) + " s" + (drains.Count == 0 ? "" : "; " + string.Join("; ", drains));
         }
 
-        // A single summon per cast goes without saying, and the cap shared by everyone's summons shows only with Shift, except
-        // Staff of the Wild's, which grows with each upgrade. The Trollstav's trolls follow no one and have only their caster's limit.
+        // A single summon per cast goes without saying. Each player's summons have only that player's limit, which grows with
+        // Staff of the Wild's quality; the Trollstav's trolls and the roots follow no one.
         private static void AddSummons(List<string> rows, Player player, ItemDrop.ItemData item, int quality)
         {
             var spawn = Summoning(item);
             if (!spawn) return;
-            bool troll = TrollstavSummons.Summons(spawn);
+            bool troll = TrollstavSummons.Summons(spawn), roots = StaffQuality.IsRoots(spawn);
             int maximum = spawn.m_maxToSpawn > spawn.m_minToSpawn ? spawn.m_maxToSpawn - 1 : spawn.m_minToSpawn;
             if (spawn.m_minToSpawn != 1 || maximum != 1) rows.Add("Summons per cast: " + spawn.m_minToSpawn + (maximum == spawn.m_minToSpawn ? "" : "-" + maximum));
             var level = spawn.m_levelUpSettings?.AsEnumerable().Reverse().FirstOrDefault(setting => player.GetSkillLevel(setting.m_skill) >= setting.m_skillLevel);
-            int following = level == null ? 0 : spawn.m_setMaxInstancesFromWeaponLevel ? quality : level.m_maxSpawns;
-            if (spawn.m_commandOnSpawn && following > 0) rows.Add((troll ? "Troll limit: " : "Follower limit: ") + following);
-            int nearby = troll ? 0 : StaffQuality.IsRoots(spawn) ? StaffQuality.RootLimit(spawn.m_maxSpawned, quality) : spawn.m_maxSpawned;
-            if (nearby > 0 && (MagicItem.ShowEffectDetails || StaffQuality.IsRoots(spawn))) rows.Add("Summon limit nearby: " + nearby + " per type");
+            int following = level == null ? 0 : roots ? StaffQuality.RootFollowers(quality) : spawn.m_setMaxInstancesFromWeaponLevel ? quality : level.m_maxSpawns;
+            if (spawn.m_commandOnSpawn && following > 0) rows.Add((troll ? "Troll limit: " : roots ? "Root limit: " : "Follower limit: ") + following);
             if (spawn.m_copySkill != Skills.SkillType.None && spawn.m_copySkillToRandomFactor > 0)
                 rows.Add("Summon damage multiplier: " + (1f + player.GetSkillLevel(spawn.m_copySkill) * spawn.m_copySkillToRandomFactor).ToString("0.###", CultureInfo.CurrentCulture) + "x");
         }
