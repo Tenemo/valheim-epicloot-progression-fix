@@ -52,7 +52,7 @@ namespace EpicLootProgressionFix
             Add("star-level-system", "Creature scaling, boss rewards, Nemesis and dungeon resets", true, new[] { PluginIds.StarLevelSystem },
                 typeof(StarLevelSystem), typeof(StarLevelModifierIcons), typeof(StarLevelWorldBalance), typeof(StarLevelAuthority), typeof(BossStars), typeof(BountyTargetStrength),
                 typeof(CreatureAreaDamage), typeof(CreatureSizeCompatibility), typeof(CreatureSpawnPlacement), typeof(DungeonInteriors), typeof(DungeonOccupancy), typeof(EpicLootStarRewards), typeof(FreshCreatureSpawns), typeof(LateBiomePressure),
-                typeof(MiningScaledDropPosition), typeof(ModSettingsCaption), typeof(NemesisFactions), typeof(NemesisHuntingPacks), typeof(NemesisMinibosses), typeof(NemesisScore), typeof(NemesisOverheadHealthBars), typeof(PheromoneLevels), typeof(PoisonConversion),
+                typeof(MiningScaledDropPosition), typeof(ModSettingsCaption), typeof(NemesisFactions), typeof(NemesisHuntingPacks), typeof(NemesisMinibosses), typeof(NemesisScore), typeof(NemesisOverheadHealthBars), typeof(PheromoneLevels), typeof(EggStackLevels), typeof(PoisonConversion),
                 typeof(SealColors), typeof(MooseAntlers), typeof(SoulEaterCap), typeof(StarLootScaling), typeof(SummonHealth), typeof(ItemActivity.SpreadLoot));
             Add("drop-tables", "Star drop-roll compatibility", true, new[] { PluginIds.DropThat }, typeof(StarDropRolls));
             Add("discord", "Discord chat, death messages, achievements and startup behavior", true, new[] { PluginIds.DiscordBot },

@@ -327,6 +327,7 @@ namespace EpicLootProgressionFix
                 Run(typeof(ForsakenPowerRefresh), patches => ForsakenPowerRefresh.Initialize(patches));
                 Run(typeof(TableUpgradeSettlement), patches => TableUpgradeSettlement.Initialize(patches));
                 Run(typeof(PheromoneLevels), patches => PheromoneLevels.Initialize(patches));
+                Run(typeof(EggStackLevels), patches => EggStackLevels.Initialize(patches));
                 Run(typeof(DeathMessageFormatting), patches => DeathMessageFormatting.Initialize(patches, Logger));
                 Run(typeof(EnglishItemNames), patches => EnglishItemNames.Initialize(patches));
                 Run(typeof(DeathFeedWithoutEmbed), patches => DeathFeedWithoutEmbed.Initialize(patches));
