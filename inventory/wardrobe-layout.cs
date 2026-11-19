@@ -40,6 +40,19 @@ namespace EpicLootProgressionFix
         [HarmonyPatch(typeof(InventoryGrid), "UpdateGui")]
         private static class Layout
         {
+            private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+                Transpilers.CallInstead(instructions, instruction => instruction.Calls(AccessTools.Method(typeof(RectTransform), nameof(RectTransform.SetSizeWithCurrentAnchors))),
+                    AccessTools.Method(typeof(Layout), nameof(SetGridSize)), 1, "The inventory grid's sizing changed.");
+
+            // Once this wardrobe is laid out, the postfix owns its height. Writing ten rows here
+            // and five in the postfix makes Unity rebuild every slot even when the contents stay still.
+            private static void SetGridSize(RectTransform root, RectTransform.Axis axis, float size)
+            {
+                if (axis == RectTransform.Axis.Vertical && shaped && root == shaped.m_gridRoot &&
+                    InventoryGui.instance && IsWardrobe(InventoryGui.instance, GridInventory(shaped))) return;
+                root.SetSizeWithCurrentAnchors(axis, size);
+            }
+
             private static void Postfix(InventoryGrid __instance)
             {
                 var gui = InventoryGui.instance;
