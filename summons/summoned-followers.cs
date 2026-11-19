@@ -39,10 +39,14 @@ namespace EpicLootProgressionFix
         private static bool LoadCommandTarget(MonsterAI __instance, Character ___m_character, float dt, ref bool __result)
         {
             var creature = ___m_character;
-            if (!Companions.IsCompanion(creature) || !creature.IsOwner() || creature.HaveRider()) return true;
-            var data = GameFields.CharacterView(creature).GetZDO();
+            if (!creature || !creature.IsTamed()) return true;
+            var view = GameFields.CharacterView(creature);
+            if (!view || !view.IsValid()) return true;
+            var data = view.GetZDO();
             var command = data.GetZDOID(CommandKey);
-            if (command.IsNone() || data.GetLong(SessionKey) != Session || Resolve(command)) return true;
+            // An idle tame has no order to restore. Only a recorded order needs the companion and saddle checks.
+            if (command.IsNone() || !Companions.IsCompanion(creature) || !creature.IsOwner() || creature.HaveRider() ||
+                data.GetLong(SessionKey) != Session || Resolve(command)) return true;
             var target = ZDOMan.instance.GetZDO(command);
             var summoner = Companions.Leader(creature);
             // A new owner can load the follower before its distant target. Keep approaching the saved position
