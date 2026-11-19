@@ -9,7 +9,9 @@ namespace EpicLootProgressionFix
     // ends where it is: a hit it has not reached never lands, while paid stamina and a hit already dealt stay. Its animation
     // blends into the guard for everyone and the combo starts over. After a hit, the next attack waits until the abandoned
     // animation would have ended, so cancelling never attacks faster; before one, it waits only for the blend. A held attack
-    // button is ignored until it is released, so the guard stays up.
+    // button is ignored until it is released, so the guard stays up. A staff's spell can't be cancelled: it pays its health
+    // and eitr when it starts and takes effect only near its end, so the guard would throw both away, as it did with the
+    // Staff of Protection's 40% health before its bubble formed.
     internal static class AttackCancel
     {
         private const float BlendSeconds = .1f;
@@ -33,8 +35,14 @@ namespace EpicLootProgressionFix
         private static bool holdIgnored;
 
         // The guard's own conditions apart from the attack it replaces.
-        private static bool CanCancel(Player player) => GameFields.CurrentAttack(player) != null && player.InAttack() && !player.IsDead() &&
-            !player.InDodge() && !player.InPlaceMode() && !player.IsEncumbered() && !player.InMinorAction() && !player.IsStaggering();
+        private static bool CanCancel(Player player) => GameFields.CurrentAttack(player) is Attack attack && !IsSpell(attack) && player.InAttack() &&
+            !player.IsDead() && !player.InDodge() && !player.InPlaceMode() && !player.IsEncumbered() && !player.InMinorAction() && !player.IsStaggering();
+
+        private static bool IsSpell(Attack attack)
+        {
+            var skill = attack.GetWeapon()?.m_shared.m_skillType;
+            return skill == Skills.SkillType.ElementalMagic || skill == Skills.SkillType.BloodMagic;
+        }
 
         private static void Cancel(Player player)
         {
