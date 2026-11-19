@@ -107,7 +107,7 @@ namespace EpicLootProgressionFix
             var ids = HarvestOutputPickup.ReadIds(package);
             Pending.Remove(request);
             if (collection.Player == null || collection.Player != Player.m_localPlayer) return;
-            collection.Player.StartCoroutine(HarvestOutputPickup.Pickup(collection.Player, ids));
+            collection.Player.StartCoroutine(HarvestOutputPickup.Pickup(collection.Player, ids, bulkHarvest: true));
         }
 
         [HarmonyPrefix, HarmonyPatch(typeof(Player), nameof(Player.SetLocalPlayer))]

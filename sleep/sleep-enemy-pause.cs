@@ -251,6 +251,7 @@ namespace EpicLootProgressionFix
 
         private static void WatchReadiness()
         {
+            ActiveSpawnClocks.Update();
             if (!ZNet.instance.IsServer() || phase != Waking) return;
             if (Time.unscaledTime >= releaseAt)
             {
@@ -268,6 +269,7 @@ namespace EpicLootProgressionFix
         private static void LeaveWorld()
         {
             if (Active) ResumeSpawning(cycle, worldStarted, ZNet.instance.GetTime().Ticks);
+            ActiveSpawnClocks.Clear();
             ResumeSimulation(); ClearSpawning(); ClearSpawnRoutes(); ClearModSpawns();
             Waiting.Clear(); cycle = worldStarted = transitionCycle = 0; phase = transitionPhase = 0;
             stateKnown = participant = localWaiting = readySent = checkingFrame = nativeTransition = false;
