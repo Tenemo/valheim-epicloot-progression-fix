@@ -84,28 +84,30 @@ namespace EpicLootProgressionFix
         };
         private static readonly HashSet<string> installed = new HashSet<string>(), available = new HashSet<string>();
         private static readonly Dictionary<string, string> unavailable = new Dictionary<string, string>();
+        private static readonly List<string> unsupported = new List<string>();
+
+        // An absent mod only leaves its integrations off. An installed mod at an untested version, or one that did not
+        // initialize, stops startup, so a pack update never turns an integration off without anyone noticing.
+        internal static IReadOnlyList<string> Unsupported => unsupported;
 
         internal static void Inspect()
         {
-            installed.Clear(); available.Clear(); unavailable.Clear();
+            installed.Clear(); available.Clear(); unavailable.Clear(); unsupported.Clear();
             foreach (var pair in TestedVersions)
             {
                 if (!Chainloader.PluginInfos.TryGetValue(pair.Key, out var plugin)) continue;
                 installed.Add(pair.Key);
-                if (plugin.Instance != null && pair.Value.Contains(plugin.Metadata.Version)) available.Add(pair.Key);
-                else unavailable[pair.Key] = plugin.Instance == null ? plugin.Metadata.Name + " did not initialize."
+                if (plugin.Instance != null && pair.Value.Contains(plugin.Metadata.Version)) { available.Add(pair.Key); continue; }
+                string reason = plugin.Instance == null ? plugin.Metadata.Name + " did not initialize."
                     : plugin.Metadata.Name + " " + plugin.Metadata.Version + " is not in the tested versions: " + string.Join(", ", pair.Value.Select(version => version.ToString())) + ".";
+                unavailable[pair.Key] = reason;
+                unsupported.Add("Unsupported mod: " + reason);
             }
         }
         internal static bool Installed(string id) => installed.Contains(id);
         internal static string UnavailableReason(string id) => unavailable.TryGetValue(id, out var reason) ? reason : null;
         internal static void DisableIntegration(string id, string reason) { available.Remove(id); unavailable[id] = reason; }
-        internal static bool TryGet(string id, out PluginInfo plugin)
-        {
-            bool present = Chainloader.PluginInfos.TryGetValue(id, out plugin);
-            if (id == EpicLoot && present && !available.Contains(id)) throw new InvalidOperationException(UnavailableReason(id));
-            return present && available.Contains(id);
-        }
+        internal static bool TryGet(string id, out PluginInfo plugin) => Chainloader.PluginInfos.TryGetValue(id, out plugin) && available.Contains(id);
 
     }
 
@@ -238,8 +240,7 @@ namespace EpicLootProgressionFix
             try { Run(typeof(DiscordConnectorRecords), patches => DiscordConnectorRecords.Initialize(patches, Logger)); integrations.Apply(durableOnly: true); }
             catch (Exception error) { ReportFailure("DiscordConnector records flush failed: " + error.GetBaseException().Message); }
 
-            try { PluginIds.TryGet(PluginIds.EpicLoot, out _); }
-            catch (InvalidOperationException error) { ReportFailure(error.Message); }
+            foreach (string reason in PluginIds.Unsupported) ReportFailure(reason);
             if (startupError != null) return;
 
             try
