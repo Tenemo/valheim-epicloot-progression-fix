@@ -253,7 +253,7 @@ namespace EpicLootProgressionFix
                 return true;
             };
             __state = Enter(new Scope { Center = origin, Radius = Mathf.Clamp(MinimapController.AreaRadius * .19999999f, 0f, 4f),
-                Check = check, Description = "bounty encounter" });
+                Check = check, Description = "bounty encounter", AppearAtOnce = true });
         }
     }
 }

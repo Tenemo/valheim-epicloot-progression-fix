@@ -45,7 +45,9 @@ namespace EpicLootProgressionFix
             internal Character Parent;
             internal string Description;
             // A player's summon always appears: when nothing nearby is clear it takes the best supported spot, or its own.
-            internal bool Closed, Resolving, Failed, Discard, Reported, Summon, OutdoorEncounter;
+            // A bounty's creatures always appear too, and a player is on the way: waiting for space only hid them while the
+            // player arrived, so they take that same end-of-wait spot at once.
+            internal bool Closed, Resolving, Failed, Discard, Reported, Summon, OutdoorEncounter, AppearAtOnce;
             internal float NextAttempt;
             internal readonly List<Entry> Entries = new();
         }
@@ -344,7 +346,7 @@ namespace EpicLootProgressionFix
                     }
                     // A spawn with nowhere to go at the end of its wait no longer holds its spawner: a wild creature is removed
                     // and anything else appears crowded, as a summon does at once.
-                    bool last = !found && !scope.Summon && !scope.Discard && !scope.OutdoorEncounter && entry.TimedOut;
+                    bool last = !found && !scope.Summon && !scope.Discard && !scope.OutdoorEncounter && (entry.TimedOut || scope.AppearAtOnce);
                     if (last)
                     {
                         entry.Origin = OutOfFloor(entry.Origin);
