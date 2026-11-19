@@ -1,3 +1,19 @@
+# 1.35.0
+
+- Fog thins high above the ground: from 40 m above the land, buildings or sea below, it fades towards the clear weather's fog, which it reaches at 200 m, so you can see the ground while flying or standing high above a foggy swamp.
+- Raising your guard no longer cancels a staff's spell, so Staff of Protection no longer takes its health without forming its bubble.
+- Your summons count only against your own limit, so other players' summons nearby never stop your cast. Staff of the Wild keeps 4 roots per player, and 1 more per upgrade; casting past that removes your oldest root.
+- Using a Forsaken power again while it is still active plays its activation and message again.
+- A night that ends while you are still lying down no longer leaves your character lying on the bed after you wake.
+- The fanfare for a completed bounty or a new biome plays from its start during a Staff of Fracturing barrage.
+- The Wisp clears mist ahead of you sooner when you run faster than an ordinary sprint.
+- Accepting a bounty or buying a treasure map takes about half a second less on a large world.
+- Buying a treasure map no longer shows "Preparing Treasure Map...".
+- An accepted bounty shows under Active at once, without reopening the trader.
+- Jotunn's Blood pieces are marked with the rune Wunjo, and Sif's Bounty pieces with Jera; a set this mod doesn't know is marked with a cross.
+- An open wardrobe and large herds of tames cost less time each frame.
+- StarLevelSystem 1.34.0 is supported. A supported mod installed at an untested version now stops Progression Fix with an error naming it, instead of switching its integration off.
+
 # 1.34.0
 
 - The Jump skill raises the height you can fall without taking damage, from 4 m untrained to 8 m at level 100, and skill level bonuses count. The Jump skill's tooltip shows the height.
