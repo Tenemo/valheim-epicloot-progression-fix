@@ -34,7 +34,7 @@ namespace EpicLootProgressionFix
         private const string UnknownSet = "M4.5,1 L4.5,13 M1,7 L8,7";
         private static readonly Dictionary<string, string> Strokes = new Dictionary<string, string>
         {
-            ["Sif"] = "M2,14 L2,0 L7,3.5 L2,7", // Wunjo, the joy of a full house
+            ["Sif"] = "M4.5,1.5 L1,5 L4.5,8.5 M4.5,5.5 L8,9 L4.5,12.5", // Jera, the year's harvest
             ["Heimdall"] = "M1,0 L1,14 M8,0 L8,14 M1,5 L8,9", // Hagalaz
             ["Heidr"] = "M3,0 L3,14 M3,0 L8,4 M3,4.5 L8,8.5", // Ansuz, the god's word
             ["Hel"] = "M4.5,0 L4.5,14 M4.5,0 L8,3.5 M4.5,14 L1,10.5", // Eihwaz, the yew of death and rebirth
@@ -50,7 +50,7 @@ namespace EpicLootProgressionFix
             ["Fylgja"] = "M4.5,14 L4.5,0 M4.5,6 L0.5,1 M4.5,6 L8.5,1", // Algiz, the guardian spirit
             ["Surtr"] = "M7.5,2 L2,7 L7.5,12", // Kaunan, the torch
             ["Svalinn"] = "M7,0.5 L2,5 L7,9 L2,13.5", // Sowilo, the sun Svalinn shields
-            ["GiantsBlood"] = "M4.5,1.5 L1,5 L4.5,8.5 M4.5,5.5 L8,9 L4.5,12.5", // Jera, for Jotunn
+            ["GiantsBlood"] = "M2,14 L2,0 L7,3.5 L2,7", // Wunjo, the giant's joy in his strength
             ["Jormungandr"] = "M4.5,2.5 L8.5,7 L4.5,11.5 L0.5,7 L4.5,2.5", // Ingwaz, the closed ring
             ["Ragnar"] = "M2,14 L2,0 L7.5,3.5 L2,7 L7.5,14", // Raido
             ["Gullveig"] = "M1,1 L8,13 M8,1 L1,13", // Gebo
