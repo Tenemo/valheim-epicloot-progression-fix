@@ -28,6 +28,8 @@ namespace EpicLootProgressionFix
             internal Vector3 From, To;
             internal Quaternion Rotation;
             internal Vector2s Zone;
+            // How far from its arrival point the player may stand while the doorway is in use.
+            internal float Reach;
         }
         private sealed class Target
         {
@@ -197,6 +199,23 @@ namespace EpicLootProgressionFix
             return matrix;
         }
         private static Vector3 DoorPoint(Matrix4x4 matrix, Quaternion rotation) => (Vector3)matrix.GetColumn(3) + rotation * (Vector3.forward - Vector3.up);
+        // A doorway is used wherever its colliders are: the Winding tunnels' exit trigger and prompt sit at the tunnel mouth,
+        // about 11 m from the doorway's own arrival point.
+        private static float DoorReach(Teleport door)
+        {
+            var departure = door.transform.position + door.transform.forward - door.transform.up;
+            float reach = 0f;
+            foreach (var shape in door.GetComponentsInChildren<Collider>(true))
+            {
+                Vector3 center = Vector3.zero, size = Vector3.zero;
+                if (shape is BoxCollider box) { center = box.center; size = box.size; }
+                else if (shape is SphereCollider sphere) { center = sphere.center; size = Vector3.one * sphere.radius * 2f; }
+                else if (shape is CapsuleCollider capsule) { center = capsule.center; size = Vector3.one * Mathf.Max(capsule.height, capsule.radius * 2f); }
+                else if (shape is MeshCollider mesh && mesh.sharedMesh) { center = mesh.sharedMesh.bounds.center; size = mesh.sharedMesh.bounds.size; }
+                reach = Mathf.Max(reach, Vector3.Distance(departure, shape.transform.TransformPoint(center)) + Vector3.Scale(size, shape.transform.lossyScale).magnitude / 2f);
+            }
+            return DoorRange + reach;
+        }
         private static bool ReadRoute(ZDOID proxyId, int doorIndex, out Route route)
         {
             route = null;
@@ -219,7 +238,7 @@ namespace EpicLootProgressionFix
                 var zone = ZoneSystem.GetZone(proxy.GetPosition());
                 if (departure.y > DungeonInteriors.InteriorHeight && StarLevelSystem.Installed) DungeonInteriors.LocateInterior(zone, proxy, location);
                 route = new Route { Proxy = proxyId, Door = doorIndex, Target = target, From = departure, To = destination,
-                    Rotation = toRotation, Zone = zone };
+                    Rotation = toRotation, Zone = zone, Reach = DoorReach(doors[doorIndex]) };
                 return true;
             }
             finally { location.m_prefab.Release(); }
@@ -310,7 +329,7 @@ namespace EpicLootProgressionFix
                     var revisions = new Dictionary<ZDOID, uint>();
                     for (int index = 0; index < count; index++) revisions[packet.ReadZDOID()] = packet.ReadUInt();
                     var actor = peer == null ? GameFields.CharacterView(Player.m_localPlayer)?.GetZDO() : ZDOMan.instance.GetZDO(peer.m_characterID);
-                    if (!Alive(actor) || actor.GetLong(ZDOVars.s_playerID) == 0 || actor.GetOwner() != sender || !Finite(actor.GetPosition()) || !ReadRoute(proxy, door, out var route) || Vector3.Distance(actor.GetPosition(), route.From) > DoorRange) return;
+                    if (!Alive(actor) || actor.GetLong(ZDOVars.s_playerID) == 0 || actor.GetOwner() != sender || !Finite(actor.GetPosition()) || !ReadRoute(proxy, door, out var route) || Vector3.Distance(actor.GetPosition(), route.From) > route.Reach) return;
                     LastRequests[sender] = request;
                     var trip = new Trip { Token = ++tokenSequence, Request = request, Actor = actor.m_uid, Peer = sender,
                         Player = actor.GetLong(ZDOVars.s_playerID), Name = peer?.m_playerName ?? Player.m_localPlayer.GetPlayerName(), Route = route,
@@ -396,7 +415,7 @@ namespace EpicLootProgressionFix
                     long request = packet.ReadLong();
                     if (local == null || local.Request != request || !Player.m_localPlayer || Player.m_localPlayer.GetZDOID() != local.Actor) return;
                     local.Token = token; local.Entered = true;
-                    if (!local.Door || Vector3.Distance(Player.m_localPlayer.transform.position, local.Route.From) > DoorRange) { CancelLocal(); return; }
+                    if (!local.Door || Vector3.Distance(Player.m_localPlayer.transform.position, local.Route.From) > local.Route.Reach) { CancelLocal(); return; }
                     replaying = true;
                     try { if (!InContext(token, () => local.Door.Interact(Player.m_localPlayer, false, false))) CancelLocal(); }
                     finally { replaying = false; }
@@ -564,7 +583,7 @@ namespace EpicLootProgressionFix
                 if (Time.realtimeSinceStartup > local.Expires && player && !player.IsDead() && !local.Started)
                     player.Message(MessageHud.MessageType.Center, "Could not enter the dungeon. Try again.");
                 if (!player || player.IsDead() || player.GetZDOID() != local.Actor || Time.realtimeSinceStartup > local.Expires ||
-                    !local.Entered && Vector3.Distance(player.transform.position, local.Route.From) > DoorRange ||
+                    !local.Entered && Vector3.Distance(player.transform.position, local.Route.From) > local.Route.Reach ||
                     !ZNet.instance.IsServer() && ZNet.instance.GetServerPeer() == null) CancelLocal();
                 else if (local.Ended)
                 {
@@ -592,7 +611,7 @@ namespace EpicLootProgressionFix
                     if (!Alive(actor) || actor.GetOwner() != trip.Peer || peer != null && (!peer.IsReady() || peer.m_characterID != trip.Actor) ||
                         peer == null && trip.Peer != ZDOMan.GetSessionID() || Time.realtimeSinceStartup > trip.Expires)
                     { End(trip, trip.Arrived); continue; }
-                    if (!trip.Entered && Vector3.Distance(actor.GetPosition(), trip.Route.From) > DoorRange) { End(trip, false); continue; }
+                    if (!trip.Entered && Vector3.Distance(actor.GetPosition(), trip.Route.From) > trip.Route.Reach) { End(trip, false); continue; }
                     if (trip.ArrivalReported && Vector3.Distance(actor.GetPosition(), trip.Route.To) <= ArrivalRange) trip.Arrived = true;
                     foreach (var target in trip.Targets.Where(value => value.Result == Result.Pending))
                     {
