@@ -16,6 +16,7 @@ namespace EpicLootProgressionFix
             private static readonly Dictionary<int, NativeClockKeys> catalog = new();
             private static readonly HashSet<int> watched = new();
             private static readonly HashSet<ZDOID> active = new(), dirty = new(), changedDuringSleep = new();
+            private static readonly Func<ZDO, bool> IsSaveClone = AccessTools.MethodDelegate<Func<ZDO, bool>>(AccessTools.PropertyGetter(typeof(ZDO), "SaveClone"));
             private static Dictionary<ZDOID, BinarySearchDictionary<int, long>> longs;
             private static Dictionary<ZDOID, BinarySearchDictionary<int, float>> floats;
             private static ZDOMan world;
@@ -85,7 +86,12 @@ namespace EpicLootProgressionFix
                 if (longs != null && (active.Contains(__instance.m_uid) || catalog.ContainsKey(__instance.GetPrefab())))
                     dirty.Add(__instance.m_uid);
             }
-            private static void Removed(ZDO __instance) => active.Remove(__instance.m_uid);
+            // A world save copies every object in a changed chunk and resets the copies on its save thread when it ends. The
+            // copies keep the live objects' ids, so only a live object's own reset removes it.
+            private static void Removed(ZDO __instance)
+            {
+                if (!IsSaveClone(__instance)) active.Remove(__instance.m_uid);
+            }
 
             // A settled clock can be removed or refreshed during sleep. Enroll what existed
             // before the first change so the native wake rule can still write the cycle marker.
