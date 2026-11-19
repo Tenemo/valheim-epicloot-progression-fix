@@ -1,3 +1,8 @@
+# 1.33.2
+
+- Sleeping and waking on a dedicated server pause the game for less time on large worlds.
+- Collecting honey or feathers from several hives or nests takes less time.
+
 # 1.33.1
 
 - Accepting a bounty from Haldor takes a moment again instead of several seconds on a large world.

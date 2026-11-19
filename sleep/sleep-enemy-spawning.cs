@@ -56,6 +56,7 @@ namespace EpicLootProgressionFix
 
         private static partial void InitializeSpawning(IntegrationPatches patches)
         {
+            ActiveSpawnClocks.Install(patches);
             InitializeNativeSpawnRoutes(patches);
             InitializeModSpawning(patches);
             patches.Patch(AccessTools.Method(typeof(SpawnSystem), "UpdateSpawnList"),
@@ -113,9 +114,11 @@ namespace EpicLootProgressionFix
                 if (EnemySpawn(spawners[index])) Limit(keys.Ticks, (salt + spawners[index].m_prefab.name + (index + 1)).GetStableHashCode(), SpawnLimit(spawners[index]));
         }
 
-        private static void CatalogNativeClocks()
+        private static void CatalogNativeClocks() => BuildClockCatalog(NativeClocks);
+
+        private static void BuildClockCatalog(Dictionary<int, NativeClockKeys> catalog)
         {
-            NativeClocks.Clear();
+            catalog.Clear();
             if (!ZNetScene.instance) return;
             pheromoneMost = ObjectDB.instance
                 ? ObjectDB.instance.m_StatusEffects.OfType<SE_Stats>().Where(effect => effect.m_pheromoneTarget != null && !effect.m_pheromoneFlee)
@@ -159,12 +162,15 @@ namespace EpicLootProgressionFix
                     var tameable = prefab.GetComponent<Tameable>();
                     if (tameable) Limit(keys.Ticks, ZDOVars.s_tameLastFeeding, Math.Max(0d, tameable.m_fedDuration));
                 }
-                if (keys.Ticks.Count > 0 || keys.Seconds.Count > 0) NativeClocks.Add(entry.Key, keys);
+                if (keys.Ticks.Count > 0 || keys.Seconds.Count > 0) catalog.Add(entry.Key, keys);
             }
         }
 
         private static bool ClockOwner(ZDO data, out NativeClockKeys keys) =>
-            NativeClocks.TryGetValue(data.GetPrefab(), out keys) &&
+            ClockOwner(data, NativeClocks, out keys);
+
+        private static bool ClockOwner(ZDO data, Dictionary<int, NativeClockKeys> catalog, out NativeClockKeys keys) =>
+            catalog.TryGetValue(data.GetPrefab(), out keys) &&
             !(keys.Character && (data.GetBool(ZDOVars.s_tamed) || keys.Neutral && !data.GetBool(ZDOVars.s_aggravated)));
 
         private static void RememberEntityClocks(ZDO data)
@@ -224,7 +230,7 @@ namespace EpicLootProgressionFix
             CatalogNativeClocks();
             storedLongs = (Dictionary<ZDOID, BinarySearchDictionary<int, long>>)StoredLongsField.GetValue(null);
             storedFloats = (Dictionary<ZDOID, BinarySearchDictionary<int, float>>)StoredFloatsField.GetValue(null);
-            RememberWorldClocks();
+            if (!ActiveSpawnClocks.Select()) RememberWorldClocks();
             foreach (var system in Loaded<SpawnSystem>())
             {
                 foreach (var list in system.m_spawnLists) RememberClocks(system, list.m_spawners, "b_");
@@ -238,6 +244,7 @@ namespace EpicLootProgressionFix
         private static partial void ResumeSpawning(long sleepCycle, long started, long stopped)
         {
             if (!spawningSuspended) return;
+            ActiveSpawnClocks.Finish(started, stopped);
             long elapsed = Math.Max(0L, stopped - started);
             var adjusted = new HashSet<ZDO>();
             long Remaining(ZDO data) => Math.Max(0L, stopped - Math.Max(started,
