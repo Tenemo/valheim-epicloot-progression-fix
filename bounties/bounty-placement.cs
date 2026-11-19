@@ -112,11 +112,11 @@ namespace EpicLootProgressionFix
             return false;
         }
 
-        // EpicLoot's SpawnTreasureChest with the spot chosen here. Haldor takes the coins only when the callback reports success.
+        // EpicLoot's SpawnTreasureChest with the spot chosen here and without its preparing message. Haldor takes the coins only
+        // when the callback reports success.
         private static IEnumerator PlaceTreasure(TreasureMapsAdventureFeature feature, Heightmap.Biome biome, Player player, int price,
             Action<int, bool, Vector3> callback)
         {
-            player.Message(MessageHud.MessageType.Center, "$mod_epicloot_treasuremap_locatingmsg");
             var saveData = player.GetAdventureSaveData();
             var spots = new List<Vector2>();
             yield return CollectSpots(saveData, spots, "treasure chest");
