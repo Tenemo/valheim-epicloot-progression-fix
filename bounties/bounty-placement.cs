@@ -165,6 +165,10 @@ namespace EpicLootProgressionFix
                 ReportPlaced(point);
             }
             callback?.Invoke(found, point);
+            // EpicLoot's callback redraws only the Available list, so the accepted bounty showed under Active only once the
+            // trader was opened again. Claiming and abandoning redraw every list; so does an accept now.
+            var panel = found && StoreGui.IsVisible() ? MerchantPanel.Instance : null;
+            if (panel) panel.RefreshAll();
         }
 
         // This player's own open bounties and unfound treasure, which a slow reply cannot hide, then everyone's from the server.
