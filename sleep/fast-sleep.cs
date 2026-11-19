@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Reflection.Emit;
 using HarmonyLib;
 using UnityEngine;
 
@@ -20,6 +22,9 @@ namespace EpicLootProgressionFix
     //   passes it stays on the clock, behind the black screen.
     // The sleep screen starts a dream cinematic and the unused-asset unload once it is black, where the game waited 4 and 5
     // seconds, and its ZZZ fades out before waking. A dream text would have under a second to show, so it stays hidden.
+    // The model gets up only from the looping sleep pose, and lying down takes about 2.7 seconds, so a night that begins as
+    // the player lies down, as LetMeSleep's begins for its last sleeper, would end before it: the player left the bed while
+    // the model stayed lying. The player then wakes, behind the black screen, once the model lies in the looping pose.
     internal static class FastSleep
     {
         internal const float FadeSeconds = .5f;
@@ -59,7 +64,8 @@ namespace EpicLootProgressionFix
             patches.Patch(AccessTools.Method(typeof(EnvMan), "UpdateTimeSkip"), prefix: new HarmonyMethod(typeof(FastSleep), nameof(Skip)));
             patches.Patch(AccessTools.Method(typeof(EnvMan), "FixedUpdate"), prefix: new HarmonyMethod(typeof(FastSleep), nameof(FollowNight)));
             patches.Patch(AccessTools.Method(typeof(Game), "SleepStart"), postfix: new HarmonyMethod(typeof(FastSleep), nameof(Slept)));
-            patches.Patch(AccessTools.Method(typeof(Game), "SleepStop"), prefix: new HarmonyMethod(typeof(FastSleep), nameof(Waking)), postfix: new HarmonyMethod(typeof(FastSleep), nameof(Woke)));
+            patches.Patch(AccessTools.Method(typeof(Game), "SleepStop"), prefix: new HarmonyMethod(typeof(FastSleep), nameof(Waking)), postfix: new HarmonyMethod(typeof(FastSleep), nameof(Woke)),
+                transpiler: new HarmonyMethod(typeof(FastSleep), nameof(WakeLyingDown)));
             patches.Patch(AccessTools.Method(typeof(Hud), "GetFadeDuration"), postfix: new HarmonyMethod(typeof(FastSleep), nameof(Fade)));
             patches.Patch(AccessTools.Method(typeof(Hud), "UpdateBlackScreen"), postfix: new HarmonyMethod(typeof(FastSleep), nameof(ScreenUpdated)));
             patches.Patch(AccessTools.Method(typeof(SleepText), "OnEnable"), postfix: new HarmonyMethod(typeof(FastSleep), nameof(SleepScreen)));
@@ -76,6 +82,7 @@ namespace EpicLootProgressionFix
             nightStarted = nightEnded = long.MaxValue;
             skipTo = double.NaN;
             asleep = waking = false;
+            lyingDown = null;
             SpawnsChecked.Clear();
         }
 
@@ -233,8 +240,65 @@ namespace EpicLootProgressionFix
             if (player.IsSleeping() || waking) __result = FadeSeconds;
         }
 
+        private static readonly AccessTools.FieldRef<Character, Animator> Animator = AccessTools.FieldRefAccess<Character, Animator>("m_animator");
+        // Lying down takes about 2.7 seconds; a model that never reaches the looping pose does not hold the wake longer.
+        private const float LyingDownLimit = 3f;
+        private static Player lyingDown;
+        private static float lyingDownSince;
+
+        // The game's wake sets the player awake and takes them out of bed; both go through here.
+        private static IEnumerable<CodeInstruction> WakeLyingDown(IEnumerable<CodeInstruction> instructions)
+        {
+            var code = instructions.ToList();
+            var setSleeping = AccessTools.Method(typeof(Player), nameof(Player.SetSleeping));
+            // Player overrides AttachStop, so the game calls the character's virtual method.
+            var attachStop = AccessTools.Method(typeof(Character), nameof(Character.AttachStop));
+            var wakes = code.Where(instruction => instruction.Calls(setSleeping)).ToArray();
+            var leaves = code.Where(instruction => instruction.Calls(attachStop)).ToArray();
+            if (wakes.Length != 1 || leaves.Length != 1) throw new InvalidOperationException("The game's wake-up changed.");
+            wakes[0].opcode = leaves[0].opcode = OpCodes.Call;
+            wakes[0].operand = AccessTools.Method(typeof(FastSleep), nameof(SetAwake));
+            leaves[0].operand = AccessTools.Method(typeof(FastSleep), nameof(LeaveBed));
+            return code;
+        }
+
+        private static bool StillLyingDown(Player player)
+        {
+            if (!player.InBed() || !player.IsAttached()) return false;
+            var animator = Animator(player);
+            return animator && animator.isActiveAndEnabled && (animator.IsInTransition(0) || !animator.GetCurrentAnimatorStateInfo(0).loop);
+        }
+
+        private static void SetAwake(Player player, bool sleep)
+        {
+            if (!sleep && player == Player.m_localPlayer && StillLyingDown(player))
+            {
+                lyingDown = player;
+                lyingDownSince = Time.unscaledTime;
+                return;
+            }
+            player.SetSleeping(sleep);
+        }
+
+        private static void LeaveBed(Character character)
+        {
+            if (character != lyingDown) character.AttachStop();
+        }
+
         private static void ScreenUpdated(Player player, CanvasGroup ___m_loadingScreen)
         {
+            if (lyingDown && (lyingDown != player || !StillLyingDown(lyingDown) || Time.unscaledTime - lyingDownSince >= LyingDownLimit))
+            {
+                var sleeper = lyingDown;
+                lyingDown = null;
+                if (sleeper && sleeper.IsSleeping())
+                {
+                    sleeper.SetSleeping(false);
+                    sleeper.AttachStop();
+                    waking = !sleeper.IsDead() && !sleeper.IsTeleporting();
+                }
+            }
+            else if (lyingDown) return;
             if (waking && (!player || player.IsDead() || player.IsTeleporting() || player.IsSleeping() || ___m_loadingScreen.alpha <= 0f)) waking = false;
         }
 
