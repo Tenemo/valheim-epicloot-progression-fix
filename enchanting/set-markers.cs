@@ -26,13 +26,15 @@ namespace EpicLootProgressionFix
 
     // Every set marks its pieces with its own Elder Futhark rune in the bottom-right corner of the slot, in place of the cross
     // all sets shared, so the bag, chests and the enchanting table's lists show which set a piece belongs to. The rune takes
-    // EpicLoot's set item colour with a dark grey edge. A set this table doesn't know gets Wunjo, the one rune no set uses.
+    // EpicLoot's set item colour with a dark grey edge. Every rune of the Elder Futhark now marks a set, so a set this table
+    // doesn't know gets a plain cross, which is no rune.
     internal static class SetRunes
     {
         // Strokes on a grid 9 wide and 14 high with y down, one rune per set, picked by the set's initial or its meaning.
-        private const string Wunjo = "M2,14 L2,0 L7,3.5 L2,7";
+        private const string UnknownSet = "M4.5,1 L4.5,13 M1,7 L8,7";
         private static readonly Dictionary<string, string> Strokes = new Dictionary<string, string>
         {
+            ["Sif"] = "M2,14 L2,0 L7,3.5 L2,7", // Wunjo, the joy of a full house
             ["Heimdall"] = "M1,0 L1,14 M8,0 L8,14 M1,5 L8,9", // Hagalaz
             ["Heidr"] = "M3,0 L3,14 M3,0 L8,4 M3,4.5 L8,8.5", // Ansuz, the god's word
             ["Hel"] = "M4.5,0 L4.5,14 M4.5,0 L8,3.5 M4.5,14 L1,10.5", // Eihwaz, the yew of death and rebirth
@@ -74,7 +76,7 @@ namespace EpicLootProgressionFix
             var key = (set, colour);
             if (Sprites.TryGetValue(key, out var sprite)) return sprite;
             var tint = ColorUtility.TryParseHtmlString(colour, out var parsed) ? parsed : Color.white;
-            return Sprites[key] = Draw("SetRune" + set, Strokes.TryGetValue(set, out var strokes) ? strokes : Wunjo, tint);
+            return Sprites[key] = Draw("SetRune" + set, Strokes.TryGetValue(set, out var strokes) ? strokes : UnknownSet, tint);
         }
 
         // Fills the bottom-right corner of the marker's parent; the edge reaches past the rune's own box.
