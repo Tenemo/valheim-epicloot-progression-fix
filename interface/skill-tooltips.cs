@@ -320,7 +320,8 @@ namespace EpicLootProgressionFix
                     var jump = Vector3.up * player.m_jumpForce * (1f + .4f * factor); effects.ApplyStatusEffectJumpMods(ref jump);
                     if (MagicItem.ShowEffectDetails) Add("Current upward jump speed", jump.y, " m/s");
                     float jumpCost = player.m_jumpStaminaUsage - player.m_jumpStaminaUsage * movement + player.m_jumpStaminaUsage * player.GetEquipmentJumpStaminaModifier();
-                    effects.ModifyJumpStaminaUsage(jumpCost, ref jumpCost); Add("Current jump stamina", jumpCost * MoveStamina, " per jump"); break;
+                    effects.ModifyJumpStaminaUsage(jumpCost, ref jumpCost); Add("Current jump stamina", jumpCost * MoveStamina, " per jump");
+                    Add("Fall without damage up to", JumpFallHeight.SafeHeight(player), " m"); break;
                 case Skills.SkillType.Swim:
                     rows.Add(Value("Swim speed from skill", Multiplier(1f + .25f * factor)));
                     float swimSpeed = SwimSpeed.WithSkill(player), swimTimer = SwimTimer(player);
