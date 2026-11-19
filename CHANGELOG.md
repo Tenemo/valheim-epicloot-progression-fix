@@ -1,3 +1,14 @@
+# 1.34.0
+
+- The Jump skill raises the height you can fall without taking damage, from 4 m untrained to 8 m at level 100, and skill level bonuses count. The Jump skill's tooltip shows the height.
+- Treasure maps bought from Haldor spread out like bounties: each is placed at least 300 m from every open bounty and unopened treasure, so chests no longer pile onto the same few spots.
+- The chest search field has an X button that empties the search.
+- A hotbar item pressed during an attack or cast comes out once it ends, a tool pressed just after a staff or weapon is no longer replaced by it, and jumping or dodging no longer cancels an equip you pressed.
+- A bounty's target and escorts appear at once when their spot is cramped, instead of staying invisible for 10 seconds while you arrive.
+- With tames or summons following you, the Winding tunnels' exit takes you out again, whether you walk out or press Use, and they come with you.
+- On a dedicated server, a night's sleep soon after a world save no longer lets enemies respawn early, or eggs and young creatures skip the night, in places nobody is near.
+- A shield, fire or ice staff, Skoll and Hati, Skullsplittur or the grappling hook taken out in the Jotun Witch form no longer stays in your hand after the form ends.
+
 # 1.33.2
 
 - Sleeping and waking on a dedicated server pause the game for less time on large worlds.
