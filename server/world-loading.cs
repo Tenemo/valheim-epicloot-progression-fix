@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
@@ -252,25 +253,66 @@ namespace EpicLootProgressionFix
                     AccessTools.Method(typeof(WorldLoading), nameof(FindSurfaceReadyObjects)), 1, "EpicLoot's adventure area search changed.");
         }
 
+        // EpicLoot also waits for every object in the 3x3 zones around the circle, up to 128 m from its centre, though it searches
+        // only within 80% of the circle's radius. Someone travelling fast kept loading new zones beyond the circle, so a bounty
+        // still waited seconds after they had passed over it. Only objects within reach of the search hold it now, and wards,
+        // whose protected areas EpicLoot keeps a target out of.
+        [HarmonyPatch]
+        private static class AdventureReach
+        {
+            private static IEnumerable<MethodBase> TargetMethods()
+            {
+                var controller = typeof(EpicLoot.EpicLoot).Assembly.GetType("EpicLoot.Adventure.AdventureSpawnController", true);
+                yield return AccessTools.Method(controller, "IsAreaSettled");
+                yield return AccessTools.Method(controller, "IsCandidateZoneReady");
+            }
+
+            private static void Prefix(MonoBehaviour __instance, object[] __args) =>
+                adventureCentre = __args[0] is Vector3 point ? point : SearchCentre(__instance);
+
+            private static Exception Finalizer(Exception __exception) { adventureCentre = null; return __exception; }
+        }
+
+        private static readonly AccessTools.FieldRef<object, Vector3> SearchCentre = AccessTools.FieldRefAccess<Vector3>(
+            typeof(EpicLoot.EpicLoot).Assembly.GetType("EpicLoot.Adventure.AdventureSpawnController", true), "searchCentre");
+        private static Vector3? adventureCentre;
+        private static HashSet<int> wards;
+
+        // EpicLoot's search radius, then a bounty escort's spread and spawn placement's nearby search, with room for a large body.
+        private static float AdventureSearchReach => EpicLoot.Adventure.MinimapController.AreaRadius * .8f + 16f;
+
         private static void FindSurfaceReadyObjects(ZDOMan manager, Vector2s sector, SimulationDistance distance, List<ZDO> near, List<ZDO> distant)
         {
             FindReadyObjects(manager, sector, distance, near, distant);
             near.RemoveAll(data => data.GetPosition().y > DungeonInteriors.InteriorHeight);
+            if (!(adventureCentre is Vector3 centre)) return;
+            wards ??= new HashSet<int>(ZNetScene.instance.m_prefabs.Where(prefab => prefab.GetComponent<PrivateArea>()).Select(prefab => prefab.name.GetStableHashCode()));
+            float reach = AdventureSearchReach;
+            near.RemoveAll(data => Utils.DistanceXZ(data.GetPosition(), centre) > reach && !wards.Contains(data.GetPrefab()));
         }
 
         private static readonly List<ZDO> PlacementObjects = new List<ZDO>();
 
-        // ZNetScene.IsAreaReady for placing a creature: a point on the ground doesn't wait for a dungeon interior above it.
+        // How far placing a creature looks from its point: the 8 m nearby search, a large body, and the 10 m around a spot kept
+        // clear of player builds. The 3x3 zones around the point reach up to 128 m.
+        private const float PlacementReach = 24f;
+
+        // ZNetScene.IsAreaReady for placing a creature: a point on the ground doesn't wait for a dungeon interior above it, or for
+        // objects beyond the placement's reach, which kept a fast traveller's bounty target hidden for seconds after it spawned.
         internal static bool PlacementReady(Vector3 point)
         {
             if (point.y > DungeonInteriors.InteriorHeight) return ZNetScene.instance.IsAreaReady(point);
             var zone = ZoneSystem.GetZone(point);
-            if (!ZoneSystem.instance.IsZoneLoaded(zone)) return false;
+            // The ground within reach, which can reach into a neighbouring zone.
+            for (int x = -1; x <= 1; x++)
+                for (int z = -1; z <= 1; z++)
+                    if (!ZoneSystem.instance.IsZoneLoaded(ZoneSystem.GetZone(point + new Vector3(x, 0f, z) * PlacementReach))) return false;
             try
             {
                 FindSurfaceReadyObjects(ZDOMan.instance, zone, new SimulationDistance(1, 0), PlacementObjects, null);
                 foreach (var data in PlacementObjects)
-                    if (ZNetScene.instance.GetPrefab(data.GetPrefab()) != null && !ZNetScene.instance.HaveInstance(data)) return false;
+                    if (Utils.DistanceXZ(data.GetPosition(), point) <= PlacementReach &&
+                        ZNetScene.instance.GetPrefab(data.GetPrefab()) != null && !ZNetScene.instance.HaveInstance(data)) return false;
                 return true;
             }
             finally { PlacementObjects.Clear(); }
