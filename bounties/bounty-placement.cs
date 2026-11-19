@@ -25,11 +25,15 @@ namespace EpicLootProgressionFix
         private const float IndexSeconds = 30f;
         private const int ChecksPerFrame = 64;
         private const int CellsPerFrame = 512;
-        // The campaign's scan takes 60-90 ms in all. A 1 ms share left it waiting on dozens of the server's frames, 3.5-4.4 s
-        // for every accepted bounty; this share finishes it in a few frames without one long stall.
+        // The campaign's scan takes about 100 ms in all, a few frames at this share without one long stall. Walking every world
+        // object for each request still kept players waiting a third of a second on the server's frames, so a request is
+        // answered from the last scan at once and starts the next one.
         private const long ScanMillisecondsPerFrame = 10;
+        // How long a newly placed bounty's or map's spawner may take to reach the server, after which a scan sees it.
+        private const float PlacedSeconds = 10f;
         private const string RequestRpc = Plugin.Id + ".bounty-spots";
         private const string ReplyRpc = Plugin.Id + ".bounty-spots-reply";
+        private const string PlacedRpc = Plugin.Id + ".bounty-spot-placed";
         private static readonly int SpawnerPrefab = "EL_SpawnController".GetStableHashCode();
         private static readonly int ChestPrefab = "loot_chest_stone".GetStableHashCode();
         private static readonly int ChestBiomeKey = "TreasureMapChest.Biome".GetStableHashCode();
@@ -37,6 +41,10 @@ namespace EpicLootProgressionFix
             AccessTools.FieldRefAccess<ZDOMan, List<ZDO>[]>("m_objectsBySector");
         private static ZNet scanningWorld;
         private static List<Action<List<Vector2>>> waiting;
+        // The objects the last scan found as open spots, read again for each reply, and the spots players placed since.
+        private static ZNet knownWorld, placedWorld;
+        private static List<KeyValuePair<ZDOID, ZDO>> known;
+        private static readonly List<KeyValuePair<Vector2, float>> placed = new List<KeyValuePair<Vector2, float>>();
         private static readonly Dictionary<int, List<Vector2>> replies = new Dictionary<int, List<Vector2>>();
         private static int lastRequest;
         private static HashSet<int> creatures;
@@ -120,7 +128,11 @@ namespace EpicLootProgressionFix
                 log.LogWarning($"No suitable {biome} spot in its band; EpicLoot places this treasure chest without keeping it clear of others.");
                 yield return epicLootSearch(biome, saveData, (success, chosen) => { found = success; point = chosen; });
             }
-            if (found && createTreasure(feature, biome, point, saveData)) callback?.Invoke(price, true, point);
+            if (found && createTreasure(feature, biome, point, saveData))
+            {
+                ReportPlaced(point);
+                callback?.Invoke(price, true, point);
+            }
             else callback?.Invoke(0, false, Vector3.zero);
         }
 
@@ -150,6 +162,7 @@ namespace EpicLootProgressionFix
                 saveData.NumberOfTreasureMapsOrBountiesStarted++;
                 player.SaveAdventureSaveData();
                 spawn(bounty, point, Vector3.zero);
+                ReportPlaced(point);
             }
             callback?.Invoke(found, point);
         }
@@ -312,11 +325,31 @@ namespace EpicLootProgressionFix
 
         private static void Register(ZNet __instance, ZNetPeer peer)
         {
-            if (__instance.IsServer()) peer.m_rpc.Register<int>(RequestRpc, (rpc, id) =>
+            if (__instance.IsServer())
             {
-                if (peer.IsReady()) RequestSpots(result => { if (rpc.IsConnected()) rpc.Invoke(ReplyRpc, id, Pack(result)); });
-            });
+                peer.m_rpc.Register<int>(RequestRpc, (rpc, id) =>
+                {
+                    if (peer.IsReady()) RequestSpots(result => { if (rpc.IsConnected()) rpc.Invoke(ReplyRpc, id, Pack(result)); });
+                });
+                peer.m_rpc.Register<Vector3>(PlacedRpc, (rpc, point) => { if (peer.IsReady()) Placed(point); });
+                // The first player to join starts the first scan, so even the first bounty is answered at once.
+                if (knownWorld != __instance) Scan(null);
+            }
             else peer.m_rpc.Register<int, ZPackage>(ReplyRpc, Receive);
+        }
+
+        // Tells the server about a spot just placed, which its next reply includes until a scan has had time to see it.
+        private static void ReportPlaced(Vector3 point)
+        {
+            if (ZNet.instance.IsServer()) Placed(point);
+            else ZNet.instance.GetServerPeer()?.m_rpc.Invoke(PlacedRpc, point);
+        }
+
+        private static void Placed(Vector3 point)
+        {
+            if (placedWorld != ZNet.instance) placed.Clear();
+            placedWorld = ZNet.instance;
+            placed.Add(new KeyValuePair<Vector2, float>(Flat(point), Time.realtimeSinceStartup));
         }
 
         private static void Receive(ZRpc rpc, int id, ZPackage package)
@@ -341,53 +374,89 @@ namespace EpicLootProgressionFix
         }
 
         // Spawners still waiting for a player, living bounty creatures with their bounty's own spot, and unopened treasure chests,
-        // which EpicLoot removes once emptied.
+        // which EpicLoot removes once emptied. Answered from the last scan, which may miss only objects that appeared some other
+        // way since; the scan this request starts finds those for the next one.
         private static void RequestSpots(Action<List<Vector2>> reply)
         {
-            if (waiting != null && scanningWorld == ZNet.instance) { waiting.Add(reply); return; }
+            if (knownWorld == ZNet.instance && known != null)
+            {
+                reply(Current());
+                Scan(null);
+            }
+            else Scan(reply);
+        }
+
+        private static void Scan(Action<List<Vector2>> reply)
+        {
+            if (waiting != null && scanningWorld == ZNet.instance) { if (reply != null) waiting.Add(reply); return; }
             scanningWorld = ZNet.instance;
-            waiting = new List<Action<List<Vector2>>> { reply };
+            waiting = new List<Action<List<Vector2>>>();
+            if (reply != null) waiting.Add(reply);
             scanningWorld.StartCoroutine(WorldSpots(waiting));
+        }
+
+        private static List<Vector2> Current()
+        {
+            var spots = new List<Vector2>();
+            var bounties = new HashSet<string>();
+            // A destroyed object goes back to the game's pool and may come back as another one.
+            foreach (var entry in known) if (entry.Value.m_uid == entry.Key) AddSpots(entry.Value, spots, bounties);
+            if (placedWorld == ZNet.instance) spots.AddRange(placed.Select(entry => entry.Key));
+            return spots;
         }
 
         private static IEnumerator WorldSpots(List<Action<List<Vector2>>> callbacks)
         {
             var watch = Stopwatch.StartNew();
+            float started = Time.realtimeSinceStartup;
             creatures ??= new HashSet<int>(ZNetScene.instance.m_prefabs.Where(prefab => prefab.GetComponent<Character>()).Select(prefab => prefab.name.GetStableHashCode()));
+            var found = new List<KeyValuePair<ZDOID, ZDO>>();
             var spots = new List<Vector2>();
             var bounties = new HashSet<string>();
             // Requests that arrive together share the scan, including in a nearly empty world.
             yield return null;
             var frame = Stopwatch.StartNew();
             // A scan that fails still answers everyone waiting on it with the spots it found, and the next request scans again.
+            bool complete = false;
             try
             {
                 foreach (var sector in Sectors(ZDOMan.instance))
                 {
                     if (frame.ElapsedMilliseconds >= ScanMillisecondsPerFrame) { yield return null; frame.Restart(); }
                     if (sector == null) continue;
-                    foreach (var zdo in sector) AddSpot(zdo);
+                    foreach (var zdo in sector)
+                        if (AddSpots(zdo, spots, bounties)) found.Add(new KeyValuePair<ZDOID, ZDO>(zdo.m_uid, zdo));
                 }
+                complete = true;
             }
             finally
             {
                 if (waiting == callbacks) waiting = null;
-                foreach (var callback in callbacks) callback(spots);
-            }
-            log.LogInfo($"Reported {spots.Count} open bounty and treasure spots in {watch.ElapsedMilliseconds} ms.");
-
-            void AddSpot(ZDO zdo)
-            {
-                int prefab = zdo.GetPrefab();
-                if (prefab == SpawnerPrefab || prefab == ChestPrefab && zdo.GetString(ChestBiomeKey).Length > 0) spots.Add(Flat(zdo.GetPosition()));
-                else if (creatures.Contains(prefab))
+                if (complete && scanningWorld == ZNet.instance)
                 {
-                    string id = zdo.GetString(BountyCreature.IdKey);
-                    if (id.Length == 0) return;
-                    spots.Add(Flat(zdo.GetPosition()));
-                    if (bounties.Add(id) && TryReadSpot(zdo, out var spot)) spots.Add(spot);
+                    known = found;
+                    knownWorld = scanningWorld;
+                    placed.RemoveAll(entry => entry.Value < started - PlacedSeconds);
+                    foreach (var callback in callbacks) callback(Current());
                 }
+                else foreach (var callback in callbacks) callback(spots);
             }
+            log.LogInfo($"Found {spots.Count} open bounty and treasure spots in {watch.ElapsedMilliseconds} ms.");
+        }
+
+        private static bool AddSpots(ZDO zdo, List<Vector2> spots, HashSet<string> bounties)
+        {
+            int prefab = zdo.GetPrefab();
+            if (prefab == SpawnerPrefab || prefab == ChestPrefab && zdo.GetString(ChestBiomeKey).Length > 0) spots.Add(Flat(zdo.GetPosition()));
+            else if (creatures.Contains(prefab))
+            {
+                string id = zdo.GetString(BountyCreature.IdKey);
+                if (id.Length == 0) return false;
+                spots.Add(Flat(zdo.GetPosition()));
+                if (bounties.Add(id) && TryReadSpot(zdo, out var spot)) spots.Add(spot);
+            }
+            else return false;
+            return true;
         }
 
         private static bool TryReadSpot(ZDO zdo, out Vector2 spot)
