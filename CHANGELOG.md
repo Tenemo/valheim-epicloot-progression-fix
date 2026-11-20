@@ -5,7 +5,6 @@
 - A following lox, including a Fylgja's Bond lox spirit, waits two of its body lengths away instead of standing on top of you.
 - Tames and summons take no harm from grass and buildings set alight by cinders, so a resting herd in the Ashlands no longer scatters when the grass catches.
 - The name and health bar above a Nemesis miniboss or a bounty target shows exactly while its boss bar shows at the top of the screen, out to 100 m and behind hills. A bounty target keeps its boss bar within 100 m once it has appeared.
-- A bounty's target appears seconds sooner when you ride fast into a crowded place such as the Ashlands.
 - The Sacrifice list keeps its stars after an input device or language change while the enchanting table is open.
 
 # 1.35.0
