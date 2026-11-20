@@ -59,7 +59,7 @@ namespace EpicLootProgressionFix
         private static float TargetGap(CapsuleCollider capsule, CapsuleCollider body) => BodyLengths * BodyLength(body, capsule.transform);
 
         // Walking slows by the creature's acceleration every physics step before it moves, so it slides this far after stopping.
-        private static float Slide(Character creature, float speed) =>
+        internal static float Slide(Character creature, float speed) =>
             creature.m_acceleration > 0f ? Mathf.Max(0f, speed * (speed / creature.m_acceleration - 1f) * Time.fixedDeltaTime / 2f) : 0f;
 
         private static bool Prefix(BaseAI __instance, GameObject go, float dt)
