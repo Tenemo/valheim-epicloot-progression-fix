@@ -1,11 +1,10 @@
 using EpicLoot.Adventure;
 using HarmonyLib;
-using UnityEngine;
 
 namespace EpicLootProgressionFix
 {
-    // Valheim gives each creature either a boss HUD or an overhead HUD. Keep EpicLoot's boss HUD and add a small
-    // overhead name and health bar for bounty targets, without changing their boss flag or combat calculations.
+    // EpicLoot gives a bounty's target the boss bar at the top of the screen. It keeps that bar within the boss range once
+    // shown, as a Nemesis miniboss does, and also shows its name and health above it.
     [HarmonyPatch(typeof(BountyTarget), nameof(BountyTarget.Reinitialize))]
     internal static class BountyHealthBars
     {
@@ -13,8 +12,9 @@ namespace EpicLootProgressionFix
         {
             if (ZNet.instance != null && ZNet.instance.IsDedicated()) return;
             var character = __instance.GetComponent<Character>();
-            if (character.m_boss && !__instance.GetComponent<BossOverheadHealthBar>())
-                __instance.gameObject.AddComponent<BossOverheadHealthBar>();
+            if (!character.m_boss) return;
+            character.m_dontHideBossHud = true;
+            BossOverheadHealthBars.Add(character);
         }
     }
 }
