@@ -30,20 +30,33 @@ namespace EpicLootProgressionFix
 
         private sealed class State
         {
-            internal CapsuleCollider Capsule;
+            internal CapsuleCollider Capsule, Body;
             internal bool Resting;
             internal float RunSpeed;
         }
 
+        // StarLevelSystem slims a tamed lox's and asksvin's capsule so riders reach the saddle, but the animal's head and body
+        // still fill their full size, so a following lox came to rest on top of its player. Distances use the capsule of the
+        // creature's prefab, which nothing slims, scaled to the creature.
+        internal static CapsuleCollider GameBody(CapsuleCollider capsule)
+        {
+            var view = capsule.GetComponent<ZNetView>();
+            var prefab = view && view.IsValid() && ZNetScene.instance ? ZNetScene.instance.GetPrefab(view.GetZDO().GetPrefab()) : null;
+            var body = prefab ? prefab.GetComponent<CapsuleCollider>() : null;
+            return body ? body : capsule;
+        }
+
         // The collision capsule along the creature's facing: its length when it lies along the body, its width when upright.
-        internal static float BodyLength(CapsuleCollider capsule) =>
-            (capsule.direction == 2 ? Mathf.Max(capsule.height, capsule.radius * 2f) : capsule.radius * 2f) * capsule.transform.lossyScale.z;
+        private static float BodyLength(CapsuleCollider body, Transform creature) =>
+            (body.direction == 2 ? Mathf.Max(body.height, body.radius * 2f) : body.radius * 2f) * creature.lossyScale.z;
 
         // The ground distance between the creature's body and the player's.
-        internal static float Gap(CapsuleCollider capsule, Player player) =>
-            Utils.DistanceXZ(capsule.transform.TransformPoint(capsule.center), player.transform.position) - BodyLength(capsule) / 2f - player.GetRadius();
+        internal static float Gap(CapsuleCollider capsule, Player player) => Gap(capsule, GameBody(capsule), player);
+        private static float Gap(CapsuleCollider capsule, CapsuleCollider body, Player player) =>
+            Utils.DistanceXZ(capsule.transform.TransformPoint(capsule.center), player.transform.position) - BodyLength(body, capsule.transform) / 2f - player.GetRadius();
 
-        internal static float TargetGap(CapsuleCollider capsule) => BodyLengths * BodyLength(capsule);
+        internal static float TargetGap(CapsuleCollider capsule) => TargetGap(capsule, GameBody(capsule));
+        private static float TargetGap(CapsuleCollider capsule, CapsuleCollider body) => BodyLengths * BodyLength(body, capsule.transform);
 
         // Walking slows by the creature's acceleration every physics step before it moves, so it slides this far after stopping.
         private static float Slide(Character creature, float speed) =>
@@ -54,9 +67,13 @@ namespace EpicLootProgressionFix
             var creature = GameFields.AiCharacter(__instance);
             var player = go ? go.GetComponent<Player>() : null;
             if (!player || !Companions.IsCompanion(creature)) return true;
-            if (!States.TryGetValue(__instance, out var state)) States.Add(__instance, state = new State { Capsule = creature.GetComponent<CapsuleCollider>() });
+            if (!States.TryGetValue(__instance, out var state))
+            {
+                var capsule = creature.GetComponent<CapsuleCollider>();
+                States.Add(__instance, state = new State { Capsule = capsule, Body = capsule ? GameBody(capsule) : null });
+            }
             if (!state.Capsule) return true;
-            float gap = Gap(state.Capsule, player), target = TargetGap(state.Capsule);
+            float gap = Gap(state.Capsule, state.Body, player), target = TargetGap(state.Capsule, state.Body);
             var velocity = GameFields.CurrentVelocity(creature); velocity.y = 0f;
             float speed = velocity.magnitude;
             if (creature.IsRunning()) state.RunSpeed = speed;
