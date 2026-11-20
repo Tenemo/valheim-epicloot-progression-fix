@@ -226,7 +226,7 @@ namespace EpicLootProgressionFix
             SpawnProtectionToggleKey = Config.Bind("Spawn protection view", "Toggle key", KeyCode.G,
                 "Pressed with Ctrl while holding the hammer, toggles the spawn protection view.");
             HexenFormKey = Config.Bind("Abilities", "Jotun Witch form hotkey", KeyCode.T,
-                "Turns you into a Jotun Witch and back while Gullveig's set bonus is active and you hold its staff. Meanwhile the key does only this, so T doesn't open the emote wheel. None turns the keyboard key off.");
+                "Turns you into a Jotun Witch and back while the Gullveig's Rebirth set bonus is active and you hold its staff. Meanwhile the key does only this, so T doesn't open the emote wheel. None turns the keyboard key off.");
             HexenFormGamepadButton = Config.Bind("Abilities", "Jotun Witch form gamepad button", KeyCode.JoystickButton9,
                 "Gamepad button (JoystickButton0-19) that turns the Jotun Witch form on and off, pressed with Epic Loot's ability modifier. None turns it off.");
             SpawnProtectionGroundColor = Config.Bind("Spawn protection view", "Ground color", (Color)new Color32(191, 51, 5, 82),
