@@ -149,7 +149,7 @@ namespace EpicLootProgressionFix
     public sealed partial class Plugin : BaseUnityPlugin
     {
         public const string Id = "valheim.epiclootprogressionfix";
-        public const string Version = "1.35.0";
+        public const string Version = "1.36.0";
         internal static bool StartupBatchCompleted { get; private set; }
         internal static bool Ready { get; private set; }
         private string startupError;
