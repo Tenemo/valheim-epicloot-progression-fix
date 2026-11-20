@@ -52,10 +52,11 @@ namespace EpicLootProgressionFix
         // What the spirit left behind by travel had: its health share and the end of its time, for the next spirit.
         private static float carriedHealth = -1f, carriedUntil;
         // StarLevelSystem sets up the next spirit's health some seconds after it appears, at times only after a distant teleport has
-        // settled. Its share stays the carried one through that: it doesn't rise in the first 5 s, and a new maximum keeps the share
-        // it had for 20 s.
+        // settled, sometimes restoring full health. Its share stays the carried one through that: it doesn't rise in the first 5 s,
+        // and for 20 s a new maximum or a sudden rise keeps the share it had.
         private static Character capped;
         private static float cappedShare, cappedMaximum, capUntil, watchUntil;
+        private const float SetupRise = .05f;
 
         internal static bool IsOff(Player player) => player.m_customData.ContainsKey(OffKey);
         private static KeyCode Bound(FieldInfo setting) => (setting.GetValue(null) as ConfigEntry<KeyCode>)?.Value ?? KeyCode.None;
@@ -134,7 +135,8 @@ namespace EpicLootProgressionFix
                 if (spirit == capped && Time.time < watchUntil)
                 {
                     float maximum = spirit.GetMaxHealth(), share = spirit.GetHealth() / Mathf.Max(1f, maximum);
-                    if (maximum != cappedMaximum || Time.time < capUntil && share > cappedShare) spirit.SetHealth(maximum * cappedShare);
+                    // After the first 5 s a summon's regeneration adds well under 1% a tick, so a larger rise is a setup restoring full health.
+                    if (maximum != cappedMaximum || share > cappedShare + (Time.time < capUntil ? 0f : SetupRise)) spirit.SetHealth(maximum * cappedShare);
                     else cappedShare = share;
                     cappedMaximum = maximum;
                 }
