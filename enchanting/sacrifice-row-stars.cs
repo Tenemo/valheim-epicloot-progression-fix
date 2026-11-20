@@ -33,10 +33,17 @@ namespace EpicLootProgressionFix
             float width = name.rectTransform.rect.width - name.margin.x - name.margin.z;
             float start = width - name.GetPreferredValues(stars).x;
             // A non-breaking space, so a name that wraps takes its stars along with its last word.
-            if (width <= 0f || name.GetPreferredValues(text).x + Gap > start) { name.text = text + " " + stars; return; }
-            // Rounded down, so the stars never reach past the edge and wrap.
-            float percent = Mathf.Floor(start / width * 1000f) / 10f;
-            name.text = text + "<pos=" + percent.ToString("0.#", CultureInfo.InvariantCulture) + "%>" + stars;
+            if (width <= 0f || name.GetPreferredValues(text).x + Gap > start) name.text = text + " " + stars;
+            else
+            {
+                // Rounded down, so the stars never reach past the edge and wrap.
+                float percent = Mathf.Floor(start / width * 1000f) / 10f;
+                name.text = text + "<pos=" + percent.ToString("0.#", CultureInfo.InvariantCulture) + "%>" + stars;
+            }
+            // SetItem localizes the row before this, so the game remembers the name without stars and writes it back when
+            // it refreshes the interface's labels, as an input device change or a build menu update does. The name is
+            // already localized, so it leaves that cache.
+            Localization.instance.RemoveTextFromCache(name);
         }
     }
 }
