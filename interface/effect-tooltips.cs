@@ -50,6 +50,7 @@ namespace EpicLootProgressionFix
             Extend(MagicEffectType.StrikeCausesLightning, value => new object[] {
                 value * EffectConfig.Get(MagicEffectType.StrikeCausesLightning, "DamagePerValue", 6f), EffectConfig.Get(MagicEffectType.StrikeCausesLightning, "Radius", 1f) });
             Extend(MagicEffectType.IcyRetribution, value => new object[] { EffectConfig.Get(MagicEffectType.IcyRetribution, "Radius", 8f), IcyRetributionCooldown(value) });
+            Extend(MagicEffectType.SpiritAnimal, value => new object[] { SpiritAnimalToggle.KeyText() });
             Extend(MagicEffectType.SummonBatWhenActivatingAdrenaline, value =>
             {
                 // As SummonBatWhenActivatingAdrenaline.SummonBats counts them.
