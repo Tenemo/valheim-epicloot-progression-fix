@@ -3,6 +3,7 @@
 - Fylgja's Bond's key, pressed while not looking at a creature, turns its spirit off or on; a Spirit off icon shows while it is off. A spirit sent away, left behind, replaced by binding another animal, or whose set piece comes off returns only after the same 30 s as one that falls. Through a portal or dungeon door the next one comes at once with the health and time the last one had.
 - When StarLevelSystem hatches eggs by their quality, as this pack has it, an egg hatches at the level of the parent that laid it, also from the larger stacks starred parents lay.
 - A following lox, including a Fylgja's Bond lox spirit, waits two of its body lengths away instead of standing on top of you.
+- Tames keep out of lit campfires, hearths, bonfires and braziers: they walk around one in their way, stop at its edge when what they head for is inside and step out if pushed in, without fleeing or dropping their orders.
 - Tames and summons take no harm from grass and buildings set alight by cinders, so a resting herd in the Ashlands no longer scatters when the grass catches.
 - The name and health bar above a Nemesis miniboss or a bounty target shows exactly while its boss bar shows at the top of the screen, out to 100 m and behind hills. A bounty target keeps its boss bar within 100 m once it has appeared.
 - The Sacrifice list keeps its stars after an input device or language change while the enchanting table is open.
