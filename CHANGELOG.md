@@ -1,3 +1,7 @@
+# 1.36.1
+
+- A Fylgja's Bond spirit left behind by a portal or dungeon door is followed at once by a fresh spirit at full health with its whole time, as before 1.36.0.
+
 # 1.36.0
 
 - Fylgja's Bond's key, pressed while not looking at a creature, turns its spirit off or on; a Spirit off icon shows while it is off. A spirit sent away, left behind, replaced by binding another animal, or whose set piece comes off returns only after the same 30 s as one that falls. Through a portal or dungeon door the next one comes at once with the health and time the last one had.
