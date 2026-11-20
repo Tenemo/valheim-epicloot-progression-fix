@@ -273,6 +273,67 @@ namespace EpicLootProgressionFix
             private static Exception Finalizer(Exception __exception) { adventureCentre = null; return __exception; }
         }
 
+        // A player's game creates at most 10 objects a pass, 30 passes a second: terrain first, then solid objects, then the
+        // rest, each nearest first. Riding fast into a dense place leaves thousands waiting, and a bounty's or treasure's
+        // spawner came after all of them, so an Ashlands target appeared 11 s after its rider stopped beside the circle. A
+        // spawner, and while its search waits everything within its reach, now comes right after terrain, in the game's own
+        // order. Solid objects a little beyond the reach join them, so nothing created early stands on a floor not yet there.
+        [HarmonyPatch(typeof(ZNetScene), "CreateObjectsSorted")]
+        private static class AdventureFirst
+        {
+            private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+                Transpilers.CallInstead(instructions, instruction => instruction.Calls(AccessTools.Method(typeof(List<ZDO>), nameof(List<ZDO>.Sort), new[] { typeof(Comparison<ZDO>) })),
+                    AccessTools.Method(typeof(WorldLoading), nameof(SortForCreation)), 1, "Valheim's instance creation order changed.");
+        }
+
+        [HarmonyPatch]
+        private static class AdventureWaiting
+        {
+            private static MethodBase TargetMethod() =>
+                AccessTools.Method(typeof(EpicLoot.EpicLoot).Assembly.GetType("EpicLoot.Adventure.AdventureSpawnController", true), "IsAreaSettled");
+
+            private static void Postfix(bool __result, Vector3 point)
+            {
+                if (__result) return;
+                WaitingSearches.RemoveAll(search => Utils.DistanceXZ(search.Centre, point) < 1f);
+                // EpicLoot asks again every quarter of a second while it waits.
+                WaitingSearches.Add((point, Time.time + 1f));
+            }
+        }
+
+        private static readonly int SpawnerPrefab = "EL_SpawnController".GetStableHashCode();
+        private const float FloorMargin = 8f;
+        private static readonly List<(Vector3 Centre, float Until)> WaitingSearches = new List<(Vector3, float)>();
+        private static readonly List<ZDO> FirstObjects = new List<ZDO>(), LaterObjects = new List<ZDO>();
+
+        private static void SortForCreation(List<ZDO> objects, Comparison<ZDO> comparison)
+        {
+            objects.Sort(comparison);
+            if (ZNet.instance == null || ZNet.instance.IsDedicated()) return;
+            float now = Time.time;
+            WaitingSearches.RemoveAll(search => search.Until < now);
+            float reach = AdventureSearchReach;
+            bool First(ZDO data)
+            {
+                if (data.GetPrefab() == SpawnerPrefab) return true;
+                float within = reach + (data.Type == ZDO.ObjectType.Solid ? FloorMargin : 0f);
+                foreach (var search in WaitingSearches)
+                    if (Utils.DistanceXZ(data.GetPosition(), search.Centre) <= within) return true;
+                return false;
+            }
+            int start = 0;
+            while (start < objects.Count && objects[start].Type == ZDO.ObjectType.Terrain) start++;
+            try
+            {
+                for (int index = start; index < objects.Count; index++) (First(objects[index]) ? FirstObjects : LaterObjects).Add(objects[index]);
+                if (FirstObjects.Count == 0) return;
+                objects.RemoveRange(start, objects.Count - start);
+                objects.AddRange(FirstObjects);
+                objects.AddRange(LaterObjects);
+            }
+            finally { FirstObjects.Clear(); LaterObjects.Clear(); }
+        }
+
         private static readonly AccessTools.FieldRef<object, Vector3> SearchCentre = AccessTools.FieldRefAccess<Vector3>(
             typeof(EpicLoot.EpicLoot).Assembly.GetType("EpicLoot.Adventure.AdventureSpawnController", true), "searchCentre");
         private static Vector3? adventureCentre;
