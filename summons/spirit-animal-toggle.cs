@@ -12,8 +12,8 @@ namespace EpicLootProgressionFix
     // the crosshair, turns its summoning off or on, a choice saved on the character. A spirit that leaves before its time is up,
     // because it is sent away, the set comes off, it is left behind or another animal is bound, comes back only after the delay
     // a fallen spirit waits, so none of those brings a fresh spirit at full health sooner than letting it fall. A spirit that
-    // lasts its whole time still comes again at once, as EpicLoot has it. A spirit left behind by a portal or a dungeon doorway,
-    // which it can't pass, is followed at once by the next one, which keeps its health and remaining time.
+    // lasts its whole time, or that is left behind by a portal or a dungeon doorway, which it can't pass, is followed at once
+    // by a fresh one, as EpicLoot has it.
     internal static class SpiritAnimalToggle
     {
         internal const string OffKey = Plugin.Id + ".spirit-animal-off";
@@ -44,19 +44,10 @@ namespace EpicLootProgressionFix
         private static readonly Type Settings = AccessTools.TypeByName("EpicLoot.Config.ELConfig");
         private static readonly FieldInfo KeySetting = AccessTools.Field(Settings, "SpiritAnimalKey");
         private static readonly FieldInfo ButtonSetting = AccessTools.Field(Settings, "SpiritAnimalGamepadButton");
-        private static readonly int ExpireKey = (int)AccessTools.Field(Spirits, "ExpireHash").GetValue(null);
         // Zero while the player teleports, then counting up; a doorway's teleport can end in the frame it moves the player.
         private static readonly AccessTools.FieldRef<Player, float> SinceTeleport = AccessTools.FieldRefAccess<Player, float>("m_teleportCooldown");
         private static StatusEffect offIndicator;
         private static float nextIndicatorCheck;
-        // What the spirit left behind by travel had: its health share and the end of its time, for the next spirit.
-        private static float carriedHealth = -1f, carriedUntil;
-        // StarLevelSystem sets up the next spirit's health some seconds after it appears, at times only after a distant teleport has
-        // settled, sometimes restoring full health. Its share stays the carried one through that: it doesn't rise in the first 5 s,
-        // a sudden rise in the first 20 s keeps the share it had, and so does a new maximum while it lasts.
-        private static Character capped;
-        private static float cappedShare, cappedMaximum, capUntil, watchUntil;
-        private const float SetupRise = .05f;
 
         internal static bool IsOff(Player player) => player.m_customData.ContainsKey(OffKey);
         private static KeyCode Bound(FieldInfo setting) => (setting.GetValue(null) as ConfigEntry<KeyCode>)?.Value ?? KeyCode.None;
@@ -132,43 +123,10 @@ namespace EpicLootProgressionFix
                 var spirit = Spirit();
                 var view = spirit ? GameFields.CharacterView(spirit) : null;
                 if (!view || !view.IsValid() || player.IsDead() || Time.time >= ExpireAt()) return;
-                if (spirit == capped)
-                {
-                    float maximum = spirit.GetMaxHealth(), share = spirit.GetHealth() / Mathf.Max(1f, maximum);
-                    // A new maximum is a setup, which can come late and restore full health, so it keeps the share for the spirit's
-                    // whole time. After the first 5 s a summon's regeneration adds well under 1% a tick, so a larger rise within 20 s
-                    // is a setup restoring full health too.
-                    bool rose = Time.time < watchUntil && share > cappedShare + (Time.time < capUntil ? 0f : SetupRise);
-                    if (maximum != cappedMaximum || rose) spirit.SetHealth(maximum * cappedShare);
-                    else cappedShare = share;
-                    cappedMaximum = maximum;
-                }
                 if (IsOff(player) || !player.HasActiveMagicEffect(MagicEffectType.SpiritAnimal, out _)) Fall(spirit);
-                else if (Vector3.Distance(player.transform.position, spirit.transform.position) > LeashDistance())
-                {
-                    if (!player.IsTeleporting() && SinceTeleport(player) >= 1f) { Fall(spirit); return; }
-                    // EpicLoot fades it in this update and lets the next one come at once.
-                    carriedHealth = spirit.GetHealth() / Mathf.Max(1f, spirit.GetMaxHealth());
-                    carriedUntil = ExpireAt();
-                }
-            }
-        }
-
-        [HarmonyPatch(typeof(SpiritAnimal), "Summon")]
-        private static class Arriving
-        {
-            private static void Postfix()
-            {
-                var spirit = Spirit();
-                float share = carriedHealth, until = carriedUntil;
-                carriedHealth = -1f;
-                if (share < 0f || !spirit || Time.time >= until) return;
-                capped = spirit; cappedShare = share; cappedMaximum = spirit.GetMaxHealth();
-                capUntil = Time.time + 5f; watchUntil = Time.time + 20f;
-                spirit.SetHealth(cappedMaximum * share);
-                ExpireAt() = until;
-                var view = GameFields.CharacterView(spirit);
-                if (view && view.IsValid()) view.GetZDO().Set(ExpireKey, ZNet.instance.GetTime().Ticks + (long)((until - Time.time) * 10000000f));
+                // Left behind while its player teleports: EpicLoot fades it in this update and summons a fresh one at once.
+                else if (Vector3.Distance(player.transform.position, spirit.transform.position) > LeashDistance()
+                    && !player.IsTeleporting() && SinceTeleport(player) >= 1f) Fall(spirit);
             }
         }
 
@@ -189,7 +147,6 @@ namespace EpicLootProgressionFix
             {
                 player.m_customData.TryGetValue(RecordKey, out string record);
                 if (record == __state.record) return;
-                carriedHealth = -1f;
                 if (__state.returnAt <= Time.time) return;
                 State.SetValue(null, Returning);
                 ReturnAt() = __state.returnAt;
