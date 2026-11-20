@@ -53,7 +53,7 @@ namespace EpicLootProgressionFix
         private static float carriedHealth = -1f, carriedUntil;
         // StarLevelSystem sets up the next spirit's health some seconds after it appears, at times only after a distant teleport has
         // settled, sometimes restoring full health. Its share stays the carried one through that: it doesn't rise in the first 5 s,
-        // and for 20 s a new maximum or a sudden rise keeps the share it had.
+        // a sudden rise in the first 20 s keeps the share it had, and so does a new maximum while it lasts.
         private static Character capped;
         private static float cappedShare, cappedMaximum, capUntil, watchUntil;
         private const float SetupRise = .05f;
@@ -132,11 +132,14 @@ namespace EpicLootProgressionFix
                 var spirit = Spirit();
                 var view = spirit ? GameFields.CharacterView(spirit) : null;
                 if (!view || !view.IsValid() || player.IsDead() || Time.time >= ExpireAt()) return;
-                if (spirit == capped && Time.time < watchUntil)
+                if (spirit == capped)
                 {
                     float maximum = spirit.GetMaxHealth(), share = spirit.GetHealth() / Mathf.Max(1f, maximum);
-                    // After the first 5 s a summon's regeneration adds well under 1% a tick, so a larger rise is a setup restoring full health.
-                    if (maximum != cappedMaximum || share > cappedShare + (Time.time < capUntil ? 0f : SetupRise)) spirit.SetHealth(maximum * cappedShare);
+                    // A new maximum is a setup, which can come late and restore full health, so it keeps the share for the spirit's
+                    // whole time. After the first 5 s a summon's regeneration adds well under 1% a tick, so a larger rise within 20 s
+                    // is a setup restoring full health too.
+                    bool rose = Time.time < watchUntil && share > cappedShare + (Time.time < capUntil ? 0f : SetupRise);
+                    if (maximum != cappedMaximum || rose) spirit.SetHealth(maximum * cappedShare);
                     else cappedShare = share;
                     cappedMaximum = maximum;
                 }
